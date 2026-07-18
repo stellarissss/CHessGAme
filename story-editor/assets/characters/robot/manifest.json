@@ -1,0 +1,100 @@
+{
+  "character": "robot",
+  "description": "黑客 AI 机器人（含中国象棋元素）像素画精灵图 18 张",
+  "size": "128x128",
+  "style": "pixel art, clean, dark background",
+  "model": "doubao-seedream-5-0-260128",
+  "count": 18,
+  "images": [
+    {
+      "filename": "robot_front_idle.png",
+      "category": "角度",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, front view, idle floating pose, calm glowing eyes, neutral, full body"
+    },
+    {
+      "filename": "robot_3quarter_idle.png",
+      "category": "角度",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, three-quarter front view, idle floating, slight turn, full body"
+    },
+    {
+      "filename": "robot_side.png",
+      "category": "角度",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, side profile view, floating, full body"
+    },
+    {
+      "filename": "robot_back.png",
+      "category": "角度",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, back view, floating, glowing back vents, full body"
+    },
+    {
+      "filename": "robot_thinking.png",
+      "category": "姿态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, thinking pose, eye-screen showing parsing gears, hand-like appendage on chin, rules being analyzed"
+    },
+    {
+      "filename": "robot_scheming.png",
+      "category": "姿态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, scheming evil grin on eye-screen, aggressive personality, glowing red accents, devious"
+    },
+    {
+      "filename": "robot_casting.png",
+      "category": "动画",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, casting spell, firing a beam of JSON patch code stream toward target, hexagon magic circle with chess grid, mid-action"
+    },
+    {
+      "filename": "robot_surprised.png",
+      "category": "表情",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, surprised, wide round eyes, exclamation, slight recoil, player did something unexpected"
+    },
+    {
+      "filename": "robot_angry.png",
+      "category": "表情",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, angry, red glowing angry eyes, sparks, aggressive stance"
+    },
+    {
+      "filename": "robot_laughing.png",
+      "category": "表情",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, laughing mocking, ^^ eyes, mischievous grin, E-class joke response vibe"
+    },
+    {
+      "filename": "robot_float_up.png",
+      "category": "动画帧",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, floating animation frame 1, body raised higher, energy ring expanded, idle bob up"
+    },
+    {
+      "filename": "robot_float_down.png",
+      "category": "动画帧",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, floating animation frame 2, body lowered, energy ring contracted, idle bob down"
+    },
+    {
+      "filename": "robot_attack.png",
+      "category": "姿态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, aggressive attack pose, lunging forward, chess piece glyph projectiles, red energy burst"
+    },
+    {
+      "filename": "robot_defend.png",
+      "category": "姿态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, defensive pose, glowing cyan hexagonal shield with 九宫 grid pattern, guarding"
+    },
+    {
+      "filename": "robot_glitch.png",
+      "category": "动画",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, glitching corrupted state, random personality, fragmented pixels, distorted body, error artifacts"
+    },
+    {
+      "filename": "robot_victory.png",
+      "category": "状态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, victory celebration, arms raised, confetti of chess piece glyphs, triumphant glow"
+    },
+    {
+      "filename": "robot_defeat.png",
+      "category": "状态",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, defeated crashed, sparking, cracked screen eye, slumped low, smoke"
+    },
+    {
+      "filename": "robot_portrait.png",
+      "category": "头像",
+      "prompt": "Pixel art, 128x128 resolution, clean crisp pixel art game sprite, a floating hacker AI robot character for a Chinese chess (Xiangqi) game, spherical dark metallic body with a glowing cyan digital eye-screen, body decorated with red and black Chinese chess piece glyphs (車馬象士將炮兵), holographic 楚河汉界 river ring hovering beneath, trailing green matrix code streams and JSON patch snippets, anti-gravity levitation no legs, cyberpunk tech aesthetic, centered, simple dark solid background for sprite cutout, high quality pixel art sprite sheet frame, bust portrait close-up, head and shoulders, front view, for RPG dialogue box, clean"
+    }
+  ]
+}

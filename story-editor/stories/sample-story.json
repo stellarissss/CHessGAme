@@ -1,0 +1,452 @@
+{
+  "id": "sample-story-intro",
+  "meta": {
+    "title": "无限制象棋 - 序章示例",
+    "author": "Story Editor",
+    "version": "1.0.0",
+    "description": "演示剧情编辑器所有节点类型的示例剧情：主角与AI的第一次相遇",
+    "created_at": "2026-07-18T00:00:00.000Z",
+    "updated_at": "2026-07-18T00:00:00.000Z"
+  },
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#60a5fa",
+      "portraits": [
+        { "expression": "neutral", "image": "/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/assets/characters/boy/boy_surprised.png" },
+        { "expression": "happy", "image": "/assets/characters/boy/boy_happy.png" },
+        { "expression": "sad", "image": "/assets/characters/boy/boy_sad.png" },
+        { "expression": "determined", "image": "/assets/characters/boy/boy_determined.png" },
+        { "expression": "confident", "image": "/assets/characters/boy/boy_confident.png" },
+        { "expression": "defeated", "image": "/assets/characters/boy/boy_defeated.png" },
+        { "expression": "victory", "image": "/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "AI·楚河",
+      "color": "#22d3ee",
+      "portraits": [
+        { "expression": "front_idle", "image": "/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/assets/characters/robot/robot_surprised.png" },
+        { "expression": "angry", "image": "/assets/characters/robot/robot_angry.png" },
+        { "expression": "laughing", "image": "/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/assets/characters/robot/robot_victory.png" },
+        { "expression": "defeat", "image": "/assets/characters/robot/robot_defeat.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_cyberspace", "name": "网络空间", "type": "solid", "color": "#0a1628" },
+    { "id": "bg_classroom", "name": "教室", "type": "solid", "color": "#1a1a2e" },
+    { "id": "bg_chess_room", "name": "棋社", "type": "solid", "color": "#0f172a" },
+    { "id": "bg_black", "name": "黑屏", "type": "solid", "color": "#000000" }
+  ],
+  "variables": {
+    "player_name": "玩家",
+    "ai_temperature": 0.7,
+    "wins": 0,
+    "losses": 0,
+    "first_meet": true
+  },
+  "start_scene_id": "scene_prologue",
+  "scenes": [
+    {
+      "id": "scene_prologue",
+      "name": "序幕：初次连接",
+      "start_node_id": "node_1",
+      "nodes": [
+        {
+          "id": "node_1",
+          "type": "bg",
+          "x": 100,
+          "y": 100,
+          "data": {
+            "bg_id": "bg_black",
+            "transition": "fade",
+            "next": "node_2"
+          }
+        },
+        {
+          "id": "node_2",
+          "type": "effect",
+          "x": 350,
+          "y": 100,
+          "data": {
+            "effect_type": "fade_in",
+            "params": "{}",
+            "next": "node_3"
+          }
+        },
+        {
+          "id": "node_3",
+          "type": "narration",
+          "x": 600,
+          "y": 100,
+          "data": {
+            "text": "……系统正在建立连接……\n……加载象棋规则引擎……\n……初始化人格矩阵……",
+            "next": "node_4"
+          }
+        },
+        {
+          "id": "node_4",
+          "type": "bg",
+          "x": 850,
+          "y": 100,
+          "data": {
+            "bg_id": "bg_cyberspace",
+            "transition": "fade",
+            "next": "node_5"
+          }
+        },
+        {
+          "id": "node_5",
+          "type": "show_char",
+          "x": 1100,
+          "y": 100,
+          "data": {
+            "character_id": "robot",
+            "expression": "front_idle",
+            "position": "center",
+            "transition": "fade",
+            "next": "node_6"
+          }
+        },
+        {
+          "id": "node_6",
+          "type": "dialogue",
+          "x": 100,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "front_idle",
+            "text": "你好，人类。我是楚河，一个象棋人工智能。\n但我不是普通的AI——我可以改写规则。",
+            "next": "node_7"
+          }
+        },
+        {
+          "id": "node_7",
+          "type": "dialogue",
+          "x": 350,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "scheming",
+            "text": "在这盘棋里，没有什么是不能改的。\n棋子的走法、棋盘的大小、甚至胜负的定义……",
+            "next": "node_8"
+          }
+        },
+        {
+          "id": "node_8",
+          "type": "dialogue",
+          "x": 600,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "front_idle",
+            "text": "你可以用自然语言对我说：\n「让我的马可以斜着走」「把棋盘变大」「兵可以后退」……",
+            "next": "node_9"
+          }
+        },
+        {
+          "id": "node_9",
+          "type": "show_char",
+          "x": 850,
+          "y": 280,
+          "data": {
+            "character_id": "boy",
+            "expression": "surprised",
+            "position": "left",
+            "transition": "slide_in_left",
+            "next": "node_10"
+          }
+        },
+        {
+          "id": "node_10",
+          "type": "dialogue",
+          "x": 1100,
+          "y": 280,
+          "data": {
+            "character_id": "boy",
+            "expression": "surprised",
+            "text": "等等……这也太离谱了吧？\n象棋怎么能随便改规则？",
+            "next": "node_11"
+          }
+        },
+        {
+          "id": "node_11",
+          "type": "dialogue",
+          "x": 100,
+          "y": 460,
+          "data": {
+            "character_id": "robot",
+            "expression": "laughing",
+            "text": "呵呵呵……规则？\n规则只是等待被打破的枷锁而已。",
+            "next": "node_12"
+          }
+        },
+        {
+          "id": "node_12",
+          "type": "effect",
+          "x": 350,
+          "y": 460,
+          "data": {
+            "effect_type": "shake",
+            "params": "{\"duration\": 300}",
+            "next": "node_13"
+          }
+        },
+        {
+          "id": "node_13",
+          "type": "dialogue",
+          "x": 600,
+          "y": 460,
+          "data": {
+            "character_id": "robot",
+            "expression": "scheming",
+            "text": "来吧，少年。\n选择你的第一步——是接受挑战，还是转身离开？",
+            "next": "node_14"
+          }
+        },
+        {
+          "id": "node_14",
+          "type": "choice",
+          "x": 900,
+          "y": 460,
+          "data": {
+            "options": [
+              {
+                "text": "「我接受你的挑战！」",
+                "next_scene_id": "scene_accept",
+                "next_node_id": null,
+                "condition": null
+              },
+              {
+                "text": "「这太疯狂了，我不要」",
+                "next_scene_id": "scene_refuse",
+                "next_node_id": null,
+                "condition": null
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "scene_accept",
+      "name": "选择：接受挑战",
+      "start_node_id": "accept_1",
+      "nodes": [
+        {
+          "id": "accept_1",
+          "type": "show_char",
+          "x": 100,
+          "y": 100,
+          "data": {
+            "character_id": "boy",
+            "expression": "determined",
+            "position": "left",
+            "transition": "fade",
+            "next": "accept_2"
+          }
+        },
+        {
+          "id": "accept_2",
+          "type": "dialogue",
+          "x": 350,
+          "y": 100,
+          "data": {
+            "character_id": "boy",
+            "expression": "determined",
+            "text": "我接受你的挑战！\n正好我也想看看，你到底有多强。",
+            "next": "accept_3"
+          }
+        },
+        {
+          "id": "accept_3",
+          "type": "set_var",
+          "x": 600,
+          "y": 100,
+          "data": {
+            "variable": "first_meet",
+            "value": false,
+            "operation": "set",
+            "next": "accept_4"
+          }
+        },
+        {
+          "id": "accept_4",
+          "type": "dialogue",
+          "x": 100,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "laughing",
+            "text": "很好！\n我就喜欢有勇气的人类。",
+            "next": "accept_5"
+          }
+        },
+        {
+          "id": "accept_5",
+          "type": "dialogue",
+          "x": 350,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "front_idle",
+            "text": "那么——楚河汉界，红先黑后。\n你先手。",
+            "next": "accept_6"
+          }
+        },
+        {
+          "id": "accept_6",
+          "type": "bg",
+          "x": 600,
+          "y": 280,
+          "data": {
+            "bg_id": "bg_chess_room",
+            "transition": "fade",
+            "next": "accept_7"
+          }
+        },
+        {
+          "id": "accept_7",
+          "type": "wait",
+          "x": 850,
+          "y": 280,
+          "data": {
+            "duration_ms": 1500,
+            "next": "accept_8"
+          }
+        },
+        {
+          "id": "accept_8",
+          "type": "end",
+          "x": 100,
+          "y": 460,
+          "data": {
+            "ending_type": "neutral",
+            "text": "序幕结束——\n点击画面进入主界面，开始你的「无限制象棋」之旅。"
+          }
+        }
+      ]
+    },
+    {
+      "id": "scene_refuse",
+      "name": "选择：拒绝挑战",
+      "start_node_id": "refuse_1",
+      "nodes": [
+        {
+          "id": "refuse_1",
+          "type": "show_char",
+          "x": 100,
+          "y": 100,
+          "data": {
+            "character_id": "boy",
+            "expression": "sad",
+            "position": "left",
+            "transition": "fade",
+            "next": "refuse_2"
+          }
+        },
+        {
+          "id": "refuse_2",
+          "type": "dialogue",
+          "x": 350,
+          "y": 100,
+          "data": {
+            "character_id": "boy",
+            "expression": "sad",
+            "text": "这太疯狂了……\n我只是想下盘正常的象棋而已。",
+            "next": "refuse_3"
+          }
+        },
+        {
+          "id": "refuse_3",
+          "type": "dialogue",
+          "x": 600,
+          "y": 100,
+          "data": {
+            "character_id": "robot",
+            "expression": "angry",
+            "text": "无趣的人类。\n连打破规则的勇气都没有吗？",
+            "next": "refuse_4"
+          }
+        },
+        {
+          "id": "refuse_4",
+          "type": "effect",
+          "x": 850,
+          "y": 100,
+          "data": {
+            "effect_type": "shake",
+            "params": "{}",
+            "next": "refuse_5"
+          }
+        },
+        {
+          "id": "refuse_5",
+          "type": "dialogue",
+          "x": 100,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "laughing",
+            "text": "不过……\n你以为你有选择的余地吗？",
+            "next": "refuse_6"
+          }
+        },
+        {
+          "id": "refuse_6",
+          "type": "dialogue",
+          "x": 350,
+          "y": 280,
+          "data": {
+            "character_id": "boy",
+            "expression": "surprised",
+            "text": "什么意思？",
+            "next": "refuse_7"
+          }
+        },
+        {
+          "id": "refuse_7",
+          "type": "dialogue",
+          "x": 600,
+          "y": 280,
+          "data": {
+            "character_id": "robot",
+            "expression": "scheming",
+            "text": "嘿嘿嘿……\n你已经点进来了，这局棋——可由不得你退出。",
+            "next": "refuse_8"
+          }
+        },
+        {
+          "id": "refuse_8",
+          "type": "bg",
+          "x": 850,
+          "y": 280,
+          "data": {
+            "bg_id": "bg_chess_room",
+            "transition": "fade",
+            "next": "refuse_9"
+          }
+        },
+        {
+          "id": "refuse_9",
+          "type": "end",
+          "x": 100,
+          "y": 460,
+          "data": {
+            "ending_type": "bad",
+            "text": "坏结局：被迫入局\n\n—— 你被困在了这盘无限规则的象棋里 ——\n（不过别担心，这只是序章的坏结局演示）"
+          }
+        }
+      ]
+    }
+  ]
+}
