@@ -1,294 +1,202 @@
-# 无限制象棋 - 项目说明文档
+# 棋圣 (ChessSage) — 无限制棋类元引擎
 
-## 项目简介
+> **一个用自然语言重塑棋类游戏规则的多元引擎**：从中国象棋到五子棋，从剧情到 RPG，所有玩法都被"灵活编码"理念贯穿。
 
-**无限制象棋**是一款突破传统规则束缚的创新型中国象棋游戏。玩家可以通过自然语言指令，实时修改游戏规则、棋盘状态、棋子能力，甚至游戏界面本身。
-
-这不是一款普通的象棋游戏，而是一个**规则可塑的、活的**游戏系统。
-
-核心创新：采用 **jump + ray 双原子移动体系** + **where 条件表达式引擎**，将所有棋子的移动规则解构为底层可组合的原子操作，使 AI 能够真正修改规则概念本身。
+本仓库最初是单一项目「无限制象棋」，现已重构为 **多元棋类元引擎** 架构：
+主文件夹只承担 **架构分类与导航** 的职责，实际玩法与功能分散到各个独立子项目。
+未来将沿 [`项目计划书_RPG大游戏.md`](./项目计划书_RPG大游戏.md) 的规划演进为一个有剧情、有大地图、可装载多种棋类的 RPG 大游戏。
 
 ---
 
-## 核心特性
-
-- **自然语言指令**：输入"让我的马可以斜着走"、"車变成两个"等指令，AI会自动修改游戏规则
-- **实时生效**：修改无需重启，立即应用到游戏中
-- **多级AI协作**：意图解析AI + 代码生成AI，精准理解玩家意图
-- **安全稳定**：JSON驱动架构，Schema校验，确保修改安全
-- **AI对战**：内置Minimax+Alpha-Beta剪枝算法，支持三档难度
-- **AI性格系统**：5种性格（标准/激进/保守/随机/自定义），AI的风格由你定义
-- **游戏机制修改**：冻结AI、AI接管、随机走棋、额外回合等原子化机制原语自由组合
-- **自定义棋子**：支持创建全新棋子类型，定义独特的移动规则
-- **可撤销**：所有AI修改都支持撤回，不怕改坏
-- **Token统计**：实时追踪AI调用消耗的Token和费用
-
----
-
-## 技术架构
+## 📐 顶层目录结构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  前端层    │  HTML5 + CSS3 + 原生 JavaScript (ES2022+)      │
-├─────────────────────────────────────────────────────────────┤
-│  后端层    │  Python 3.11 + FastAPI + Uvicorn               │
-├─────────────────────────────────────────────────────────────┤
-│  AI层      │  DeepSeek API (Chat + Code 双模式)             │
-│           │  意图解析AI + 多类CodeAI（B/C/D/A2）            │
-├─────────────────────────────────────────────────────────────┤
-│  规则引擎  │  jump/ray 双原子体系 + where 条件表达式        │
-├─────────────────────────────────────────────────────────────┤
-│  机制引擎  │  5种原子原语 + AI性格系统                      │
-│           │  (skip/ai_control/random/extra/move_limit)     │
-├─────────────────────────────────────────────────────────────┤
-│  存储层    │  内存状态 + JSON配置文件 + 撤销栈               │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 文件结构
-
-```
-unlimited_chess/
-├── main.py                  # FastAPI主服务器
-├── ai_orchestrator.py       # AI编排器（核心）
-├── rule_engine.py           # 象棋规则引擎（jump/ray原子体系）
-├── chess_ai.py              # AI下棋引擎（Minimax + Alpha-Beta）
-├── mechanism_engine.py      # 机制引擎（原子原语 + AI性格系统）
-├── prompts.py               # AI提示词定义
-├── schema_validator.py      # JSON Schema校验器
-├── json_patch_utils.py      # JSON Patch工具
-├── configs/                 # JSON配置文件
-│   ├── board.json           # 棋盘几何定义与渲染配置
-│   ├── pieces_red.json      # 红方棋子移动原语定义
-│   ├── pieces_black.json    # 黑方棋子移动原语定义
-│   ├── rules.json           # 游戏规则 + AI难度 + AI性格配置
-│   ├── board_state.json     # 棋盘运行时状态 + 机制状态
-│   ├── ui_config.json       # 界面配置
-│   ├── initial/             # 初始备份（用于重置）
-│   └── schemas/             # JSON Schema校验文件
-├── static/                  # 前端文件
-│   ├── index.html           # 主页面
-│   ├── style.css            # 样式表
-│   └── app.js               # 前端应用
-├── tests/                   # 测试文件
-└── requirements.txt         # Python依赖
+棋圣/  (workspace root)
+├── README.md                       ← 你正在看的文件：架构总览
+├── requirements.txt                ← 整体 Python 依赖（统一安装）
+├── 项目计划书_RPG大游戏.md          ← 重要的下一步路线图（必读）
+├── 无限制象棋_完整计划书_v4.0.md    ← v4 历史计划书（保留作技术参考）
+│
+├── shared/                         ← 跨子项目共享层（无业务逻辑）
+│   ├── schema_validator.py         ← JSON Schema 校验器（Draft7）
+│   ├── json_patch_utils.py         ← RFC 6902 JSON Patch 工具
+│   ├── schemas/                    ← 共享 JSON Schema 文件
+│   │   ├── board.schema.json
+│   │   ├── board_state.schema.json
+│   │   ├── pieces.schema.json
+│   │   ├── rules.schema.json
+│   │   └── ui_config.schema.json
+│   └── assets/                     ← 共享角色立绘 / 像素资产
+│       ├── characters/{boy,robot}/ ← 各角色多表情立绘
+│       └── generate_all.py         ← 像素资产生成脚本（Seedream）
+│
+├── xiangqi/                        ← 子项目①：无限制象棋（9×10 棋盘）
+│   ├── main.py                     ← FastAPI 入口（端口 8000）
+│   ├── ai_orchestrator.py          ← 两级 AI 编排器
+│   ├── rule_engine.py              ← jump/ray 双原子规则引擎
+│   ├── chess_ai.py                 ← ChessAI（Minimax + Alpha-Beta）
+│   ├── mechanism_engine.py         ← 5 种机制原语 + AI 性格系统
+│   ├── prompts.py                  ← DeepSeek 提示词
+│   ├── configs/                    ← 象棋 JSON 配置
+│   ├── static/                     ← 象棋前端（HTML/JS/CSS）
+│   └── api密钥.txt                 ← DeepSeek API Key（按需配置）
+│
+├── wuziqi/                         ← 子项目②：无限制五子棋（15×15 棋盘）
+│   ├── main.py                     ← FastAPI 入口（端口 8000）
+│   ├── ai_orchestrator.py          ← 五子棋专用 AI 编排器
+│   ├── rule_engine.py              ← 五连珠胜利检测 + jump/ray 引擎
+│   ├── chess_ai.py                 ← GomokuAI（棋型评分 + Zobrist 置换表）
+│   ├── mechanism_engine.py         ← 机制引擎（与象棋同源）
+│   ├── prompts.py                  ← 五子棋专用提示词
+│   ├── configs/                    ← 五子棋 JSON 配置
+│   └── static/                     ← 五子棋前端
+│
+└── story-editor/                   ← 子项目③：剧情 / Galgame 编辑器
+    ├── main.py                     ← FastAPI 入口（端口 8001，独立运行）
+    ├── scripts/
+    │   └── character_generator.py  ← Seedream 生图 + rembg 抠图
+    ├── modules/                    ← 编辑器前端 10 个 JS 模块
+    │   ├── story-schema.js         ← 13 种节点类型定义
+    │   ├── story-io.js             ← LocalStorage + 服务器 API
+    │   ├── preview.js              ← VisualNovelPlayer（可嵌入游戏的播放引擎）
+    │   ├── node-canvas.js          ← 节点画布（拖拽 + 连线）
+    │   ├── inspector.js            ← 13 种节点属性编辑器
+    │   ├── scene-tree.js / bg-manager.js / variable-manager.js
+    │   ├── character-manager.js / character-creator.js
+    ├── stories/                    ← 保存的剧情项目
+    ├── docs/integration_guide.md   ← 详细集成指南
+    ├── index.html / app.js / style.css
+    └── README.md
 ```
 
 ---
 
-## 安装指南
+## 🎯 设计理念
 
-### 1. 环境要求
+### 1. 灵活编码（最高纲领）
 
-- Python 3.11+
-- pip
+> 项目以"用 AI 现场生成代码实现大部分要求"为核心创新形式。
+> 除已完成的硬编码部分外，所有新功能皆不可硬编码，必须用 AI 编码实现。
+> 为此可以牺牲稳定性、Token 花销、速度——灵活编码是项目设立的初衷。
 
-### 2. 安装依赖
+### 2. JSON 驱动架构
+
+所有可变元素（规则、棋盘、棋子、剧情）都抽象为 JSON 数据。
+游戏引擎从 JSON 读取配置，AI 只需修改 JSON 即可改变游戏行为。
+
+### 3. jump + ray 双原子规则体系
+
+所有棋子的移动规则被解构为两种底层原子：
+- **jump**：离散跳跃（`to` 偏移 + `block` 关卡格 + `land` 落点要求）
+- **ray**：射线滑行（`dir` 方向 + `max` 步数 + `screens` 屏障）
+
+配合 `where` 条件表达式与 `sym` 对称展开，AI 能修改规则概念本身。
+**这是元引擎跨棋类的核心保证**：象棋、五子棋、国际象棋、自定义棋类共用同一套规则描述语言。
+
+### 4. 二级 AI 协作流水线
+
+```
+玩家自然语言指令
+  ↓
+[第一级] 意图解析 AI (deepseek-v4-flash, temp=0.3)
+  → 分类 A / B / C / C+ / B+C / D / E / F
+  ↓
+[第二级] 代码生成 AI (deepseek-v4-pro, thinking)
+  → 输出 RFC 6902 JSON Patch（或 HTML 区段替换）
+  ↓
+JSON Schema 校验 + 业务规则验证
+  ↓ 应用 / 失败重试（最多 2 次）
+```
+
+### 5. 机制原语（5 种硬编码 + AI 组合）
+
+`skip_turns` / `ai_control` / `random_moves` / `extra_turns` / `move_limits` ——
+AI 通过 JSON Patch 自由组合这些原语实现"冻结 AI 两回合"、"AI 接管玩家两步"等任意机制。
+
+---
+
+## 🚀 快速开始
+
+### 安装依赖
 
 ```bash
+# 整体安装（覆盖所有子项目）
 pip install -r requirements.txt
+
+# 或单独为某子项目安装
+pip install -r xiangqi/requirements.txt
 ```
 
-或手动安装：
+### 启动各子项目
 
-```bash
-pip install fastapi uvicorn httpx jsonschema
+| 子项目 | 启动命令 | 访问地址 | 端口 |
+|---|---|---|---|
+| 无限制象棋 | `python xiangqi/main.py` | http://localhost:8000 | 8000 |
+| 无限制五子棋 | `python wuziqi/main.py` | http://localhost:8000 | 8000 |
+| 剧情编辑器 | `python story-editor/main.py` | http://localhost:8001 | 8001 |
+
+> ⚠️ 象棋与五子棋默认都用 8000 端口；同时运行时请手动改一个。
+
+### 配置 AI Key
+
+- **DeepSeek**（象棋 / 五子棋的指令解析与代码生成）：首次运行后在游戏设置界面输入，或写入 `xiangqi/api密钥.txt`
+- **火山方舟 ARK**（剧情编辑器的角色立绘生成）：环境变量 `ARK_API_KEY`
+
+---
+
+## 🧩 子项目之间的关系
+
+```
+                ┌──────────────────────────────────┐
+                │  shared/  (schema + json_patch    │
+                │           + assets + schemas)     │
+                └────────────┬─────────────────────┘
+                             │ (sys.path 自动注入)
+        ┌────────────────────┼────────────────────┐
+        ▼                    ▼                    ▼
+  ┌──────────┐         ┌──────────┐         ┌──────────────┐
+  │ xiangqi/ │         │ wuziqi/  │         │ story-editor/│
+  │  象棋    │         │  五子棋  │         │  剧情编辑器   │
+  │ main.py  │         │ main.py  │         │   main.py    │
+  └──────────┘         └──────────┘         └──────┬───────┘
+        │                    │                      │
+        └────────────────────┴──────────────────────┘
+                             │
+                             ▼
+                  (未来) 棋圣 RPG 主框架
+                  嵌入象棋/五子棋 作为对战关卡
+                  嵌入 VisualNovelPlayer 播放剧情
 ```
 
-### 3. 获取DeepSeek API Key
-
-1. 访问 [DeepSeek官网](https://platform.deepseek.com/)
-2. 注册账号并获取API Key
-3. 首次运行游戏时，在设置中输入API Key
-
-### 4. 启动游戏
-
-```bash
-cd unlimited_chess
-python main.py
-```
-
-### 5. 访问游戏
-
-打开浏览器访问：`http://localhost:8000`
+- 三个子项目**互不依赖**，可独立运行
+- 都通过 `sys.path.insert(0, "../shared")` 自动复用共享代码
+- 角色资产统一存放在 `shared/assets/characters/`，避免重复
+- 计划书 [`项目计划书_RPG大游戏.md`](./项目计划书_RPG大游戏.md) 描述了如何将三者融合成 RPG 大游戏
 
 ---
 
-## 使用说明
+## 📚 重要文档
 
-### 基本操作
-
-1. **走棋**：点击棋子选中，再点击目标位置移动
-2. **悔棋**：点击"悔棋"按钮回退一步（同时回退AI的一步）
-3. **重新开始**：点击"重新开始"重置棋盘
-4. **撤回AI修改**：如果对AI的修改不满意，点击"撤回AI修改"按钮
-
-### 自然语言指令
-
-在底部输入框输入指令，例如：
-
-| 指令类型 | 示例 | 效果 |
-|---------|------|------|
-| 规则修改 | "让我的马可以斜着走" | 马增加斜向移动能力 |
-| 规则修改 | "象可以过河" | 取消象的过河限制 |
-| 规则修改 | "炮需要隔两个子才能吃" | 修改炮的炮架数量 |
-| 规则修改 | "兵可以后退" | 兵增加后退能力 |
-| 棋盘变换 | "复制一个車到[3,3]" | 在指定位置添加新車 |
-| 棋盘变换 | "把[0,0]的車移到[4,4]" | 移动指定棋子 |
-| 界面修改 | "把棋盘背景改成蓝色" | 修改棋盘颜色 |
-| 创建棋子 | "创建一个可以斜走两格的棋子叫'象王'" | 创建全新自定义棋子 |
-| AI性格 | "让AI变得更激进" | 切换AI到激进性格 |
-| AI性格 | "让AI变成赌徒风格" | 创建自定义赌徒性格 |
-| 游戏机制 | "冻结AI两回合" | AI跳过两回合 |
-| 游戏机制 | "我的下两步棋由AI接管" | AI替玩家走两步 |
-| 游戏机制 | "我这步棋随便下" | 本步随机走棋 |
-| 娱乐 | "把棋盘掀了" | AI幽默回复 |
+| 文档 | 内容 |
+|---|---|
+| [项目计划书_RPG大游戏.md](./项目计划书_RPG大游戏.md) | **必读**：将项目改造为 RPG 大游戏的完整路线图 |
+| [无限制象棋_完整计划书_v4.0.md](./无限制象棋_完整计划书_v4.0.md) | v4 历史计划书：象棋的二级 AI 协作、机制引擎、AI 性格系统等技术细节 |
+| [story-editor/docs/integration_guide.md](./story-editor/docs/integration_guide.md) | 剧情编辑器集成指南：13 种节点类型、VisualNovelPlayer API、变量系统 |
+| [shared/assets/generate_all.py](./shared/assets/generate_all.py) | 像素角色资产生成器（基于 Seedream） |
 
 ---
 
-## 配置说明
+## 🛣️ 路线图概览
 
-### board.json — 棋盘几何与渲染
-
-棋盘的几何定义和视觉渲染配置，包含：
-
-- `geometry`：棋盘几何属性
-  - `width` / `height`：棋盘行列数
-  - `river_line`：河界位置
-  - `palace`：九宫格定义（红方/黑方）
-  - `regions`：自定义区域（如红方阵地、黑方阵地）
-- `appearance`：视觉渲染配置
-  - `grid`：网格线设置
-  - `palace`：九宫格显示设置
-  - `river`：楚河汉界设置
-  - `layout`：布局边距、尺寸
-  - `decorations`：装饰元素（边框、自定义线条等）
-
-### pieces.json — 棋子移动原语
-
-使用 **jump + ray** 两种原子移动原语定义所有棋子的移动规则：
-
-- `pieces`：预定义棋子（general, advisor, elephant, horse, chariot, cannon, soldier）
-  - `label`：棋子显示名称（红/黑）
-  - `is_king`：是否为将帅类棋子
-  - `moves`：移动规则数组
-    - `kind`：`jump`（离散跳跃）或 `ray`（射线滑行）
-    - `to`：jump的目标偏移（dx, dy）
-    - `dir`：ray的方向向量（dx, dy）
-    - `max`：ray的最大步数（-1为无限）
-    - `screens`：ray需跳过的棋子数（炮架机制）
-    - `block`：jump的关卡格（必须为空，如马腿、象眼）
-    - `land`：落点要求（`empty`/`enemy`/`any`）
-    - `sym`：对称展开（`none`/`rotate4`/`rotate4_mirror`/`mirror_x`）
-    - `where`：条件表达式列表（额外约束）
-- `custom_pieces`：自定义棋子数组
-- `side_overrides`：阵营级规则覆盖（red/black）
-
-### rules.json — 游戏规则 + AI性格
-
-游戏胜利条件、特殊规则、AI难度、AI性格等：
-
-- `win_conditions`：胜利条件（将死、困毙、吃帅等）
-- `special_rules`：特殊规则（飞将等）
-- `turn_rules`：回合规则
-- `ai_difficulty`：AI难度设置（easy/medium/hard）
-  - `level`：难度等级
-  - `personality`：AI性格设置
-    - `type`：性格类型（normal/aggressive/defensive/random/custom）
-    - `aggressiveness`：进攻倾向 0.0-1.0
-    - `conservatism`：保守程度 0.0-1.0
-    - `randomness_override`：覆盖随机度
-    - `depth_override`：覆盖搜索深度
-    - `value_biases`：棋子价值偏差
-    - `custom_prompt`：自定义提示词
-
-### board_state.json — 运行时状态 + 机制状态
-
-当前游戏的实时状态和激活的机制：
-
-- `pieces`：所有棋子实例（id, type, name, side, position, is_alive）
-- `current_turn`：当前回合（red/black）
-- `move_history`：移动历史（用于悔棋）
-- `game_status`：游戏状态（进行中/结束/胜者）
-- `mechanisms`：激活的游戏机制
-  - `skip_turns`：跳过回合列表
-  - `ai_control`：AI接管列表
-  - `random_moves`：随机走棋列表
-  - `extra_turns`：额外回合列表
-  - `move_limits`：每回合步数限制
-
-### ui_config.json — 界面配置
-
-- `theme`：颜色主题
-- `custom_css`：自定义CSS
-- `custom_js`：自定义JavaScript
+| 阶段 | 目标 | 状态 |
+|---|---|---|
+| v1 单一象棋 | 自然语言指令 + 二级 AI + jump/ray 引擎 | ✅ 完成 |
+| v2 多元引擎 | 拆分为象棋 / 五子棋 / 剧情编辑器子项目 | ✅ 完成（本次重构） |
+| v3 RPG 框架 | 大地图 + 剧情系统 + 对战关卡 + 棋圣系统世界观 | 🚧 计划中（详见计划书） |
+| v4 大游戏 | 完整 RPG 主线 + 多结局 + BOSS 战 + 棋圣称号 | 📅 长远目标 |
 
 ---
 
-## AI系统架构
-
-### 第一级：意图解析AI
-
-- **模型**: DeepSeek-V4-Flash
-- **职责**: 理解玩家自然语言，分类意图，生成结构化指令
-- **分类体系**:
-  - **A类**：悔棋/输赢控制（硬代码实现）
-  - **B类**：棋盘变换（修改棋子状态/位置）
-  - **C类**：规则修改（修改棋子移动规则）
-  - **C+类**：自定义棋子创建
-  - **B+C类**：混合类型（棋盘变换+规则修改）
-  - **D类**：界面修改（D1配置文件 / D2 HTML结构）
-  - **E类**：纯搞笑/娱乐
-  - **F类**：高级/不可行
-
-### 第二级：代码生成AI
-
-- **模型**: DeepSeek-V4-Pro（开启思考模式）
-- **职责**: 根据结构化指令生成JSON Patch或HTML修改
-- **分类专家**: 棋盘变换AI / 规则修改AI / 界面修改AI / 搞笑回复AI
-- **输出格式**: 优先输出 RFC 6902 标准的 JSON Patch 数组
-
----
-
-## 安全机制
-
-1. **JSON Schema验证**：所有AI生成的JSON都经过Draft7 Schema校验
-2. **字段保护**：关键字段（如`_metadata`）有额外保护
-3. **范围检查**：坐标必须在棋盘范围内，棋子类型必须合法
-4. **撤销机制**：所有AI修改都进入撤销栈，玩家可随时撤回
-5. **重试机制**：AI输出格式错误时自动重试，最多3次
-
----
-
-## 开发计划
-
-- [x] 基础象棋功能
-- [x] AI对战（Minimax + Alpha-Beta）
-- [x] 自然语言指令解析
-- [x] 规则修改系统（C类）
-- [x] 棋盘变换系统（B类）
-- [x] 界面修改系统（D类）
-- [x] 自定义棋子创建（C+类）
-- [x] JSON Patch 优先输出
-- [x] Token消耗统计
-- [x] jump/ray 双原子规则引擎
-- [x] where 条件表达式引擎
-- [ ] WebSocket实时通信
-- [ ] 多人对战
-- [ ] 更多棋子类型
-
----
-
-## 许可证
+## 📜 许可证
 
 MIT License
-
----
-
-## 致谢
-
-- [DeepSeek](https://deepseek.com/) - 提供AI能力
-- [FastAPI](https://fastapi.tiangolo.com/) - Web框架
-- 中国象棋 - 千年智慧

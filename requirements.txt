@@ -1,6 +1,19 @@
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-httpx>=0.25.0
-pydantic>=2.5.0
-jsonschema>=4.19.0
-jsonpatch>=1.33
+# 棋圣 - 整体依赖（覆盖所有子项目）
+# 各子项目可独立安装各自的 requirements.txt
+
+# === 核心 Web 框架（象棋 / 五子棋 / 剧情编辑器共用） ===
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+
+# === AI / HTTP 客户端 ===
+httpx>=0.27.0
+
+# === JSON Schema / Patch ===
+jsonschema>=4.21.0
+jsonpatch>=1.33.0
+
+# === 剧情编辑器可选依赖（角色立绘生成） ===
+# 安装这些之后才支持 AI 生图自动抠图
+Pillow>=10.0.0
+rembg>=2.0.50

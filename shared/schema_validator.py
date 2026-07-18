@@ -13,7 +13,7 @@ except ImportError:
     Draft7Validator = None
 
 
-SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs", "schemas")
+SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "schemas")
 
 CONFIG_SCHEMA_MAP = {
     "board_state": "board_state.schema.json",

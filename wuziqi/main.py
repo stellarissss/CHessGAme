@@ -1,11 +1,20 @@
 """
 无限制五子棋 - 主服务器
+五子棋子项目的 FastAPI 入口。
 """
 import os
+import sys
 import json
 import copy
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# 将 shared/ 加入 sys.path，复用 schema_validator / json_patch_utils
+BASE_DIR = Path(__file__).resolve().parent
+WORKSPACE_ROOT = BASE_DIR.parent
+SHARED_DIR = WORKSPACE_ROOT / "shared"
+if str(SHARED_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_DIR))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
@@ -18,7 +27,6 @@ from rule_engine import RuleEngine
 from chess_ai import GomokuAI
 from mechanism_engine import MechanismEngine
 
-BASE_DIR = Path(__file__).parent
 CONFIGS_DIR = BASE_DIR / "configs"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -129,6 +137,11 @@ app.add_middleware(
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# 挂载共享 assets 目录（角色立绘等，便于前端引用）
+SHARED_ASSETS_DIR = SHARED_DIR / "assets"
+if SHARED_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=str(SHARED_ASSETS_DIR)), name="assets")
 
 
 class PlayerCommand(BaseModel):

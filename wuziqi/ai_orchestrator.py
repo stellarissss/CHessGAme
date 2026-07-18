@@ -4,12 +4,19 @@ AI编排器 - 协调多级AI工作流（带完整日志）
 import json
 import re
 import copy
+import sys
 import httpx
 import asyncio
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
+
+# 自动注入 shared/ 到 sys.path（兼容直接执行与被 main.py 导入两种场景）
+_SHARED = Path(__file__).resolve().parent.parent / "shared"
+if _SHARED.exists() and str(_SHARED) not in sys.path:
+    sys.path.insert(0, str(_SHARED))
+
 from prompts import (
     INTENT_PARSER_SYSTEM,
     RULE_MODIFIER_SYSTEM,
