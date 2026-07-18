@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>无限制围棋</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- SECTION: thinking_overlay -->
+        <div id="thinking-overlay" class="thinking-overlay">
+            <div class="thinking-content">
+                <div class="thinking-spinner"></div>
+                <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
+                <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+            </div>
+        </div>
+        <!-- END: thinking_overlay -->
+
+        <!-- SECTION: settings_modal -->
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <h3>设 置</h3>
+                <div class="form-group">
+                    <label>DeepSeek API Key</label>
+                    <input type="password" id="api-key-input" placeholder="输入您的API密钥">
+                    <small>您的API密钥仅保存在本地，不会发送到我们的服务器</small>
+                </div>
+                <div class="form-group">
+                    <label>AI难度</label>
+                    <select id="difficulty-select">
+                        <option value="easy">简单</option>
+                        <option value="medium" selected>中等</option>
+                        <option value="hard">困难</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="close-settings" class="btn">取消</button>
+                    <button id="save-settings" class="btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+        <!-- END: settings_modal -->
+
+        <!-- SECTION: logs_modal -->
+        <div id="logs-modal" class="modal">
+            <div class="modal-content logs-content">
+                <h3>AI 对话日志</h3>
+                <div id="logs-container" class="logs-container"></div>
+                <div class="modal-buttons">
+                    <button id="btn-clear-logs" class="btn danger">清空日志</button>
+                    <button id="btn-refresh-logs" class="btn">刷新</button>
+                    <button id="close-logs" class="btn-primary">关闭</button>
+                </div>
+            </div>
+        </div>
+        <!-- END: logs_modal -->
+
+        <!-- SECTION: header -->
+        <header class="header">
+            <h1>无限制围棋</h1>
+            <div class="header-actions">
+                <span id="turn-indicator">黑方回合</span>
+                <button id="btn-settings" class="btn-icon" title="设置">⚙</button>
+            </div>
+        </header>
+        <!-- END: header -->
+
+        <main class="main">
+            <!-- SECTION: board_section -->
+            <div class="board-section">
+                <div id="board-container"></div>
+            </div>
+            <!-- END: board_section -->
+
+            <!-- SECTION: side_panel -->
+            <aside class="side-panel">
+                <div class="panel-section">
+                    <h3 data-num="01">AI 助手</h3>
+                    <div id="ai-messages" class="messages"></div>
+                </div>
+
+                <!-- SECTION: game_objectives -->
+                <div class="panel-section">
+                    <h3 data-num="02">游戏目标</h3>
+                    <div id="game-objectives" class="objectives-list">
+                        <span class="empty">加载中...</span>
+                    </div>
+                </div>
+                <!-- END: game_objectives -->
+
+                <div class="panel-section">
+                    <h3 data-num="03">提子统计</h3>
+                    <div id="capture-stats" class="capture-stats">
+                        <div class="capture-stat black">
+                            <span class="stat-label">黑方提子</span>
+                            <span class="stat-value" id="capture-black">0</span>
+                        </div>
+                        <div class="capture-stat white">
+                            <span class="stat-label">白方提子</span>
+                            <span class="stat-value" id="capture-white">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION: ai_personality -->
+                <div class="panel-section">
+                    <h3 data-num="04">AI 性格</h3>
+                    <div id="ai-personality" class="personality-card">
+                        <div class="personality-header">
+                            <span class="personality-icon" id="personality-icon">🧠</span>
+                            <div class="personality-title">
+                                <span class="personality-type" id="personality-type">标准型</span>
+                                <span class="personality-subtitle" id="personality-subtitle">Normal</span>
+                            </div>
+                        </div>
+                        <p class="personality-desc" id="personality-desc">攻守平衡的标准AI</p>
+                        <div class="personality-bars">
+                            <div class="personality-bar">
+                                <span class="bar-label">进攻</span>
+                                <span class="bar-chars aggressive" id="bar-agg">█████░░░░░</span>
+                                <span class="bar-percent" id="bar-agg-pct">50%</span>
+                            </div>
+                            <div class="personality-bar">
+                                <span class="bar-label">防守</span>
+                                <span class="bar-chars defensive" id="bar-def">█████░░░░░</span>
+                                <span class="bar-percent" id="bar-def-pct">50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- END: ai_personality -->
+
+                <!-- SECTION: game_mechanisms -->
+                <div class="panel-section">
+                    <h3 data-num="05">游戏机制</h3>
+                    <div id="active-mechanisms" class="mechanisms-list">
+                        <span class="empty">无激活机制</span>
+                    </div>
+                </div>
+                <!-- END: game_mechanisms -->
+
+                <div class="panel-section">
+                    <h3 data-num="06">已激活规则</h3>
+                    <div id="active-rules" class="rules-list">
+                        <span class="empty">暂无自定义规则</span>
+                    </div>
+                </div>
+
+                <div class="panel-section controls">
+                    <h3 data-num="07">操 作</h3>
+                    <button id="btn-undo" class="btn">悔 棋</button>
+                    <button id="btn-undo-config" class="btn">撤回AI修改</button>
+                    <button id="btn-restart" class="btn">重新开始</button>
+                    <button id="btn-logs" class="btn">查看日志</button>
+                    <button id="btn-reset-configs" class="btn danger">重置所有配置</button>
+                </div>
+            </aside>
+            <!-- END: side_panel -->
+        </main>
+
+        <!-- SECTION: input_section -->
+        <footer class="input-section">
+            <div class="input-wrapper">
+                <input 
+                    type="text" 
+                    id="command-input" 
+                    placeholder="输入指令，例如：禁用打劫规则、让AI激进一点..."
+                    autocomplete="off"
+                >
+                <div class="coord-select-btn-wrapper">
+                    <button id="btn-insert-coord" class="btn" title="点击后在棋盘上选择格子，自动插入坐标到输入框">📍 选坐标</button>
+                    <button id="btn-toggle-coord-mode" class="btn-toggle-mode" title="切换选坐标/选区域">⇄</button>
+                </div>
+                <button id="btn-send" class="btn-primary">发送</button>
+            </div>
+            <div class="hints">
+                试试："禁用打劫"、"启用黑棋禁手"、"让AI防守"、"给我额外一回合"
+            </div>
+        </footer>
+        <!-- END: input_section -->
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
