@@ -123,11 +123,21 @@ const RpgShell = (() => {
     // ────────── 章节加载 ──────────
 
     async function loadChapter(chapterId) {
+        // 标题屏激活期间挂起章节加载请求（由 rpg_extras.js 在用户点击「开始游戏」时关闭）
+        if (window.__RPG_TITLE_ACTIVE) {
+            window.__RPG_PENDING_CHAPTER = chapterId;
+            return;
+        }
         try {
             const resp = await fetch(`/api/rpg/chapter/${chapterId}`);
             const chapter = await resp.json();
             currentChapter = chapter;
             chapterTitleEl.textContent = chapter.title;
+
+            // 更新章节背景（由 rpg_extras.js 提供像素画背景切换）
+            if (window.RpgExtras && typeof window.RpgExtras.updateChapterBackground === 'function') {
+                window.RpgExtras.updateChapterBackground(chapterId);
+            }
 
             // 隐藏 VN 舞台
             StoryLayer.hide();
