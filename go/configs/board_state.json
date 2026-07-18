@@ -1,0 +1,52 @@
+{
+  "_metadata": {
+    "version": "1.0",
+    "last_modified": "2026-07-13T00:00:00Z",
+    "format": "go_standard"
+  },
+  "pieces": [
+    {
+      "id": "black_stone_9_9_0",
+      "type": "stone",
+      "name": "●",
+      "side": "black",
+      "position": [
+        9,
+        9
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    }
+  ],
+  "current_turn": "white",
+  "move_history": [
+    {
+      "piece_id": "black_stone_9_9_0",
+      "from": null,
+      "to": [
+        9,
+        9
+      ],
+      "captured": []
+    }
+  ],
+  "game_status": {
+    "state": "playing",
+    "winner": null,
+    "win_condition": null,
+    "custom_rules_active": []
+  },
+  "mechanisms": {
+    "skip_turns": [],
+    "ai_control": [],
+    "player_control": [],
+    "random_moves": [],
+    "extra_turns": [],
+    "move_limits": []
+  },
+  "ko_state": null,
+  "captures": {
+    "black": 0,
+    "white": 0
+  }
+}

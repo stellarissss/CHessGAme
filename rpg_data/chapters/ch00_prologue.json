@@ -1,0 +1,100 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "happy", "image": "/shared/assets/characters/boy/boy_happy.png" },
+        { "expression": "sad", "image": "/shared/assets/characters/boy/boy_sad.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "confident", "image": "/shared/assets/characters/boy/boy_confident.png" },
+        { "expression": "defeated", "image": "/shared/assets/characters/boy/boy_defeated.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "棋圣系统",
+      "color": "#fbbf24",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_room", "name": "少年房间", "type": "image", "image": "/shared/rpg/assets/bgs/ch00_prologue.png" },
+    { "id": "bg_dream", "name": "梦境", "type": "image", "image": "/shared/rpg/assets/bgs/title_screen.png" },
+    { "id": "bg_wake", "name": "清晨", "type": "image", "image": "/shared/rpg/assets/bgs/ch00_prologue.png" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "深夜·残局",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_room", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "深夜，烛火摇曳。少年伏于案前，面前是一盘无人能解的残局。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "boy", "expression": "thinking", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "这步棋……无论怎么走，都是死局。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "boy", "expression": "sad", "text": "哈……困了。再想一会儿……就一会儿……", "next": "n6" } },
+        { "id": "n6", "type": "hide_char", "data": { "character_id": "boy", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "narration", "data": { "text": "少年沉沉睡去，烛火随之熄灭。", "next": "n8" } },
+        { "id": "n8", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "梦境·棋圣",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_dream", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "narration", "data": { "text": "恍惚间，少年坠入一片幽蓝的虚无。一个身影自虚空中浮现。", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "你渴望赢，却总是输。", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "我是棋圣系统。我能让你看透棋局的……另一面。", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "接受我的力量，你便能改写规则。但每一次改写，都要消耗能量。", "next": "s2_n7" } },
+        { "id": "s2_n7", "type": "choice", "data": { "options": [
+          { "text": "接受力量", "next_scene_id": "scene_3", "next_node_id": "s3_accept" },
+          { "text": "拒绝", "next_scene_id": "scene_3", "next_node_id": "s3_refuse" }
+        ] } }
+      ]
+    },
+    {
+      "id": "scene_3",
+      "name": "抉择",
+      "start_node_id": "s3_accept",
+      "nodes": [
+        { "id": "s3_accept", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "很好。从此刻起，你我同行。", "next": "s3_jump" } },
+        { "id": "s3_refuse", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "你会回来的。棋局面前，没有人能拒绝。", "next": "s3_jump" } },
+        { "id": "s3_jump", "type": "jump", "data": { "target_scene_id": "scene_4", "target_node_id": "s4_n1" } }
+      ]
+    },
+    {
+      "id": "scene_4",
+      "name": "觉醒",
+      "start_node_id": "s4_n1",
+      "nodes": [
+        { "id": "s4_n1", "type": "bg", "data": { "bg_id": "bg_wake", "transition": "fade", "next": "s4_n2" } },
+        { "id": "s4_n2", "type": "narration", "data": { "text": "少年猛然惊醒，窗外天已微明。", "next": "s4_n3" } },
+        { "id": "s4_n3", "type": "show_char", "data": { "character_id": "boy", "expression": "surprised", "position": "center", "transition": "fade", "next": "s4_n4" } },
+        { "id": "s4_n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "……梦？", "next": "s4_n5" } },
+        { "id": "s4_n5", "type": "narration", "data": { "text": "耳边忽有一道低语响起——", "next": "s4_n6" } },
+        { "id": "s4_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "棋圣系统已就绪。当你需要时，输入你的第一个指令。", "next": "s4_n7" } },
+        { "id": "s4_n7", "type": "end", "data": { "ending_type": "neutral", "text": "序章·觉醒 完" } }
+      ]
+    }
+  ]
+}

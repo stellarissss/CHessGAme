@@ -1,0 +1,72 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "happy", "image": "/shared/assets/characters/boy/boy_happy.png" },
+        { "expression": "sad", "image": "/shared/assets/characters/boy/boy_sad.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "confident", "image": "/shared/assets/characters/boy/boy_confident.png" },
+        { "expression": "defeated", "image": "/shared/assets/characters/boy/boy_defeated.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "街亭棋客",
+      "color": "#ef4444",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_street", "name": "街亭", "type": "solid", "color": "#2d1b00" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "街亭·擂台",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_street", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "街亭镇口，一面『象棋擂台』的幌子在风中招摇。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "boy", "expression": "neutral", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "听闻此地的棋客连胜十人，无人能破。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "今日，便由我来终结这连胜。", "next": "n6" } },
+        { "id": "n6", "type": "hide_char", "data": { "character_id": "boy", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "又是一个送上门的少年郎。先手红棋，让与你。", "next": "n9" } },
+        { "id": "n9", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "我倒要看看，你能撑过几个回合。", "next": "n10" } },
+        { "id": "n10", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "对弈",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "hide_char", "data": { "character_id": "robot", "transition": "fade", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "narration", "data": { "text": "楚河汉界既定，红黑列阵。少年执红先行。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "请。", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "end", "data": { "ending_type": "neutral", "text": "第 1 章·入门 开始" } }
+      ]
+    }
+  ]
+}

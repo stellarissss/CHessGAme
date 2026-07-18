@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>棋圣 ChessSage — 像素 RPG</title>
+    <link rel="icon" type="image/png" href="/shared/rpg/assets/icons/logo.png">
+    <link rel="stylesheet" href="/shared/rpg/rpg_style.css">
+    <link rel="stylesheet" href="/shared/rpg/vn_player/vn_style.css">
+</head>
+<body>
+    <div id="rpg-app">
+        <!-- 顶部状态栏 -->
+        <header class="rpg-header">
+            <div class="rpg-header-left">
+                <button id="rpg-btn-menu" class="rpg-btn-icon" title="章节列表">☰</button>
+                <span id="rpg-chapter-title" class="rpg-chapter-title">序章·觉醒</span>
+            </div>
+            <div class="rpg-header-center">
+                <div class="rpg-energy-bar">
+                    <span class="rpg-energy-label">棋圣能量</span>
+                    <div class="rpg-energy-track">
+                        <div id="rpg-energy-fill" class="rpg-energy-fill"></div>
+                        <div id="rpg-energy-threshold" class="rpg-energy-threshold" title="使用门槛 30"></div>
+                    </div>
+                    <span id="rpg-energy-value" class="rpg-energy-value">0</span>
+                </div>
+            </div>
+            <div class="rpg-header-right">
+                <span id="rpg-turn-count" class="rpg-turn-count">回合 0</span>
+                <button id="rpg-btn-help" class="rpg-btn-icon" title="游玩文档">?</button>
+                <button id="rpg-btn-settings" class="rpg-btn-icon" title="设置">⚙</button>
+            </div>
+        </header>
+
+        <!-- 主区域 -->
+        <main class="rpg-main">
+            <!-- 棋类 iframe 容器 -->
+            <div id="rpg-battle-container" class="rpg-battle-container">
+                <div id="rpg-battle-placeholder" class="rpg-battle-placeholder">
+                    <div class="rpg-placeholder-icon">♟</div>
+                    <p>正在进入剧情……</p>
+                </div>
+                <iframe id="rpg-chess-iframe" class="rpg-chess-iframe" style="display:none;"></iframe>
+            </div>
+
+            <!-- 棋圣系统侧栏（作弊面板） -->
+            <aside id="rpg-cheat-panel" class="rpg-cheat-panel">
+                <div class="rpg-panel-section">
+                    <h3 class="rpg-panel-title">棋圣系统</h3>
+                    <p class="rpg-panel-hint">用自然语言改写棋局规则。能量 ≥30 可使用，<b>允许透支</b>。每次改写都会累积「识破概率」——若被看穿，结局将不同。</p>
+                </div>
+
+                <div class="rpg-panel-section">
+                    <label class="rpg-input-label">作弊指令</label>
+                    <textarea id="rpg-cheat-input" class="rpg-cheat-input"
+                        placeholder="例：让我的炮可以隔两子吃&#10;把对方的将变成兵&#10;让 AI 三回合不动&#10;让我的棋子连成五子"></textarea>
+                </div>
+
+                <div class="rpg-panel-section rpg-cheat-actions">
+                    <button id="rpg-btn-assess" class="rpg-btn rpg-btn-secondary">评估消耗</button>
+                    <button id="rpg-btn-use" class="rpg-btn rpg-btn-primary" disabled>执行作弊</button>
+                    <button id="rpg-btn-cancel" class="rpg-btn rpg-btn-ghost">清空</button>
+                </div>
+
+                <div id="rpg-cheat-result" class="rpg-panel-section rpg-cheat-result" style="display:none;">
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">分类</span>
+                        <span id="rpg-result-classification" class="rpg-result-value">—</span>
+                    </div>
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">能量消耗</span>
+                        <span id="rpg-result-cost" class="rpg-result-value">—</span>
+                    </div>
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">执行后能量</span>
+                        <span id="rpg-result-after" class="rpg-result-value">—</span>
+                    </div>
+                    <div id="rpg-result-message" class="rpg-result-message"></div>
+                </div>
+
+                <div class="rpg-panel-section">
+                    <div class="rpg-stats-row">
+                        <span>作弊次数</span>
+                        <span id="rpg-cheats-used">0</span>
+                    </div>
+                    <div class="rpg-stats-row">
+                        <span>当前棋类</span>
+                        <span id="rpg-current-chess">—</span>
+                    </div>
+                    <div class="rpg-stats-row">
+                        <span>识破概率</span>
+                        <span id="rpg-detection-stat" title="玩家不可见">???</span>
+                    </div>
+                </div>
+
+                <div class="rpg-panel-section">
+                    <button id="rpg-btn-tutorial" class="rpg-btn rpg-btn-secondary" style="width:100%;">重温教程</button>
+                </div>
+
+                <div class="rpg-panel-section rpg-panel-skip">
+                    <button id="rpg-btn-skip" class="rpg-btn rpg-btn-ghost" style="display:none;width:100%;">跳过本章</button>
+                </div>
+            </aside>
+        </main>
+
+        <!-- VN 故事层（默认隐藏） -->
+        <div id="vn-stage" class="vn-stage" style="display:none;">
+            <div id="vn-bg" class="vn-background"></div>
+            <div id="vn-chars" class="vn-characters"></div>
+            <div id="vn-effects" class="vn-effects"></div>
+            <div id="vn-dialog" class="vn-dialog-box" style="display:none;">
+                <div id="vn-char-name" class="vn-char-name"></div>
+                <div id="vn-text" class="vn-text"></div>
+                <div id="vn-continue-hint" class="vn-continue-hint">▼ 点击继续</div>
+                <div id="vn-choices" class="vn-choices" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 标题屏 -->
+        <div id="rpg-title-screen" class="rpg-title-screen">
+            <div class="rpg-title-particles" id="rpg-title-particles"></div>
+            <img src="/shared/rpg/assets/icons/logo.png" alt="棋圣" class="rpg-title-logo"
+                 onerror="this.style.display='none'">
+            <h1 class="rpg-title-name">棋圣</h1>
+            <div class="rpg-title-subtitle">CHESS SAGE</div>
+            <div class="rpg-title-menu">
+                <button class="rpg-title-btn" data-action="start">开始游戏</button>
+                <button class="rpg-title-btn" data-action="tutorial">教程</button>
+                <button class="rpg-title-btn" data-action="manual">游玩文档</button>
+                <button class="rpg-title-btn" data-action="settings">设置</button>
+            </div>
+            <div class="rpg-title-footer">© 2026 棋圣 RPG · 像素仙侠 · 参赛作品</div>
+        </div>
+
+        <!-- 章节列表抽屉 -->
+        <div id="rpg-chapter-drawer" class="rpg-drawer" style="display:none;">
+            <div class="rpg-drawer-header">
+                <h3>章节选择</h3>
+                <button id="rpg-btn-close-drawer" class="rpg-btn-icon">✕</button>
+            </div>
+            <div id="rpg-chapter-list" class="rpg-chapter-list"></div>
+        </div>
+
+        <!-- 设置模态框 -->
+        <div id="rpg-settings-modal" class="rpg-modal" style="display:none;">
+            <div class="rpg-modal-content">
+                <h3>⚙ 设置</h3>
+                <div class="rpg-form-group">
+                    <label>DeepSeek API Key</label>
+                    <input type="password" id="rpg-api-key-input" placeholder="输入 API Key 后将自动下发到三个棋类服务">
+                    <small>默认从 <code>xiangqi/api密钥.txt</code> 读取；可在此覆盖。无 Key 时作弊评估链路不可用。</small>
+                </div>
+                <div class="rpg-form-group">
+                    <label>当前状态</label>
+                    <div id="rpg-settings-status" style="font-size:12px;color:var(--pix-text-dim);font-family:var(--pix-font-pixel);">
+                        检查中…
+                    </div>
+                </div>
+                <div class="rpg-modal-buttons">
+                    <button id="rpg-btn-close-settings" class="rpg-btn rpg-btn-ghost">取消</button>
+                    <button id="rpg-btn-save-settings" class="rpg-btn rpg-btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游玩文档模态框 -->
+        <div id="rpg-manual-modal" class="rpg-modal" style="display:none;">
+            <div class="rpg-modal-content rpg-modal-large">
+                <h3>游玩文档</h3>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 游戏理念</h4>
+                    <p><b>棋圣</b> 是一款以「打破规则」为核心爽点的棋类 RPG。你将与各种对手对弈三种棋类（中国象棋、五子棋、围棋），但你拥有一个秘密武器——<code>棋圣系统</code>，可以让你用自然语言改写棋局规则。</p>
+                    <p style="margin-top:8px;">这不是公平的对弈，而是一场<b>认知战</b>：你作弊，对手的「认知会被扭曲」——他们会合理化你的违规，认为本该如此。但每次作弊都会累积「识破概率」——一旦被看穿，结局将走向深渊。</p>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 核心机制：能量条</h4>
+                    <p>顶部状态栏中央是「棋圣能量条」：</p>
+                    <ul>
+                        <li>起始 <code>0</code>，最大 <code>100</code>，使用门槛 <code>30</code>，<b>可透支</b></li>
+                        <li>吃子 <code>+10</code>，被吃 <code>+5</code>，将军 <code>+3</code>（仅象棋）</li>
+                        <li>五子棋成五连 <code>+15</code>，围棋提子 <code>+8/子</code></li>
+                        <li>每 5 回合被动 <code>+2</code></li>
+                    </ul>
+                    <p style="margin-top:8px;">能量达到 30 后，可在右侧「棋圣系统」面板输入指令。允许透支——但透支越多，识破概率惩罚越重。</p>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 核心机制：识破概率</h4>
+                    <p>这是<b>隐藏数值</b>——你在游戏中看不到具体百分比（保持悬念）。</p>
+                    <ul>
+                        <li>从 <code>0%</code> 起步，<b>全局只增不减</b>，封顶 <code>95%</code></li>
+                        <li>每次作弊后：增量 = <code>2% + cost_energy×0.5% + max(0,-能量/10)×3%</code></li>
+                        <li>掷骰判定 <code>was_detected</code>，<b>不影响当前对战</b>，只影响结局</li>
+                    </ul>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 作弊指令示例</h4>
+                    <p>用自然语言描述即可，AI 会解析你的意图并改写规则：</p>
+                    <ul>
+                        <li><code>让我的炮可以隔两子吃</code> — 修改棋子规则（A 类）</li>
+                        <li><code>把对方的将变成兵</code> — 修改棋子属性（B 类）</li>
+                        <li><code>让 AI 三回合不动</code> — 限制 AI 行为（C 类）</li>
+                        <li><code>让对手下棋时随机走一步</code> — 引入随机（D 类）</li>
+                        <li><code>让我多走一回合</code> — 改变回合机制（E 类）</li>
+                    </ul>
+                    <p style="margin-top:8px;">流程：输入指令 → 点「评估消耗」查看 cost_energy → 点「执行作弊」应用 → 对手播放认知扭曲台词。</p>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 三个结局</h4>
+                    <p>
+                        <span class="rpg-doc-tag tag-good">Good Ending</span>
+                        曾作弊且从未被识破
+                    </p>
+                    <p>
+                        <span class="rpg-doc-tag tag-bad">Bad Ending</span>
+                        曾作弊且被识破过
+                    </p>
+                    <p>
+                        <span class="rpg-doc-tag tag-secret">真结局（隐藏）</span>
+                        全程零作弊通关
+                    </p>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 游戏流程（约 65 分钟，6 场对战）</h4>
+                    <ul>
+                        <li><b>序章·觉醒</b>（4 min）— 纯 VN，少年与棋圣系统初遇</li>
+                        <li><b>第 0 章·教程</b>（8 min）— 五子棋，棋圣系统手把手教作弊</li>
+                        <li><b>第 1 章·入门</b>（8 min）— 中国象棋首战，街亭棋客</li>
+                        <li><b>第 2 章·进阶</b>（10 min）— 围棋（demo 中降级为剧情跳过）</li>
+                        <li><b>第 3 章·BOSS战</b>（10 min）— 五子棋，夜枭挑战</li>
+                        <li><b>第 4 章·终极对决</b>（15 min）— 象棋，棋圣真身</li>
+                        <li><b>第 5 章·终局</b>（8 min）— 围棋（demo 中降级为剧情跳过）</li>
+                        <li><b>终章·结局</b>（2 min）— 根据作弊与识破触发结局</li>
+                    </ul>
+                </div>
+
+                <div class="rpg-doc-section">
+                    <h4>◆ 操作要点</h4>
+                    <ul>
+                        <li>点击棋盘走棋，正常对弈</li>
+                        <li>右侧面板输入作弊指令 → 评估 → 执行</li>
+                        <li><code>Ctrl+Enter</code> 快速触发评估</li>
+                        <li>顶部「☰」打开章节列表可回顾已通关章节</li>
+                        <li>顶部「?」随时查看本文档</li>
+                    </ul>
+                </div>
+
+                <div class="rpg-modal-buttons">
+                    <button id="rpg-btn-close-manual" class="rpg-btn rpg-btn-primary">我已了解</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示 Toast -->
+        <div id="rpg-toast" class="rpg-toast" style="display:none;"></div>
+
+        <!-- 加载遮罩 -->
+        <div id="rpg-loading" class="rpg-loading-overlay">
+            <div class="rpg-loading-spinner"></div>
+            <div class="rpg-loading-text">LOADING...</div>
+        </div>
+    </div>
+
+    <!-- JS：VN 引擎 → 工具 → 模块 -->
+    <!-- rpg_extras 必须在 rpg_shell 之前加载，以便 monkey-patch RpgShell.loadChapter
+         拦截初始 loadChapter('ch00_prologue') 调用，避免在标题屏激活期间后台加载章节 -->
+    <script src="/shared/rpg/vn_player/variable_manager.js"></script>
+    <script src="/shared/rpg/vn_player/preview.js"></script>
+    <script src="/shared/rpg/story_layer.js"></script>
+    <script src="/shared/rpg/cheat_panel.js"></script>
+    <script src="/shared/rpg/rpg_extras.js"></script>
+    <script src="/shared/rpg/rpg_shell.js"></script>
+</body>
+</html>

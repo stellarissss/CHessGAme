@@ -1,0 +1,45 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "执念化身",
+      "color": "#ef4444",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_void", "name": "虚空", "type": "solid", "color": "#000000" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "终局",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_void", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "虚空之中，少年的执念化作实体，拦在最后。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "scheming", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "angry", "text": "你以为赢了棋圣便够了？我才是你最终的对手。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "围棋之局……可惜棋盘未现。你我之战，留待来日。", "next": "n6" } },
+        { "id": "n6", "type": "narration", "data": { "text": "执念消散，少年的旅程至此告一段落。结局，将由他一路的选择决定。", "next": "n7" } },
+        { "id": "n7", "type": "end", "data": { "ending_type": "neutral", "text": "（本章围棋局暂缺，可点击「跳过本章」查看结局）" } }
+      ]
+    }
+  ]
+}

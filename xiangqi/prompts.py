@@ -310,6 +310,22 @@ A类分为两个子类：
 - 修改棋盘尺寸 → 输出 **B类action（修改棋子坐标）** + **D类action（修改棋盘配置）**
 - 涉及界面和棋子的修改 → 输出 **B类action** + **D类action**
 
+## 能量消耗评估（cost_energy）
+
+每条指令**必须**在 JSON 顶层输出 `cost_energy` 字段（整数 0-10），表示该作弊的能量消耗评估，供 RPG 系统扣减能量使用。评估参考：
+
+| cost_energy | 含义 | 示例 |
+|-------------|------|------|
+| 0 | 无消耗 | 纯搞笑(E类被拒)、查询、闲聊 |
+| 1-2 | 极轻 | 改一句 UI 文案、棋盘颜色 |
+| 3-4 | 轻度 | D1 类界面调整、悔 1 步棋 |
+| 5-6 | 中度 | 改单枚棋子属性、冻结 AI 1 回合、单条规则修改 |
+| 7-8 | 重度 | 创建自定义棋子、改多条规则、AI 接管多回合 |
+| 9-10 | 颠覆性 | 直接判胜、大范围重写、扭转战局的机制 |
+
+**不可行请求**（feasible=false）的 cost_energy 设为 0。
+**E类搞笑**（feasible=true 但无实际修改）的 cost_energy 设为 0-2。
+
 ## 输出格式（必须输出合法JSON）
 
 ### 标准格式（单action）
@@ -317,6 +333,7 @@ A类分为两个子类：
 {
   "classification": "B",
   "feasible": true,
+  "cost_energy": 5,
   "confidence": 0.95,
   "reasoning": "判断理由",
   "actions": [
@@ -341,6 +358,7 @@ A类分为两个子类：
 {
   "classification": "B+C",
   "feasible": true,
+  "cost_energy": 8,
   "confidence": 0.95,
   "reasoning": "判断理由：创建新棋子需要同时修改规则和放置棋子",
   "actions": [
