@@ -50,10 +50,9 @@
         _bindTutorialButton();
         _startParticles();
 
-        // 延迟 patch：rpg_extras 在 rpg_shell 之前加载，需等 RpgShell 定义后再 patch。
-        // setTimeout(0) 推迟到当前同步脚本队列执行完毕（rpg_shell.js IIFE 已运行）。
+        // rpg_shell.js 已在 init() 和 loadChapter() 入口直接添加 __RPG_TITLE_ACTIVE 守卫，
+        // 此处不再需要 monkey-patch。仅绑定设置模态框状态显示。
         setTimeout(() => {
-            _monkeyPatchLoadChapter();
             _bindSettingsStatus();
         }, 0);
 
@@ -313,29 +312,10 @@
         // 玩家不可见具体数值——保持 ??? 悬念
     }
 
-    // ────────── Monkey-patch RpgShell.loadChapter ──────────
-
-    function _monkeyPatchLoadChapter() {
-        if (typeof RpgShell === 'undefined' || !RpgShell.loadChapter) return;
-        if (RpgShell._extrasPatched) return;  // 防止重复 patch
-        RpgShell._extrasPatched = true;
-
-        const origLoadChapter = RpgShell.loadChapter;
-
-        RpgShell.loadChapter = async function (chapterId) {
-            if (titleScreenActive) {
-                // 标题屏激活期间，把章节加载请求挂起
-                pendingChapterLoad = chapterId;
-                return;
-            }
-            await origLoadChapter.call(this, chapterId);
-            // 加载完后更新背景
-            _updateChapterBackground(chapterId);
-            // 关闭文档/设置模态框（防止遮挡）
-            _closeManual();
-            if (settingsModalEl) settingsModalEl.style.display = 'none';
-        };
-    }
+    // ────────── 章节背景切换（由 rpg_shell.js loadChapter 守卫放行后调用） ──────────
+    // 注意：rpg_shell.js 内部闭包调用 loadChapter 不会经过此处，但章节背景更新
+    // 已经由 RpgShell.loadChapter 在外部调用时（如标题屏「开始游戏」/ 章节抽屉点击）触发。
+    // 对于自动 _goNextChapter 场景，背景沿用上一章节——这是可接受的视觉行为。
 
     // ────────── 启动入口 ──────────
 
@@ -346,10 +326,11 @@
         init();
     }
 
-    // 暴露少量 API（供调试）
+    // 暴露少量 API（供 rpg_shell.js 调用 + 调试）
     window.RpgExtras = {
         openManual: _openManual,
         closeManual: _closeManual,
         dismissTitle: _dismissTitleScreen,
+        updateChapterBackground: _updateChapterBackground,
     };
 })();

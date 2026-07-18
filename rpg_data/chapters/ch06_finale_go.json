@@ -7,7 +7,10 @@
       "portraits": [
         { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
         { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
-        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" }
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" },
+        { "expression": "defeated", "image": "/shared/assets/characters/boy/boy_defeated.png" }
       ]
     },
     {
@@ -17,28 +20,63 @@
       "portraits": [
         { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
         { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
-        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" }
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" }
       ]
     }
   ],
   "backgrounds": [
-    { "id": "bg_void", "name": "虚空", "type": "solid", "color": "#000000" }
+    { "id": "bg_void", "name": "执念之渊", "type": "image", "image": "/shared/rpg/assets/bgs/ch06_finale.png" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},
   "start_scene_id": "scene_1",
   "scenes": [
     {
       "id": "scene_1",
-      "name": "终局",
+      "name": "执念之渊",
       "start_node_id": "n1",
       "nodes": [
         { "id": "n1", "type": "bg", "data": { "bg_id": "bg_void", "transition": "fade", "next": "n2" } },
-        { "id": "n2", "type": "narration", "data": { "text": "虚空之中，少年的执念化作实体，拦在最后。", "next": "n3" } },
-        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "scheming", "position": "center", "transition": "fade", "next": "n4" } },
-        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "angry", "text": "你以为赢了棋圣便够了？我才是你最终的对手。", "next": "n5" } },
-        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "围棋之局……可惜棋盘未现。你我之战，留待来日。", "next": "n6" } },
-        { "id": "n6", "type": "narration", "data": { "text": "执念消散，少年的旅程至此告一段落。结局，将由他一路的选择决定。", "next": "n7" } },
-        { "id": "n7", "type": "end", "data": { "ending_type": "neutral", "text": "（本章围棋局暂缺，可点击「跳过本章」查看结局）" } }
+        { "id": "n2", "type": "narration", "data": { "text": "虚空之中，无天无地。少年历经五场对弈，棋圣系统的低语渐弱——他独自走入最后一片黑暗。", "next": "n3" } },
+        { "id": "n3", "type": "narration", "data": { "text": "黑暗中浮起一道身影，与他面貌相同，却披着血色的袍。", "next": "n4" } },
+        { "id": "n4", "type": "show_char", "data": { "character_id": "robot", "expression": "scheming", "position": "center", "transition": "fade", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "终于来了。我等了你很久——或者说，你等了自己很久。", "next": "n6" } },
+        { "id": "n6", "type": "show_char", "data": { "character_id": "boy", "expression": "surprised", "position": "left", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "你……是谁？为什么和我长得一样？", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "angry", "text": "我是你啊。是那个被同桌连虐十几把后，发誓要不择手段赢棋的你。是那个接受棋圣系统的你。", "next": "n9" } },
+        { "id": "n9", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "你一路作弊、扭曲对手认知、登顶棋圣——我便是这一切的化身。你若想真正成为棋圣，先过我这一关。", "next": "n10" } },
+        { "id": "n10", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "……我懂了。最后一局，用围棋。来吧。", "next": "n11_jump" } },
+        { "id": "n11_jump", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "最终对白",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_void", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "围棋——你最不熟悉的棋。我选它，是因为它最能照见人心。", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "在这里，你的棋圣系统帮不了你太多。改规则？提子？随你。但每一步作弊，都是在为你的结局埋单。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "你什么意思？", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "你一路走来，识破概率累积了多少？你自己心里清楚。这一局，是审判，也是救赎。", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "无论结局如何，我都会下完这局棋。这是我的回答。", "next": "s2_n7" } },
+        { "id": "s2_n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "angry", "text": "好。那就让我们——黑白分明，一决高下。", "next": "s2_jump" } },
+        { "id": "s2_jump", "type": "jump", "data": { "target_scene_id": "scene_3", "target_node_id": "s3_n1" } }
+      ]
+    },
+    {
+      "id": "scene_3",
+      "name": "终局之战",
+      "start_node_id": "s3_n1",
+      "nodes": [
+        { "id": "s3_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s3_n2" } },
+        { "id": "s3_n2", "type": "narration", "data": { "text": "虚空凝出一方九路棋盘，黑白子悬浮两侧。少年与执念化身相对而坐，棋盘之上，是这一路走来所有选择的回响。", "next": "s3_n3" } },
+        { "id": "s3_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "黑先。少年，落下你第一子。", "next": "s3_n4" } },
+        { "id": "s3_n4", "type": "narration", "data": { "text": "（围棋对局开始——这一战的胜负，将决定你最终的结局。）", "next": "s3_end" } },
+        { "id": "s3_end", "type": "end", "data": { "ending_type": "neutral" } }
       ]
     }
   ]

@@ -23,7 +23,7 @@
     }
   ],
   "backgrounds": [
-    { "id": "bg_night", "name": "夜色", "type": "solid", "color": "#0a0a1a" },
+    { "id": "bg_night", "name": "夜色", "type": "image", "image": "/shared/rpg/assets/bgs/ch04_boss.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},
