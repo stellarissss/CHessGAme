@@ -1,0 +1,57 @@
+{
+  "_metadata": {
+    "version": "1.0",
+    "description": "围棋棋盘几何定义与渲染配置"
+  },
+  "geometry": {
+    "width": 19,
+    "height": 19,
+    "board_size": "standard",
+    "star_points": [
+      [3, 3], [9, 3], [15, 3],
+      [3, 9], [9, 9], [15, 9],
+      [3, 15], [9, 15], [15, 15]
+    ],
+    "regions": {
+      "corner_top_left": { "x_range": [0, 6], "y_range": [0, 6] },
+      "corner_top_right": { "x_range": [12, 18], "y_range": [0, 6] },
+      "corner_bottom_left": { "x_range": [0, 6], "y_range": [12, 18] },
+      "corner_bottom_right": { "x_range": [12, 18], "y_range": [12, 18] },
+      "center": { "x_range": [6, 12], "y_range": [6, 12] },
+      "side_top": { "x_range": [6, 12], "y_range": [0, 6] },
+      "side_bottom": { "x_range": [6, 12], "y_range": [12, 18] },
+      "side_left": { "x_range": [0, 6], "y_range": [6, 12] },
+      "side_right": { "x_range": [12, 18], "y_range": [6, 12] }
+    }
+  },
+  "appearance": {
+    "background_color": "#dcb35c",
+    "line_color": "#2b2b2b",
+    "grid": {
+      "line_thickness": 0.02,
+      "show_horizontal": true,
+      "show_vertical": true
+    },
+    "star_points": {
+      "enabled": true,
+      "radius": 0.08,
+      "color": "#2b2b2b"
+    },
+    "layout": {
+      "viewbox_padding_left": 0.5,
+      "viewbox_padding_right": 0.5,
+      "viewbox_padding_top": 0.5,
+      "viewbox_padding_bottom": 0.5,
+      "board_size": "90vmin"
+    },
+    "decorations": {
+      "border": {
+        "enabled": true,
+        "thickness": 0.15,
+        "color": "#8b6914"
+      },
+      "custom_lines": [],
+      "background_pattern": null
+    }
+  }
+}
