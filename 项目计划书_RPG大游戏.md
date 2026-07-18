@@ -3,8 +3,8 @@
 > **本文档是后续开发的活路线图**：基于当前真实代码状态，给出清晰的待办清单、优先级与技术约束。
 > 旧版 v1.0 计划书已过时（含已删除的道具/经济/大地图等机制），实际执行以本文为准。
 
-**版本**：v2.0（基于真实代码核查重写）
-**日期**：2026-07-18
+**版本**：v2.1（继任开发阶段 A-F 全部完成）
+**日期**：2026-07-19
 **前置阅读**：[README.md](./README.md) · [执行方案.md](./执行方案.md)
 
 ---
@@ -34,9 +34,10 @@
 | 文件 | 行数 | 说明 |
 |---|---|---|
 | [rpg_server.py](file:///workspace/shared/rpg/rpg_server.py) | 688 | FastAPI 端口 80，12 条路由，RpgState 状态管理，识破公式，结局判定 |
-| [rpg_shell.js](file:///workspace/shared/rpg/rpg_shell.js) | 482 | 章节管理 / iframe 加载 / postMessage 通信 / 状态同步 |
-| [rpg_shell.html](file:///workspace/shared/rpg/rpg_shell.html) | 146 | 顶栏（章节/能量条/回合/设置）+ 主区（iframe + 作弊面板）+ VN 舞台 + 章节抽屉 + 设置模态框 |
+| [rpg_shell.js](file:///workspace/shared/rpg/rpg_shell.js) | 496 | 章节管理 / iframe 加载 / postMessage 通信 / 状态同步 / 标题屏守卫 |
+| [rpg_shell.html](file:///workspace/shared/rpg/rpg_shell.html) | 281 | 顶栏 + 主区 + VN 舞台 + 章节抽屉 + 设置模态框 + 标题屏 + 加载遮罩 + 文档模态框 |
 | [rpg_style.css](file:///workspace/shared/rpg/rpg_style.css) | 426 | 像素风样式（顶栏/能量条/按钮/模态框/Toast/响应式） |
+| [rpg_extras.js](file:///workspace/shared/rpg/rpg_extras.js) | 336 | 标题屏 / 加载遮罩 / 游玩文档 / 教程入口 / 章节背景切换 / 设置状态显示 |
 | [cheat_panel.js](file:///workspace/shared/rpg/cheat_panel.js) | 184 | 评估消耗 → 确认执行 → 对手台词触发 |
 | [story_layer.js](file:///workspace/shared/rpg/story_layer.js) | 311 | 封装 Preview.playStory，章节剧情/对手台词/系统消息 |
 | [rpg_adapter.js](file:///workspace/shared/rpg/rpg_adapter.js) | 182 | 通用 iframe adapter，fetch hook 推导吃子/胜负 |
@@ -67,12 +68,12 @@ GET  /api/rpg/health/{chess_type}     → 棋类服务健康探活
 | 章节 | 场景数 | 节点数 | 完整度 |
 |---|---|---|---|
 | ch00_prologue（序章·觉醒） | 4 | 25 | ✅ 完整 |
-| ch01_tutorial_wuziqi（第 0 章·教程） | 2 | 19 | ⚠️ 骨架（待扩展为 6 场景完整教学） |
+| ch01_tutorial_wuziqi（第 0 章·教程） | 6 | 46 | ✅ 完整（剧情化系统教学） |
 | ch02_city_xiangqi（第 1 章·入门） | 2 | 15 | ⚠️ 骨架 |
-| ch03_go_intro（第 2 章·进阶） | 1 | 7 | ⚠️ 降级骨架（围棋未实现） |
+| ch03_go_intro（第 2 章·进阶） | 4 | 33 | ✅ 完整（围棋对战 + 围棋之道讲解） |
 | ch04_boss_wuziqi（第 3 章·BOSS战） | 1 | 9 | ⚠️ 骨架 |
 | ch05_final_xiangqi（第 4 章·终极对决） | 1 | 9 | ⚠️ 骨架 |
-| ch06_finale_go（第 5 章·终局） | 1 | 7 | ⚠️ 降级骨架 |
+| ch06_finale_go（第 5 章·终局） | 3 | 24 | ✅ 完整（围棋终局 + 多结局） |
 
 #### 棋类子项目
 
@@ -80,7 +81,7 @@ GET  /api/rpg/health/{chess_type}     → 棋类服务健康探活
 |---|---|---|---|---|---|
 | [xiangqi/](file:///workspace/xiangqi/) | 8000 | ✅ 7 处 | ✅ 5 处 | ✅ 已引入 | 完整可用 |
 | [wuziqi/](file:///workspace/wuziqi/) | 8001 | ✅ 7 处 | ✅ 5 处 | ✅ 已引入 | 完整可用 |
-| `go/` | 8002 | — | — | — | ❌ 目录不存在 |
+| [go/](file:///workspace/go/) | 8002 | ✅ 支持 | ✅ 支持 | ✅ 已引入 | 完整可用（9×9 简化围棋） |
 
 #### 共享资产
 
@@ -89,25 +90,32 @@ GET  /api/rpg/health/{chess_type}     → 棋类服务健康探活
 - [shared/schema_validator.py](file:///workspace/shared/schema_validator.py) — JSON Schema 校验
 - [shared/json_patch_utils.py](file:///workspace/shared/json_patch_utils.py) — RFC 6902 Patch 工具
 
+#### 像素资产（`shared/rpg/assets/`）
+
+- **8 张章节背景**：ch00_prologue / ch01_tutorial / ch02_city_xiangqi / ch03_go_intro / ch04_boss / ch05_final / ch06_finale / title_screen
+- **5 个图标**：logo / energy_orb / detection_eye / menu_scroll / book_manual
+- **2 个 UI**：border_ornate / vignette_overlay
+- 共 15 个 PNG，`manifest.json` 15/15 ok=true
+
 ### 1.2 ❌ 未完成（明确清单）
 
 #### 高优先级（影响核心体验）
 
 | # | 待办 | 说明 |
 |---|---|---|
-| U1 | **围棋子项目 `go/`** | 9×9 简化围棋引擎 + 启发式 AI + 前端，端口 8002。当前 ch03/ch06 自动降级为纯 VN |
-| U2 | **像素画资产** | 15 个资产（8 章节背景 + 5 图标 + 2 UI）未生成。`shared/rpg/assets/` 目录不存在 |
-| U3 | **标题屏 + 加载遮罩** | `rpg_extras.js` 不存在。当前直接进入序章，无标题屏/开始按钮/教程入口 |
-| U4 | **游玩文档模态框** | 内置游戏教程 + 玩法说明页面未实现（用户需求） |
+| U1 | ~~围棋子项目 `go/`~~ | ✅ **已完成**：端口 8002，9×9 简化围棋 + 启发式 AI + 前端 + rpg_adapter + 3 个 RPG 代理路由 |
+| U2 | ~~像素画资产~~ | ✅ **已完成**：15 个 PNG 全部生成（8 bgs + 5 icons + 2 ui），manifest 15/15 ok=true |
+| U3 | ~~标题屏 + 加载遮罩~~ | ✅ **已完成**：rpg_extras.js 336 行，标题屏 / 加载遮罩 / 粒子动画 / 章节背景切换（D7-revised 决策） |
+| U4 | ~~游玩文档模态框~~ | ✅ **已完成**：7 段内置文档 + 顶栏 ? 按钮 + Esc 关闭 |
 
 #### 中优先级（影响完整度）
 
 | # | 待办 | 说明 |
 |---|---|---|
-| U5 | **教程章节扩展** | ch01 当前 2 场景 19 节点，待扩展为 6 场景 46 节点的完整剧情化系统教学 |
-| U6 | **章节背景图片化** | 7 个章节背景仍是 `type: "solid"` 纯色，待改为 `type: "image"` 引用像素画 PNG |
-| U7 | **ch02-ch06 完整剧情** | 5 个章节从骨架扩展为完整 VN 内容（含战前/战后分支） |
-| U8 | **端到端测试脚本** | Playwright 视觉测试 + 服务器端完整性验证脚本 |
+| U5 | ~~教程章节扩展~~ | ✅ **已完成**：ch01 扩展为 6 场景 46 节点剧情化系统教学 |
+| U6 | ~~章节背景图片化~~ | ✅ **已完成**：ch00-ch06 主背景 solid → image，引用像素画 PNG |
+| U7 | **ch02-ch06 完整剧情** | 🟡 **部分完成**：ch03（4场景33节点）/ ch06（3场景24节点）已完成；ch02/ch04/ch05 仍为骨架 |
+| U8 | ~~端到端测试脚本~~ | ✅ **已完成**：e2e_test.py（10 用例覆盖标题屏/VN/文档/章节抽屉/ch03+ch06/go健康/RPG路由/资产可访问性） |
 
 #### 低优先级（锦上添花）
 
@@ -456,22 +464,24 @@ iframe → RPG 外壳:
 
 **目标**：实现 RPG 标题屏（开始游戏/教程/文档/设置），加载遮罩，章节背景切换。
 
-**新建文件**：`shared/rpg/rpg_extras.js`
+**新建文件**：`shared/rpg/rpg_extras.js`（336 行）
 
 **核心功能**：
 - 标题屏激活标志 `window.__RPG_TITLE_ACTIVE`（在 rpg_shell.js 之前加载，阻止其 init() 自动加载序章）
-- Monkey-patch `RpgShell.loadChapter`：标题屏激活期间挂起章节加载请求
 - 标题屏菜单：开始游戏 / 教程 / 游玩文档 / 设置
 - 加载遮罩：首屏资源就绪后淡出
 - 粒子动画：标题屏背景粒子上升效果
-- 章节背景切换：通过 CSS 自定义属性 `--rpg-current-bg` 注入 `#rpg-app::before`
+- 章节背景切换：通过注入动态 `<style>` 覆盖 `#rpg-app::before` 背景
 - 游玩文档模态框打开/关闭（Esc 关闭、遮罩点击关闭）
 - 设置模态框状态显示（API Key / 章节 / 棋类 / 作弊次数）
+- 教程入口：标题屏「教程」按钮 / 侧栏「重温教程」按钮，直接跳转 ch01
 
 **修改文件**：
-- `rpg_shell.html`：在 rpg_shell.js 之前引入 rpg_extras.js；新增标题屏/加载遮罩/文档模态框 DOM
-- `rpg_shell.js`：init() 检查 `window.__RPG_TITLE_ACTIVE`，标题屏激活时跳过初始 loadChapter
-- `rpg_style.css`：标题屏样式（z-index 500）、加载遮罩（z-index 600）、文档模态框（z-index 800）、Toast（z-index 900）
+- `rpg_shell.html`：在 rpg_shell.js 之前引入 rpg_extras.js；新增标题屏/加载遮罩/文档模态框 DOM；顶栏新增 `?` 帮助按钮
+- `rpg_shell.js`：`init()` 入口检查 `window.__RPG_TITLE_ACTIVE`，标题屏激活时跳过初始 loadChapter；`loadChapter()` 入口同样加守卫
+- `rpg_style.css`：标题屏样式（z-index 500）、加载遮罩（z-index 600）、文档模态框（z-index 350）、Toast（z-index 400）
+
+> **D7-revised 决策变更**：原 D7 决策为 monkey-patch `RpgShell.loadChapter`，但因 `RpgShell` 是 IIFE 返回的顶层 const（非 window 属性），内部 `_goNextChapter` 走闭包引用，monkey-patch 只能拦截外部调用（章节抽屉点击），无法拦截自动「下一章」。**新决策：直接修改 `rpg_shell.js` 源码**，在 `init()` 与 `loadChapter()` 入口添加 `__RPG_TITLE_ACTIVE` 守卫；`rpg_extras.js` 只负责 UI 与标志生命周期管理。
 
 **关键时序**：
 ```
@@ -577,7 +587,7 @@ go/
 | D4 | RPG 全局状态存内存 dict | 与现有棋类 GameState 模式一致 |
 | D5 | cost_energy 由 AI 评估 | 扩展 INTENT_PARSER_SYSTEM prompt，AI 返回 0-10 |
 | D6 | dry_run 仅跳过 apply_config_update | rpg_server.cheat_assess 依赖返回字段 |
-| D7 | 标题屏通过 monkey-patch loadChapter 实现 | 不改动 rpg_shell.js 核心逻辑 |
+| D7-revised | 标题屏通过直接修改 rpg_shell.js 源码实现 | 原 D7 monkey-patch 方案因 RpgShell 是 IIFE 闭包 const 而失效（内部 _goNextChapter 走闭包引用，不经过 RpgShell.loadChapter）。新方案：在 init() 与 loadChapter() 入口添加 __RPG_TITLE_ACTIVE 守卫，rpg_extras.js 只负责 UI 与标志生命周期 |
 | D8 | 像素资产通过 CSS 自定义属性注入背景 | 避免直接修改 ::before 伪元素 |
 
 ---
@@ -586,6 +596,7 @@ go/
 
 | 日期 | 版本 | 位置 | 改动 |
 |---|---|---|---|
+| 2026-07-19 | v2.1 | 全文 | 继任开发者 GLM-5.2 完成阶段 A-F 全部任务：go/ 集成修复（端口 8002 + rpg_adapter + 3 个 RPG 路由）、U3 重构（D7-revised：直接改 rpg_shell.js 加守卫，移除 monkey-patch）、U6 章节背景图片化（ch00-ch06）、U7 ch03/ch06 完整剧情扩展、U8 E2E 测试脚本、1.1/1.2 节状态对齐磁盘、7.2 节 U3 更新、8.3 节 D7-revised |
 | 2026-07-18 | v2.0 | 全文 | 基于真实代码核查重写：删除已废弃的 v1.0 内容（道具/经济/大地图/现实扭曲等）；新增真实状态清单（1.1/1.2）；重写后续开发路线图（第 6/7 章） |
 | 2026-07-18 | v1.0 | 全文 | 初版创建 |
 
