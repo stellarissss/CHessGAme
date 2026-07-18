@@ -1,0 +1,132 @@
+/* ═══════════════════════════════════════════════════════════════
+   Visual Novel Player 样式（RPG 嵌入版）
+   从 story-editor/style.css 提取 .vn-* 相关样式。
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+    --vn-bg-primary: #0a0e17;
+    --vn-bg-secondary: #11151f;
+    --vn-border: #1f2937;
+    --vn-text-primary: #e5e7eb;
+    --vn-text-secondary: #9ca3af;
+    --vn-accent-cyan: #06b6d4;
+    --vn-accent-red: #ef4444;
+    --vn-accent-gold: #f59e0b;
+    --vn-radius-sm: 4px;
+    --vn-radius-md: 6px;
+}
+
+/* 视觉小说舞台（RPG 用 vn-stage） */
+.vn-stage {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: #000;
+    z-index: 100;
+}
+
+.vn-background {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    transition: opacity 0.5s;
+    opacity: 1;
+}
+
+.vn-characters {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.vn-char-sprite {
+    position: absolute;
+    bottom: 0;
+    height: 90%;
+    transition: opacity 0.3s, transform 0.3s;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: bottom center;
+}
+.vn-char-sprite.pos-left { left: 5%; }
+.vn-char-sprite.pos-center { left: 50%; transform: translateX(-50%); }
+.vn-char-sprite.pos-right { right: 5%; }
+.vn-char-sprite.hidden { opacity: 0; transform: translateY(20px); }
+
+.vn-dialog-box {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 86%;
+    max-width: 900px;
+    background: rgba(10, 14, 23, 0.94);
+    border: 1px solid var(--vn-accent-cyan);
+    border-radius: var(--vn-radius-md);
+    padding: 16px 20px;
+    box-shadow: 0 0 24px rgba(6, 182, 212, 0.25);
+}
+
+.vn-char-name {
+    color: var(--vn-accent-cyan);
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 8px;
+    text-shadow: 0 0 8px rgba(6, 182, 212, 0.4);
+}
+
+.vn-text {
+    color: var(--vn-text-primary);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 48px;
+    white-space: pre-wrap;
+}
+
+.vn-continue-hint {
+    position: absolute;
+    bottom: 8px;
+    right: 14px;
+    color: var(--vn-accent-cyan);
+    font-size: 11px;
+    animation: vn-blink 1s infinite;
+}
+@keyframes vn-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+.vn-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+}
+.vn-choice-btn {
+    padding: 10px 16px;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid var(--vn-accent-cyan);
+    border-radius: var(--vn-radius-sm);
+    color: var(--vn-text-primary);
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.vn-choice-btn:hover {
+    background: rgba(6, 182, 212, 0.25);
+    transform: translateX(4px);
+}
+
+.vn-effects {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.effect-shake { animation: vn-shake 0.3s; }
+@keyframes vn-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+}

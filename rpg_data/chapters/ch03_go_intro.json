@@ -1,0 +1,46 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "云子老人",
+      "color": "#94a3b8",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_mountain", "name": "山中", "type": "solid", "color": "#1e3a2f" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "云子老人",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_mountain", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "少年入山寻访云子老人，欲学围棋之道。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "老朽远游在即，棋盘已收。少年，围棋之道，待你日后再寻。", "next": "n5" } },
+        { "id": "n5", "type": "hide_char", "data": { "character_id": "robot", "transition": "fade", "next": "n6" } },
+        { "id": "n6", "type": "narration", "data": { "text": "老人飘然而去。少年虽未对弈，心中却已记下这一程。", "next": "n7" } },
+        { "id": "n7", "type": "end", "data": { "ending_type": "neutral", "text": "（本章围棋局暂缺，可点击「跳过本章」继续）" } }
+      ]
+    }
+  ]
+}

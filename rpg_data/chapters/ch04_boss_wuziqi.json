@@ -1,0 +1,49 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "夜枭",
+      "color": "#a855f7",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_night", "name": "夜色", "type": "solid", "color": "#0a0a1a" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "夜枭",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_night", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "夜色沉沉，一个蒙面人拦住少年去路。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "scheming", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "听说你近来棋艺大涨？我夜枭，特来会会。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "angry", "text": "五子棋，敢否？", "next": "n6" } },
+        { "id": "n6", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "center", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "有何不敢。", "next": "n8" } },
+        { "id": "n8", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "n9" } },
+        { "id": "n9", "type": "end", "data": { "ending_type": "neutral", "text": "第 3 章·BOSS战 开始" } }
+      ]
+    }
+  ]
+}
