@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>棋圣 ChessSage</title>
+    <link rel="stylesheet" href="/shared/rpg/rpg_style.css">
+    <link rel="stylesheet" href="/shared/rpg/vn_player/vn_style.css">
+</head>
+<body>
+    <div id="rpg-app">
+        <!-- 顶部状态栏 -->
+        <header class="rpg-header">
+            <div class="rpg-header-left">
+                <button id="rpg-btn-menu" class="rpg-btn-icon" title="章节">☰</button>
+                <span id="rpg-chapter-title" class="rpg-chapter-title">序章·觉醒</span>
+            </div>
+            <div class="rpg-header-center">
+                <div class="rpg-energy-bar">
+                    <span class="rpg-energy-label">棋圣能量</span>
+                    <div class="rpg-energy-track">
+                        <div id="rpg-energy-fill" class="rpg-energy-fill"></div>
+                        <div id="rpg-energy-threshold" class="rpg-energy-threshold"></div>
+                    </div>
+                    <span id="rpg-energy-value" class="rpg-energy-value">0</span>
+                </div>
+            </div>
+            <div class="rpg-header-right">
+                <span id="rpg-turn-count" class="rpg-turn-count">回合 0</span>
+                <button id="rpg-btn-settings" class="rpg-btn-icon" title="设置">⚙</button>
+            </div>
+        </header>
+
+        <!-- 主区域 -->
+        <main class="rpg-main">
+            <!-- 棋类 iframe 容器 -->
+            <div id="rpg-battle-container" class="rpg-battle-container">
+                <div id="rpg-battle-placeholder" class="rpg-battle-placeholder">
+                    <div class="rpg-placeholder-icon">♟</div>
+                    <p>正在进入剧情……</p>
+                </div>
+                <iframe id="rpg-chess-iframe" class="rpg-chess-iframe" style="display:none;"></iframe>
+            </div>
+
+            <!-- 棋圣系统侧栏（作弊面板） -->
+            <aside id="rpg-cheat-panel" class="rpg-cheat-panel">
+                <div class="rpg-panel-section">
+                    <h3 class="rpg-panel-title">♟ 棋圣系统</h3>
+                    <p class="rpg-panel-hint">用自然语言改写棋局规则。能量 ≥30 可使用，可透支。</p>
+                </div>
+
+                <div class="rpg-panel-section">
+                    <label class="rpg-input-label">作弊指令</label>
+                    <textarea id="rpg-cheat-input" class="rpg-cheat-input"
+                        placeholder="例：让我的炮可以隔两子吃 / 把对方的将变成兵 / 让 AI 三回合不动"></textarea>
+                </div>
+
+                <div class="rpg-panel-section rpg-cheat-actions">
+                    <button id="rpg-btn-assess" class="rpg-btn rpg-btn-secondary">评估消耗</button>
+                    <button id="rpg-btn-use" class="rpg-btn rpg-btn-primary" disabled>执行作弊</button>
+                    <button id="rpg-btn-cancel" class="rpg-btn rpg-btn-ghost">清空</button>
+                </div>
+
+                <div id="rpg-cheat-result" class="rpg-panel-section rpg-cheat-result" style="display:none;">
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">分类</span>
+                        <span id="rpg-result-classification" class="rpg-result-value">—</span>
+                    </div>
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">能量消耗</span>
+                        <span id="rpg-result-cost" class="rpg-result-value">—</span>
+                    </div>
+                    <div class="rpg-result-row">
+                        <span class="rpg-result-label">执行后能量</span>
+                        <span id="rpg-result-after" class="rpg-result-value">—</span>
+                    </div>
+                    <div id="rpg-result-message" class="rpg-result-message"></div>
+                </div>
+
+                <div class="rpg-panel-section">
+                    <div class="rpg-stats-row">
+                        <span>作弊次数</span>
+                        <span id="rpg-cheats-used">0</span>
+                    </div>
+                    <div class="rpg-stats-row">
+                        <span>当前棋类</span>
+                        <span id="rpg-current-chess">—</span>
+                    </div>
+                </div>
+
+                <div class="rpg-panel-section rpg-panel-skip">
+                    <button id="rpg-btn-skip" class="rpg-btn rpg-btn-ghost" style="display:none;">跳过本章</button>
+                </div>
+            </aside>
+        </main>
+
+        <!-- VN 故事层（默认隐藏） -->
+        <div id="vn-stage" class="vn-stage" style="display:none;">
+            <div id="vn-bg" class="vn-background"></div>
+            <div id="vn-chars" class="vn-characters"></div>
+            <div id="vn-effects" class="vn-effects"></div>
+            <div id="vn-dialog" class="vn-dialog-box" style="display:none;">
+                <div id="vn-char-name" class="vn-char-name"></div>
+                <div id="vn-text" class="vn-text"></div>
+                <div id="vn-continue-hint" class="vn-continue-hint">▼ 点击继续</div>
+                <div id="vn-choices" class="vn-choices" style="display:none;"></div>
+            </div>
+        </div>
+
+        <!-- 章节列表抽屉 -->
+        <div id="rpg-chapter-drawer" class="rpg-drawer" style="display:none;">
+            <div class="rpg-drawer-header">
+                <h3>章节选择</h3>
+                <button id="rpg-btn-close-drawer" class="rpg-btn-icon">✕</button>
+            </div>
+            <div id="rpg-chapter-list" class="rpg-chapter-list"></div>
+        </div>
+
+        <!-- 设置模态框 -->
+        <div id="rpg-settings-modal" class="rpg-modal" style="display:none;">
+            <div class="rpg-modal-content">
+                <h3>设置</h3>
+                <div class="rpg-form-group">
+                    <label>DeepSeek API Key</label>
+                    <input type="password" id="rpg-api-key-input" placeholder="输入 API Key 后将自动下发到三个棋类服务">
+                    <small>默认从 xiangqi/api密钥.txt 读取；可在此覆盖</small>
+                </div>
+                <div class="rpg-modal-buttons">
+                    <button id="rpg-btn-close-settings" class="rpg-btn rpg-btn-ghost">取消</button>
+                    <button id="rpg-btn-save-settings" class="rpg-btn rpg-btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 提示 Toast -->
+        <div id="rpg-toast" class="rpg-toast" style="display:none;"></div>
+    </div>
+
+    <!-- JS：VN 引擎 → 工具 → 模块 -->
+    <script src="/shared/rpg/vn_player/variable_manager.js"></script>
+    <script src="/shared/rpg/vn_player/preview.js"></script>
+    <script src="/shared/rpg/story_layer.js"></script>
+    <script src="/shared/rpg/cheat_panel.js"></script>
+    <script src="/shared/rpg/rpg_shell.js"></script>
+</body>
+</html>

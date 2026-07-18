@@ -1,0 +1,76 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "happy", "image": "/shared/assets/characters/boy/boy_happy.png" },
+        { "expression": "sad", "image": "/shared/assets/characters/boy/boy_sad.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "confident", "image": "/shared/assets/characters/boy/boy_confident.png" },
+        { "expression": "defeated", "image": "/shared/assets/characters/boy/boy_defeated.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "棋圣系统",
+      "color": "#fbbf24",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "angry", "image": "/shared/assets/characters/robot/robot_angry.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_cyber", "name": "棋圣空间", "type": "solid", "color": "#0a1628" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "棋圣教学",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_cyber", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "棋圣系统在少年脑中显现，四周化作一片数据流光。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "第一课：五子棋。规则简单，先连成五子者胜。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "但你我之间，不必拘泥于规则。", "next": "n6" } },
+        { "id": "n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "看右上角的能量条。起始为 0，吃子、成五连都能积攒能量。", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "能量达到 30 时，你便可在右侧『棋圣系统』输入指令——改写棋局。", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "比如：「让我的棋子连成五子」「冻结对手一回合」。", "next": "n9" } },
+        { "id": "n9", "type": "show_char", "data": { "character_id": "boy", "expression": "surprised", "position": "center", "transition": "fade", "next": "n10" } },
+        { "id": "n10", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "这……岂不是作弊？", "next": "n11" } },
+        { "id": "n11", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "对手不会察觉。他们的认知会被……合理化。这正是乐趣所在。", "next": "n12" } },
+        { "id": "n12", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "但小心：每次改写，被识破的概率都会累积。若被看穿……结局将不同。", "next": "n13" } },
+        { "id": "n13", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "……我明白了。来吧。", "next": "n14" } },
+        { "id": "n14", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "开局",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "hide_char", "data": { "character_id": "boy", "transition": "fade", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "narration", "data": { "text": "棋盘浮现，黑白子对峙。少年执黑先行。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "这一局，我亲自陪你下。放马过来。", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "end", "data": { "ending_type": "neutral", "text": "第 0 章·教程 开始" } }
+      ]
+    }
+  ]
+}

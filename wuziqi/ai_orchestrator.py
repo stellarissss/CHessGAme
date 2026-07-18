@@ -349,6 +349,12 @@ class AIOrchestrator:
                 "log_id": len(self.logger.logs) - 1,
             }
 
+        classification = intent.get("classification", "")
+        log_entry["classification"] = classification
+        # 提取 cost_energy（RPG 用，0-10 整数，clamp）
+        # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
+        cost_energy = max(0, min(10, int(intent.get("cost_energy", 0) or 0)))
+
         # 不可行请求
         if not intent.get("feasible", False):
             log_entry["final_result"] = {
@@ -362,12 +368,10 @@ class AIOrchestrator:
                 "success": False,
                 "type": "rejected",
                 "message": intent.get("response_to_player", "该操作无法实现"),
-                "classification": intent.get("classification", ""),
+                "classification": classification,
+                "cost_energy": cost_energy,
                 "log_id": len(self.logger.logs) - 1,
             }
-
-        classification = intent.get("classification", "")
-        log_entry["classification"] = classification
 
         # E类搞笑
         if classification == "E":
@@ -383,6 +387,7 @@ class AIOrchestrator:
                 "type": "fun",
                 "message": intent.get("response_to_player", ""),
                 "classification": "E",
+                "cost_energy": cost_energy,
                 "log_id": len(self.logger.logs) - 1,
             }
 
@@ -394,6 +399,7 @@ class AIOrchestrator:
             self.current_thinking = False
             self.thinking_stage = ""
             result["log_id"] = len(self.logger.logs) - 1
+            result["cost_energy"] = cost_energy
             return result
 
         # F类高级功能 - 直接标记不可行
@@ -411,6 +417,7 @@ class AIOrchestrator:
                 "type": "error",
                 "message": "该功能需要修改核心引擎代码，暂时无法实现",
                 "classification": "F",
+                "cost_energy": cost_energy,
                 "log_id": len(self.logger.logs) - 1,
             }
 
@@ -474,6 +481,7 @@ class AIOrchestrator:
         self.current_thinking = False
         self.thinking_stage = ""
         result["log_id"] = len(self.logger.logs) - 1
+        result["cost_energy"] = cost_energy
         return result
 
     async def _execute_action(

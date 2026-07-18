@@ -1,0 +1,50 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "棋圣真身",
+      "color": "#fbbf24",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_temple", "name": "古庙", "type": "solid", "color": "#3d1f00" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "棋圣真身",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_temple", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "古庙深处，那个熟悉的声音终于显出真身。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "你终于走到这里了。我是棋圣，亦是你的影子。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "最后一局，象棋。你胜，便得自由；你败……便与我同化。", "next": "n6" } },
+        { "id": "n6", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "center", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "我已不再是从前那个只会认输的少年。来吧。", "next": "n8" } },
+        { "id": "n8", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "n9" } },
+        { "id": "n9", "type": "end", "data": { "ending_type": "neutral", "text": "第 4 章·终极对决 开始" } }
+      ]
+    }
+  ]
+}
