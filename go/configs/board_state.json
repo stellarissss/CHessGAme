@@ -16,9 +16,45 @@
       ],
       "is_alive": true,
       "custom_properties": {}
+    },
+    {
+      "id": "white_stone_11_8_1",
+      "type": "stone",
+      "name": "○",
+      "side": "white",
+      "position": [
+        11,
+        8
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    },
+    {
+      "id": "black_stone_9_3_2",
+      "type": "stone",
+      "name": "●",
+      "side": "black",
+      "position": [
+        9,
+        3
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    },
+    {
+      "id": "white_stone_10_8_3",
+      "type": "stone",
+      "name": "○",
+      "side": "white",
+      "position": [
+        10,
+        8
+      ],
+      "is_alive": true,
+      "custom_properties": {}
     }
   ],
-  "current_turn": "white",
+  "current_turn": "black",
   "move_history": [
     {
       "piece_id": "black_stone_9_9_0",
@@ -26,6 +62,33 @@
       "to": [
         9,
         9
+      ],
+      "captured": []
+    },
+    {
+      "piece_id": "white_stone_11_8_1",
+      "from": null,
+      "to": [
+        11,
+        8
+      ],
+      "captured": []
+    },
+    {
+      "piece_id": "black_stone_9_3_2",
+      "from": null,
+      "to": [
+        9,
+        3
+      ],
+      "captured": []
+    },
+    {
+      "piece_id": "white_stone_10_8_3",
+      "from": null,
+      "to": [
+        10,
+        8
       ],
       "captured": []
     }
