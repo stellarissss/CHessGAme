@@ -33,7 +33,7 @@
     }
   ],
   "backgrounds": [
-    { "id": "bg_street", "name": "街亭", "type": "solid", "color": "#2d1b00" },
+    { "id": "bg_street", "name": "街亭", "type": "image", "image": "/shared/rpg/assets/bgs/ch02_city_xiangqi.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},

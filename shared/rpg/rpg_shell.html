@@ -268,8 +268,9 @@
     </div>
 
     <!-- JS：VN 引擎 → 工具 → 模块 -->
-    <!-- rpg_extras 必须在 rpg_shell 之前加载，以便 monkey-patch RpgShell.loadChapter
-         拦截初始 loadChapter('ch00_prologue') 调用，避免在标题屏激活期间后台加载章节 -->
+    <!-- rpg_extras 必须在 rpg_shell 之前加载，以设置 window.__RPG_TITLE_ACTIVE = true
+         阻止 rpg_shell.js init() 与 loadChapter() 在标题屏激活期间自动加载章节。
+         守卫逻辑已直接写入 rpg_shell.js 源码（D7-revised 决策），不再依赖 monkey-patch。 -->
     <script src="/shared/rpg/vn_player/variable_manager.js"></script>
     <script src="/shared/rpg/vn_player/preview.js"></script>
     <script src="/shared/rpg/story_layer.js"></script>

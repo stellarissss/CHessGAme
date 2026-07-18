@@ -24,7 +24,7 @@
     }
   ],
   "backgrounds": [
-    { "id": "bg_temple", "name": "古庙", "type": "solid", "color": "#3d1f00" },
+    { "id": "bg_temple", "name": "古庙", "type": "image", "image": "/shared/rpg/assets/bgs/ch05_final.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},

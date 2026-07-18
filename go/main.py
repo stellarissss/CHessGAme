@@ -688,11 +688,55 @@ async def clear_logs():
     return {"success": True, "message": "日志已清空"}
 
 
+# ═══════════════════════════════════════════════════════════════
+# RPG 代理路由（供 rpg_server:80 调用，支持围棋章节作弊）
+# ═══════════════════════════════════════════════════════════════
+
+from json_patch_utils import apply_patch as _rpg_apply_patch  # noqa: E402
+
+
+class RpgApplyPatchReq(BaseModel):
+    patch: list
+    target: str  # board_state / rules / pieces_red / pieces_black / board / ui_config
+
+
+@app.post("/api/rpg/apply_patch")
+async def rpg_apply_patch(req: RpgApplyPatchReq):
+    """应用 JSON Patch 到指定配置文件"""
+    if req.target not in CONFIG_FILES:
+        return JSONResponse({"success": False, "message": f"无效 target: {req.target}"}, status_code=400)
+    try:
+        current = copy.deepcopy(state.configs.get(req.target, {}))
+        patched = _rpg_apply_patch(current, req.patch)
+        state.configs[req.target] = patched
+        state.save_config(req.target)
+        state._rebuild_engines()
+        return {"success": True, "target": req.target, "configs": patched}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"应用 patch 失败: {e}"}
+
+
+@app.post("/api/rpg/apply_rules")
+async def rpg_apply_rules(req: RpgApplyPatchReq):
+    """应用规则覆盖（target 强制为 rules）"""
+    req.target = "rules"
+    return await rpg_apply_patch(req)
+
+
+@app.post("/api/rpg/reset_battle")
+async def rpg_reset_battle():
+    """RPG 每局开始时调用，重置棋盘到初始状态"""
+    state.reset_board()
+    return {"success": True, "message": "战斗已重置", "board_state": state.configs["board_state"]}
+
+
 if __name__ == "__main__":
     import uvicorn
 
     print("=" * 50)
     print("  无限制围棋 - 启动中...")
-    print(f"  访问地址: http://localhost:8000")
+    print(f"  访问地址: http://localhost:8002")
     print("=" * 50)
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
