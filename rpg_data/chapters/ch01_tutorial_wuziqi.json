@@ -2,7 +2,7 @@
   "characters": [
     {
       "id": "boy",
-      "name": "少年",
+      "name": "小明",
       "color": "#7dd3fc",
       "portraits": [
         { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
@@ -33,6 +33,7 @@
     }
   ],
   "backgrounds": [
+    { "id": "bg_classroom", "name": "教室", "type": "image", "image": "/shared/rpg/assets/bgs/ch01_tutorial.png" },
     { "id": "bg_cyber", "name": "棋圣空间", "type": "image", "image": "/shared/rpg/assets/bgs/ch01_tutorial.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
@@ -41,19 +42,17 @@
   "scenes": [
     {
       "id": "scene_1",
-      "name": "棋圣空间·初遇",
+      "name": "再战·小刚",
       "start_node_id": "n1",
       "nodes": [
-        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_cyber", "transition": "fade", "next": "n2" } },
-        { "id": "n2", "type": "narration", "data": { "text": "意识坠入一片幽蓝的数据虚空。悬浮的几何碎片缓缓旋转，似有无数棋局在远方回响。", "next": "n3" } },
-        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
-        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "欢迎来到棋圣空间。在这里，我将教你如何——赢得每一局棋。", "next": "n5" } },
-        { "id": "n5", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "……赢？可我连五子棋都下不好。", "next": "n6" } },
-        { "id": "n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "那是因为你太拘泥于「规则」。今天，我们换个玩法。", "next": "n7" } },
-        { "id": "n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "看好了——这是你的第一个对手：五子棋。先连成五子者胜，规则最简单。", "next": "n8" } },
-        { "id": "n8", "type": "narration", "data": { "text": "虚空中央浮现一块悬浮的五子棋盘，黑白子静静对峙。", "next": "n9" } },
-        { "id": "n9", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "但这只是表象。真正的胜负，不在棋盘上——而在你的右侧。", "next": "n10" } },
-        { "id": "n10", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_classroom", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "小刚听说小明醒了，又凑了过来：「醒了就好！再来一局？我让你执黑先行！」", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "好。这次……我不会再输了。", "next": "n5" } },
+        { "id": "n5", "type": "narration", "data": { "text": "小明深吸一口气，脑中响起棋圣系统的声音——", "next": "n6" } },
+        { "id": "n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "很好的决心。但光有决心不够——你需要学会运用我的力量。", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "在你开始之前，让我先教你三个基本概念。认真听。", "next": "n8" } },
+        { "id": "n8", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
       ]
     },
     {
@@ -61,13 +60,14 @@
       "name": "教学·能量条",
       "start_node_id": "s2_n1",
       "nodes": [
-        { "id": "s2_n1", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "请将视线移向屏幕顶部——那条发着青光的横条，便是「棋圣能量」。", "next": "s2_n2" } },
-        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "起始为 0，最大 100。中间那道金色刻度是「使用门槛」——30。", "next": "s2_n3" } },
-        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "如何获得能量？下棋即可。每次吃子 +10，被吃 +5；五子棋成五连 +15；每 5 回合被动 +2。", "next": "s2_n4" } },
-        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "也就是说……认真下棋，能量就会涨？", "next": "s2_n5" } },
-        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "正是。能量是你「打破规则」的筹码。攒得越多，能做的事就越离谱。", "next": "s2_n6" } },
-        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "注意：能量允许透支。但透支越多，代价也越重——这点稍后我会告诉你。", "next": "s2_n7" } },
-        { "id": "s2_n7", "type": "jump", "data": { "target_scene_id": "scene_3", "target_node_id": "s3_n1" } }
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_cyber", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "请将视线移向屏幕顶部——那条发着青光的横条，便是「棋圣能量」。", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "起始为 0，最大 100。中间那道金色刻度是「使用门槛」——30。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "如何获得能量？下棋即可。每次吃子 +10，被吃 +5；五子棋成五连 +15；每 5 回合被动 +2。", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "也就是说……认真下棋，能量就会涨？", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "正是。能量是你「打破规则」的筹码。攒得越多，能做的事就越离谱。", "next": "s2_n7" } },
+        { "id": "s2_n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "注意：能量允许透支。但透支越多，代价也越重——这点稍后我会告诉你。", "next": "s2_n8" } },
+        { "id": "s2_n8", "type": "jump", "data": { "target_scene_id": "scene_3", "target_node_id": "s3_n1" } }
       ]
     },
     {
@@ -81,7 +81,7 @@
         { "id": "s3_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "比如：「让我的棋子连成五子」——直接获胜。", "next": "s3_n5" } },
         { "id": "s3_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "或：「冻结对手一回合」「把对方某子挪开」「让我多走一步」……", "next": "s3_n6" } },
         { "id": "s3_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "流程是：输入指令 → 点击「评估消耗」查看耗能 → 点击「执行作弊」应用。也可用 Ctrl+Enter 快速评估。", "next": "s3_n7" } },
-        { "id": "s3_n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "听起来……太作弊了吧？对手不会察觉吗？", "next": "s3_n8" } },
+        { "id": "s3_n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "听起来……太作弊了吧？小刚不会察觉吗？", "next": "s3_n8" } },
         { "id": "s3_n8", "type": "jump", "data": { "target_scene_id": "scene_4", "target_node_id": "s4_n1" } }
       ]
     },
@@ -119,14 +119,14 @@
     },
     {
       "id": "scene_6",
-      "name": "开局",
+      "name": "开局·再战小刚",
       "start_node_id": "s6_n1",
       "nodes": [
         { "id": "s6_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s6_n2" } },
         { "id": "s6_n2", "type": "hide_char", "data": { "character_id": "boy", "transition": "fade", "next": "s6_n3" } },
         { "id": "s6_n3", "type": "hide_char", "data": { "character_id": "robot", "transition": "fade", "next": "s6_n4" } },
-        { "id": "s6_n4", "type": "narration", "data": { "text": "棋盘浮现，黑白子对峙。少年执黑先行。", "next": "s6_n5" } },
-        { "id": "s6_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "这一局，我亲自陪你下。点击棋盘落子，放马过来。", "next": "s6_n6" } },
+        { "id": "s6_n4", "type": "narration", "data": { "text": "棋盘浮现，小刚执白，小明执黑。这一局，决定着小明能否打破连输的魔咒。", "next": "s6_n5" } },
+        { "id": "s6_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "小刚已经落子了。轮到你——放马过来。", "next": "s6_n6" } },
         { "id": "s6_n6", "type": "end", "data": { "ending_type": "neutral", "text": "第 0 章·教程 开始" } }
       ]
     }
