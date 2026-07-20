@@ -8,18 +8,8 @@
     "stone": {
       "label": "○",
       "is_king": false,
-      "capture_rules": [],
-      "moves": [
-        {
-          "kind": "jump",
-          "to": [
-            1,
-            0
-          ],
-          "land": "empty",
-          "sym": "rotate4"
-        }
-      ]
+      "moves": [],
+      "capture_rules": []
     }
   },
   "custom_pieces": [],

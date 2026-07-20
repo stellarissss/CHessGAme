@@ -122,13 +122,12 @@ const CheatPanel = (() => {
                 cheats_used: RpgShell.getState().cheats_used + 1,
             });
 
-            // 2. 通过 postMessage 把 modified_configs 发给 iframe
+            // 2. 直接调用棋盘组件的 applyCheatPatch 方法
             if (data.modified_configs && Object.keys(data.modified_configs).length > 0) {
-                RpgShell.sendToIframe({
-                    type: 'RPG_APPLY_CHEAT',
-                    modified_configs: data.modified_configs,
-                    classification: data.classification,
-                });
+                const boardEl = RpgShell.getBoardElement();
+                if (boardEl && typeof boardEl.applyCheatPatch === 'function') {
+                    await boardEl.applyCheatPatch(data.modified_configs);
+                }
             }
 
             // 3. 播放对手合理化台词（核心爽点）

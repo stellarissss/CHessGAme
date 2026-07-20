@@ -12,18 +12,10 @@
     "state": "playing",
     "winner": null,
     "win_condition": null,
-    "custom_rules_active": [
-      "[红方]add_move_ability"
-    ]
+    "custom_rules_active": []
   },
   "mechanisms": {
-    "skip_turns": [
-      {
-        "side": "black",
-        "remaining": 1,
-        "reason": "黑方被跳过下一回合"
-      }
-    ],
+    "skip_turns": [],
     "ai_control": [],
     "player_control": [],
     "random_moves": [],

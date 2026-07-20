@@ -60,6 +60,12 @@ html, body {
         radial-gradient(ellipse at top, rgba(157, 78, 221, 0.15) 0%, transparent 50%),
         radial-gradient(ellipse at bottom, rgba(77, 208, 225, 0.1) 0%, transparent 50%),
         var(--pix-bg-deep);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#rpg-app.rpg-transition-out {
+    opacity: 0;
+    transform: scale(0.95);
 }
 
 /* 全局背景层（章节切换时更换） */
@@ -341,11 +347,10 @@ html, body {
     color: var(--pix-text-secondary);
     text-shadow: 1px 1px 0 var(--pix-bg-deep);
 }
-.rpg-chess-iframe {
+xiangqi-board, wuziqi-board, go-board {
+    display: block;
     width: 100%;
     height: 100%;
-    border: 0;
-    background: var(--pix-bg-deep);
 }
 
 /* 棋圣系统侧栏 */
@@ -698,6 +703,25 @@ html, body {
     10%  { opacity: 1; }
     90%  { opacity: 1; }
     100% { transform: translateY(-10vh) translateX(20px); opacity: 0; }
+}
+
+.rpg-particle-star {
+    animation: particle-twinkle ease-in-out infinite;
+}
+@keyframes particle-twinkle {
+    0%, 100% { transform: scale(0.5); opacity: 0.3; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
+.rpg-particle-chess {
+    animation: particle-chess-rise linear infinite;
+}
+@keyframes particle-chess-rise {
+    0%   { transform: translateY(100vh) translateX(0) rotate(0deg); opacity: 0; }
+    10%  { opacity: 0.8; }
+    50%  { transform: translateY(40vh) translateX(30px) rotate(180deg); }
+    90%  { opacity: 0.6; }
+    100% { transform: translateY(-10vh) translateX(-10px) rotate(360deg); opacity: 0; }
 }
 
 /* ────────── 章节抽屉 ────────── */

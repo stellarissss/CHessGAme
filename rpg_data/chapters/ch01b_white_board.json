@@ -1,0 +1,111 @@
+{
+  "characters": [
+    {
+      "id": "boy",
+      "name": "少年",
+      "color": "#7dd3fc",
+      "portraits": [
+        { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/boy/boy_thinking.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/boy/boy_surprised.png" },
+        { "expression": "happy", "image": "/shared/assets/characters/boy/boy_happy.png" },
+        { "expression": "determined", "image": "/shared/assets/characters/boy/boy_determined.png" },
+        { "expression": "confident", "image": "/shared/assets/characters/boy/boy_confident.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/boy/boy_victory.png" }
+      ]
+    },
+    {
+      "id": "robot",
+      "name": "棋圣系统",
+      "color": "#fbbf24",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" }
+      ]
+    },
+    {
+      "id": "phantom",
+      "name": "幻影棋手",
+      "color": "#e0e0e0",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" }
+      ]
+    }
+  ],
+  "backgrounds": [
+    { "id": "bg_cyber", "name": "棋圣空间", "type": "image", "image": "/shared/rpg/assets/bgs/ch01_tutorial.png" },
+    { "id": "bg_white", "name": "白色虚空", "type": "solid", "color": "#f0f0f0" },
+    { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
+  ],
+  "variables": {},
+  "start_scene_id": "scene_1",
+  "scenes": [
+    {
+      "id": "scene_1",
+      "name": "棋圣的挑战",
+      "start_node_id": "n1",
+      "nodes": [
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_cyber", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "虚空再次亮起。棋圣系统的身影在幽蓝光芒中浮现，语气与此前截然不同——带着一丝玩味。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "规则你已经了解了。现在，来点不一样的。", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "看好了——这是一块五子棋盘。我要你做一件事：", "next": "n6" } },
+        { "id": "n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "让这块棋盘至少 80% 的区域……变成白色。", "next": "n7" } },
+        { "id": "n7", "type": "show_char", "data": { "character_id": "boy", "expression": "surprised", "position": "center", "transition": "fade", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "……白色？你是说下白子？可 15×15 的棋盘有 225 格，80% 就是 180 格……", "next": "n9" } },
+        { "id": "n9", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "谁说只有下棋这一种方式？", "next": "n10" } },
+        { "id": "n10", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "别忘了——你拥有棋圣系统。", "next": "n11" } },
+        { "id": "n11", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "三种思路",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "这次任务的胜利条件不是五连，而是——棋盘白色覆盖率 ≥ 80%。", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "我给你三条路，你选哪条都行——", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "其一：疯狂下白子，一格一格填满棋盘。笨，但可行。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "其二：让我替你落子，省点力气。但本质一样——还是一格一格来。", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "其三……如果你足够大胆，也许根本不需要落子。", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "不落子……就能涂白？怎么做？", "next": "s2_n7" } },
+        { "id": "s2_n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "你已经有答案了，只是不敢想。我给你初始 50 能量——省着用，或者……大胆用。", "next": "s2_n8" } },
+        { "id": "s2_n8", "type": "jump", "data": { "target_scene_id": "scene_3", "target_node_id": "s3_n1" } }
+      ]
+    },
+    {
+      "id": "scene_3",
+      "name": "幻影棋手",
+      "start_node_id": "s3_n1",
+      "nodes": [
+        { "id": "s3_n1", "type": "narration", "data": { "text": "虚空裂开一道白光。一个轮廓模糊的身影从中走出——通体素白，如棋盘上未落之子。", "next": "s3_n2" } },
+        { "id": "s3_n2", "type": "show_char", "data": { "character_id": "phantom", "expression": "front_idle", "position": "center", "transition": "fade", "next": "s3_n3" } },
+        { "id": "s3_n3", "type": "dialogue", "data": { "character_id": "phantom", "expression": "scheming", "text": "白色……是我的颜色。你想染白我的领地？", "next": "s3_n4" } },
+        { "id": "s3_n4", "type": "dialogue", "data": { "character_id": "phantom", "expression": "laughing", "text": "有趣。那就让我看看，你能白到什么程度。", "next": "s3_n5" } },
+        { "id": "s3_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "记住——你改写的不是规则，是现实本身。去吧。", "next": "s3_n6" } },
+        { "id": "s3_n6", "type": "jump", "data": { "target_scene_id": "scene_4", "target_node_id": "s4_n1" } }
+      ]
+    },
+    {
+      "id": "scene_4",
+      "name": "开局",
+      "start_node_id": "s4_n1",
+      "nodes": [
+        { "id": "s4_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s4_n2" } },
+        { "id": "s4_n2", "type": "hide_char", "data": { "character_id": "boy", "transition": "fade", "next": "s4_n3" } },
+        { "id": "s4_n3", "type": "hide_char", "data": { "character_id": "robot", "transition": "fade", "next": "s4_n4" } },
+        { "id": "s4_n4", "type": "hide_char", "data": { "character_id": "phantom", "transition": "fade", "next": "s4_n5" } },
+        { "id": "s4_n5", "type": "narration", "data": { "text": "棋盘浮现。少年执黑，幻影执白。80% 的白色——你能做到吗？", "next": "s4_n6" } },
+        { "id": "s4_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "提示：右侧面板。大胆想，大胆输。", "next": "s4_n7" } },
+        { "id": "s4_n7", "type": "end", "data": { "ending_type": "neutral", "text": "第 0.5 章·涂白 开始" } }
+      ]
+    }
+  ]
+}
