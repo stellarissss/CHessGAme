@@ -680,9 +680,10 @@ async def chess_health(chess_type: str):
 
 if __name__ == "__main__":
     import uvicorn
+    port = 8080
     print("=" * 50)
     print("  棋圣 RPG - 启动中...")
-    print(f"  访问地址: http://localhost:80")
+    print(f"  访问地址: http://localhost:{port}")
     print(f"  API Key: {'已加载' if rpg_state.api_key else '未加载（请在设置界面输入）'}")
     print("=" * 50)
-    uvicorn.run(app, host="0.0.0.0", port=80)
+    uvicorn.run(app, host="0.0.0.0", port=port)

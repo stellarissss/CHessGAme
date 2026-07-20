@@ -18,8 +18,8 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      前端界面 (HTML/CSS/JS)                  │
-│   - 19x19棋盘渲染          - 黑白棋子显示          - AI对话   │
+│        前端界面 (Web Component `<go-board>` + Shadow DOM)     │
+│   - 9x9棋盘渲染          - 黑白棋子显示          - AI对话   │
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼
@@ -103,10 +103,12 @@ pip install -r requirements.txt
 ### 启动服务
 
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
-访问 http://localhost:8000 即可开始游戏。
+访问 http://localhost:8002 即可开始游戏。
+
+> 前端已重构为 Web Component（`<go-board>`），通过 ES Module 导出，可被 RPG 外壳动态 `import()` 挂载，也可在 standalone 模式下直接访问。
 
 ## 🎯 游戏规则
 

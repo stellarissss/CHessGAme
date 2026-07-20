@@ -26,6 +26,7 @@
     const CHAPTER_BG_MAP = {
         'ch00_prologue':       '/shared/rpg/assets/bgs/ch00_prologue.png',
         'ch01_tutorial_wuziqi':'/shared/rpg/assets/bgs/ch01_tutorial.png',
+        'ch01b_white_board':    '/shared/rpg/assets/bgs/ch01_tutorial.png',
         'ch02_city_xiangqi':   '/shared/rpg/assets/bgs/ch02_city_xiangqi.png',
         'ch03_go_intro':       '/shared/rpg/assets/bgs/ch03_go_intro.png',
         'ch04_boss_wuziqi':    '/shared/rpg/assets/bgs/ch04_boss.png',
@@ -246,24 +247,71 @@
         container.innerHTML = '';
 
         const COLORS = ['#ffe066', '#f4c430', '#80deea', '#c77dff', '#ffffff'];
-        const count = 36;
-
-        for (let i = 0; i < count; i++) {
+        const CHESS_CHARS = ['♟', '♞', '♝', '♜', '♛', '♚', '●', '○'];
+        
+        for (let i = 0; i < 48; i++) {
             const p = document.createElement('div');
             p.className = 'rpg-particle';
-            const size = 2 + Math.floor(Math.random() * 4);
-            const left = Math.random() * 100;
-            const dur = 6 + Math.random() * 10;
-            const delay = Math.random() * 8;
-            const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-            p.style.width = size + 'px';
-            p.style.height = size + 'px';
-            p.style.left = left + '%';
-            p.style.bottom = '0';
-            p.style.background = color;
-            p.style.boxShadow = `0 0 ${4 + size}px ${color}`;
-            p.style.animationDuration = dur + 's';
-            p.style.animationDelay = '-' + delay + 's';
+            
+            const rand = Math.random();
+            let type = 'circle';
+            if (rand > 0.7) type = 'star';
+            else if (rand > 0.5) type = 'chess';
+            
+            if (type === 'circle') {
+                const size = 2 + Math.floor(Math.random() * 5);
+                const left = Math.random() * 100;
+                const dur = 6 + Math.random() * 12;
+                const delay = Math.random() * 8;
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                p.style.width = size + 'px';
+                p.style.height = size + 'px';
+                p.style.left = left + '%';
+                p.style.bottom = '-20px';
+                p.style.background = color;
+                p.style.boxShadow = `0 0 ${6 + size}px ${color}`;
+                p.style.animationDuration = dur + 's';
+                p.style.animationDelay = '-' + delay + 's';
+                p.style.opacity = 0.4 + Math.random() * 0.6;
+            } else if (type === 'star') {
+                p.className = 'rpg-particle rpg-particle-star';
+                const size = 8 + Math.floor(Math.random() * 12);
+                const left = Math.random() * 100;
+                const top = Math.random() * 60;
+                const dur = 1.5 + Math.random() * 2;
+                const delay = Math.random() * 5;
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                p.style.width = size + 'px';
+                p.style.height = size + 'px';
+                p.style.left = left + '%';
+                p.style.top = top + '%';
+                p.style.fontSize = size + 'px';
+                p.style.color = color;
+                p.style.textShadow = `0 0 8px ${color}`;
+                p.textContent = '✦';
+                p.style.animationDuration = dur + 's';
+                p.style.animationDelay = delay + 's';
+                p.style.opacity = 0.3 + Math.random() * 0.7;
+            } else {
+                p.className = 'rpg-particle rpg-particle-chess';
+                const size = 12 + Math.floor(Math.random() * 16);
+                const left = Math.random() * 100;
+                const dur = 8 + Math.random() * 10;
+                const delay = Math.random() * 6;
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                const char = CHESS_CHARS[Math.floor(Math.random() * CHESS_CHARS.length)];
+                p.style.width = size + 'px';
+                p.style.height = size + 'px';
+                p.style.left = left + '%';
+                p.style.bottom = '-30px';
+                p.style.fontSize = size + 'px';
+                p.style.color = color;
+                p.style.textShadow = `0 0 6px ${color}`;
+                p.textContent = char;
+                p.style.animationDuration = dur + 's';
+                p.style.animationDelay = '-' + delay + 's';
+                p.style.opacity = 0.5 + Math.random() * 0.5;
+            }
             container.appendChild(p);
         }
     }

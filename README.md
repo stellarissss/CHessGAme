@@ -28,10 +28,9 @@
 │   └── rpg/                        ← ✨ RPG 外壳层（端口 80）
 │       ├── rpg_server.py           ← RPG 主后端（688 行，12 条路由）
 │       ├── rpg_shell.html          ← RPG 外壳页面
-│       ├── rpg_shell.js            ← 章节管理 / iframe / 状态同步（482 行）
+│       ├── rpg_shell.js            ← 章节管理 / Web Component 动态加载 / 状态同步
 │       ├── cheat_panel.js          ← 棋圣系统作弊面板
 │       ├── story_layer.js          ← VN 故事层封装
-│       ├── rpg_adapter.js          ← 通用 iframe adapter（三棋类共用）
 │       ├── rpg_style.css           ← RPG 像素风样式（426 行）
 │       ├── dialogue_templates.json ← 对手「认知扭曲」台词库（6 类 × 4 条）
 │       └── vn_player/              ← VN 引擎（从 story-editor 复制并打补丁）
@@ -57,7 +56,7 @@
 │   ├── mechanism_engine.py         ← 5 种机制原语 + AI 性格系统
 │   ├── prompts.py                  ← DeepSeek 提示词（已加 cost_energy 字段）
 │   ├── configs/                    ← 象棋 JSON 配置
-│   ├── static/                     ← 象棋前端（已引入 rpg_adapter.js）
+│   ├── static/                     ← 象棋前端（Web Component `<xiangqi-board>`）
 │   └── api密钥.txt                 ← DeepSeek API Key
 │
 ├── wuziqi/                         ← 子项目②：无限制五子棋（15×15 棋盘，端口 8001）
@@ -172,19 +171,21 @@ JSON Schema 校验 + 业务规则验证
 
 ## 🏗️ 技术架构
 
-### Option A：RPG 外壳 + iframe + postMessage 协议
+### Web Components + ES Modules 模块化架构
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │              浏览器 / RPG 外壳 (localhost:80)              │
 │  ┌────────────┐  ┌──────────────────────────────────┐    │
-│  │  RpgShell  │  │  iframe: xiangqi / wuziqi / go    │    │
-│  │  • 章节管理 │  │  + 棋圣系统作弊侧栏              │    │
-│  │  • 能量/识破│  │  + 能量条 / 回合数               │    │
-│  │  • VN 故事层│  └──────────────────────────────────┘    │
-│  └────────────┘                                           │
+│  │  RpgShell  │  │  <xiangqi-board> / <wuziqi-board> │    │
+│  │  • 章节管理 │  │  / <go-board>  Web Component       │    │
+│  │  • 能量/识破│  │  + 棋圣系统作弊侧栏              │    │
+│  │  • VN 故事层│  │  + 能量条 / 回合数               │    │
+│  └────────────┘  └──────────────────────────────────┘    │
+│         │ 直接方法调用 + CustomEvent                       │
+│         │ applyCheatPatch() / getBoardSnapshot()           │
 └──────────────────────┬───────────────────────────────────┘
-                       │ HTTP + postMessage
+                       │ HTTP fetch
 ┌──────────────────────▼───────────────────────────────────┐
 │                RPG 后端 (FastAPI, port 80)                 │
 │  12 条路由：章节 / 对战 / 作弊 / 状态 / VN / API Key       │
@@ -192,10 +193,30 @@ JSON Schema 校验 + 业务规则验证
 └──────────────────────────────────────────────────────────┘
 ```
 
-**为何选 iframe**：
-- 三种棋类前端独立，**故障隔离**——某棋类崩溃不影响 RPG 主框架
-- 子项目**零改动复用**，只需引入一行 `rpg_adapter.js`
-- 通信通过严格的 postMessage 协议（`RPG_INIT` / `RPG_READY` / `RPG_APPLY_CHEAT` / `RPG_MOVE_COMPLETE` / `RPG_GAME_END`）
+**为何选 Web Components**：
+- **Shadow DOM 样式隔离**：RPG 外壳与棋盘 CSS 互不污染，替代 iframe 天然隔离
+- **直接方法调用**：`boardEl.applyCheatPatch(patch)` 零序列化通信，替代 postMessage 往返
+- **统一请求上下文**：RPG 外壳统一管理 fetch，状态同步无歧义
+- **轻量高效**：Web Component 是普通 DOM 元素，无 iframe 完整浏览器上下文开销
+- **桌面打包友好**：纯 ES Module 相对路径加载，无 iframe 本地路径沙箱/跨域问题
+
+#### Web Component 接口契约
+
+三个棋类组件（`<xiangqi-board>` / `<wuziqi-board>` / `<go-board>`）遵循统一接口：
+
+| 类别 | 名称 | 说明 |
+|---|---|---|
+| 属性 | `api-base` | 棋类后端 base URL（RPG 模式下设为 `http://localhost:800x`） |
+| 属性 | `player-side` | 玩家方（red/black） |
+| 属性 | `rpg-mode` | 存在即隐藏 side-panel/input-section 等 standalone UI |
+| 方法 | `init()` | 加载配置并渲染（幂等） |
+| 方法 | `applyCheatPatch(configs)` | 重新拉取后端配置并重渲染 |
+| 方法 | `getBoardSnapshot()` | 返回当前棋盘状态快照 |
+| 方法 | `destroy()` | 清理定时器/监听器，防止内存泄漏 |
+| 事件 | `ready` | 初始化完成 |
+| 事件 | `move` | 走棋完成（含 captured/mover/game_ended 等） |
+| 事件 | `gameend` | 游戏结束（含 winner） |
+| 事件 | `error` | 错误通知 |
 
 ### 端口分配
 
@@ -251,10 +272,10 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | RPG 后端 | `shared/rpg/rpg_server.py` | 12 条路由，RpgState 状态管理，识破公式，结局判定 |
-| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，iframe 加载，postMessage 通信 |
+| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，Web Component 动态加载，CustomEvent 通信 |
 | 作弊面板 | `shared/rpg/cheat_panel.js` | 评估消耗 → 确认执行 → 对手台词触发 |
 | VN 故事层 | `shared/rpg/story_layer.js` + `vn_player/` | 封装 Preview.playStory，11 种节点类型 |
-| 棋类适配器 | `shared/rpg/rpg_adapter.js` | 通用 iframe adapter，fetch hook 推导吃子/胜负 |
+| 棋类组件 | `xiangqi/wuziqi/go/static/app.js` | Web Components（Shadow DOM 隔离 + ES Module 导出） |
 | 章节剧情 | `rpg_data/chapters/ch00-ch06` | 7 个章节 JSON（ch00 完整，其余骨架） |
 | 对手台词 | `shared/rpg/dialogue_templates.json` | 6 类 × 4 条 = 24 条认知扭曲台词 |
 | 象棋子项目 | `xiangqi/` | jump/ray 引擎 + 二级 AI + 机制原语 + cost_energy + dry_run |
