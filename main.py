@@ -7,6 +7,7 @@ import os
 import sys
 import subprocess
 import time
+import threading
 from pathlib import Path
 
 
@@ -35,6 +36,17 @@ def check_dependencies():
         return False
 
 
+def _pipe_logger(process, name):
+    """后台线程：实时读取子进程 stdout 并打印到主终端"""
+    try:
+        for line in process.stdout:
+            line = line.rstrip()
+            if line:
+                print(f"[{name}] {line}")
+    except Exception:
+        pass
+
+
 def start_process(name, script_path, port, cwd=None):
     print(f"\n启动 {name} (端口 {port})...")
     if cwd is None:
@@ -53,6 +65,9 @@ def start_process(name, script_path, port, cwd=None):
             text=True,
             bufsize=1
         )
+        # 启动日志输出线程
+        t = threading.Thread(target=_pipe_logger, args=(process, name), daemon=True)
+        t.start()
         return process
     except Exception as e:
         print(f"✗ 启动失败: {e}")
