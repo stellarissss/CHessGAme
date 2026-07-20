@@ -2,7 +2,7 @@
   "characters": [
     {
       "id": "boy",
-      "name": "少年",
+      "name": "小明",
       "color": "#7dd3fc",
       "portraits": [
         { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
@@ -19,12 +19,24 @@
         { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
         { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
         { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
-        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" }
+        { "expression": "victory", "image": "/shared/assets/characters/robot/robot_victory.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" }
+      ]
+    },
+    {
+      "id": "system",
+      "name": "棋圣系统",
+      "color": "#94a3b8",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" }
       ]
     }
   ],
   "backgrounds": [
-    { "id": "bg_temple", "name": "古庙", "type": "image", "image": "/shared/rpg/assets/bgs/ch05_final.png" },
+    { "id": "bg_temple", "name": "棋圣世界·圣殿", "type": "image", "image": "/shared/rpg/assets/bgs/ch05_final.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},
@@ -32,18 +44,42 @@
   "scenes": [
     {
       "id": "scene_1",
-      "name": "棋圣真身",
+      "name": "棋圣圣殿",
       "start_node_id": "n1",
       "nodes": [
         { "id": "n1", "type": "bg", "data": { "bg_id": "bg_temple", "transition": "fade", "next": "n2" } },
-        { "id": "n2", "type": "narration", "data": { "text": "古庙深处，那个熟悉的声音终于显出真身。", "next": "n3" } },
-        { "id": "n3", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n4" } },
-        { "id": "n4", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "你终于走到这里了。我是棋圣，亦是你的影子。", "next": "n5" } },
-        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "最后一局，象棋。你胜，便得自由；你败……便与我同化。", "next": "n6" } },
-        { "id": "n6", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "center", "transition": "fade", "next": "n7" } },
-        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "我已不再是从前那个只会认输的少年。来吧。", "next": "n8" } },
-        { "id": "n8", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "n9" } },
-        { "id": "n9", "type": "end", "data": { "ending_type": "neutral", "text": "第 4 章·终极对决 开始" } }
+        { "id": "n2", "type": "narration", "data": { "text": "穿过BOSS塔，小明终于来到了棋圣世界的核心——棋圣圣殿。这里金碧辉煌，巨大的象棋棋盘悬浮在殿中央。", "next": "n3" } },
+        { "id": "n3", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "center", "transition": "fade", "next": "n4" } },
+        { "id": "n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "这里就是棋圣圣殿……终于到了最后一关！", "next": "n5" } },
+        { "id": "n5", "type": "narration", "data": { "text": "一道金色的光芒从棋盘中央升起，一个身影缓缓浮现。", "next": "n6" } },
+        { "id": "n6", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n7" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "你终于走到这里了。我是棋圣真身——棋圣世界的创造者。", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "一路走来，你击败了守棋人、棋道宗师和暗影棋王。现在，轮到我了。", "next": "n9" } },
+        { "id": "n9", "type": "show_char", "data": { "character_id": "boy", "expression": "surprised", "position": "center", "transition": "fade", "next": "n10" } },
+        { "id": "n10", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "你……你就是棋圣真身？那棋圣系统……", "next": "n11" } },
+        { "id": "n11", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "棋圣系统是我的分身——它负责引导有潜力的棋手来到这个世界。", "next": "n12" } },
+        { "id": "n12", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "最后一局，象棋。你胜，便成为新一代棋圣；你败……便永远留在这里，成为我的棋子。", "next": "n13" } },
+        { "id": "n13", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "另外，我也要提醒你——我也会使用棋圣系统的力量。你作弊，我也会作弊。", "next": "n14" } },
+        { "id": "n14", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "我明白了。不管你用什么手段，我都会赢！", "next": "n15" } },
+        { "id": "n15", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "n16" } },
+        { "id": "n16", "type": "end", "data": { "ending_type": "neutral", "text": "第 4 章·终极对决 开始" } }
+      ]
+    },
+    {
+      "id": "scene_2",
+      "name": "战后·抉择",
+      "start_node_id": "s2_n1",
+      "nodes": [
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_temple", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "show_char", "data": { "character_id": "robot", "expression": "defeat", "position": "center", "transition": "fade", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "surprised", "text": "……你赢了。我承认，你比我更强。", "next": "s2_n4" } },
+        { "id": "s2_n4", "type": "show_char", "data": { "character_id": "boy", "expression": "victory", "position": "left", "transition": "fade", "next": "s2_n5" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "boy", "expression": "happy", "text": "我做到了！", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "但成为棋圣之前，你还需要通过最后一关——面对你自己的执念。", "next": "s2_n7" } },
+        { "id": "s2_n7", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "你的一路走来，用了多少次作弊？你的识破概率……现在是多少？", "next": "s2_n8" } },
+        { "id": "s2_n8", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "……我……我不记得了。", "next": "s2_n9" } },
+        { "id": "s2_n9", "type": "dialogue", "data": { "character_id": "system", "expression": "laughing", "text": "不管怎样，是时候面对你的执念了。前进吧——最终的考验在前方。", "next": "s2_n10" } },
+        { "id": "s2_n10", "type": "end", "data": { "ending_type": "neutral", "text": "第 4 章·终极对决 完" } }
       ]
     }
   ]
