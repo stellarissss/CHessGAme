@@ -51,12 +51,6 @@
         _bindTutorialButton();
         _startParticles();
 
-        // rpg_shell.js 已在 init() 和 loadChapter() 入口直接添加 __RPG_TITLE_ACTIVE 守卫，
-        // 此处不再需要 monkey-patch。仅绑定设置模态框状态显示。
-        setTimeout(() => {
-            _bindSettingsStatus();
-        }, 0);
-
         // 短暂延迟后隐藏加载遮罩（等首屏资源就绪）
         setTimeout(() => _hideLoading(), 800);
     }
@@ -196,36 +190,6 @@
                 }
             });
         }
-    }
-
-    // ────────── 设置模态框状态显示 ──────────
-
-    function _bindSettingsStatus() {
-        // 注意：不能通过 monkey-patch RpgShell.openSettings 实现——
-        // 因为 rpg_shell.js 在 init() 中已将原 openSettings 函数引用直接绑定到 click 事件，
-        // 后续替换 RpgShell.openSettings 不会影响已绑定的监听器。
-        // 解决方案：在设置按钮上追加一个新的 click 监听器（在原监听器之后执行），
-        // 在原 openSettings 把模态框显示出来后，刷新状态文本。
-        const settingsBtn = document.getElementById('rpg-btn-settings');
-        if (!settingsBtn || settingsBtn._extrasStatusBound) return;
-        settingsBtn._extrasStatusBound = true;
-
-        settingsBtn.addEventListener('click', () => {
-            // 原监听器已同步执行 _toggleSettings(true)，此处直接刷新状态
-            const statusEl = document.getElementById('rpg-settings-status');
-            const st = (typeof RpgShell !== 'undefined' && RpgShell.getState) ? RpgShell.getState() : {};
-            if (statusEl) {
-                const hasKey = st.has_api_key;
-                const chessType = st.chess_type || '—';
-                const cheats = st.cheats_used || 0;
-                const chapter = st.current_chapter || '—';
-                statusEl.innerHTML =
-                    `API Key: <span style="color:${hasKey ? 'var(--pix-green)' : 'var(--pix-red-bright)'}">${hasKey ? '已设置' : '未设置'}</span><br>` +
-                    `当前章节: <span style="color:var(--pix-cyan-bright)">${chapter}</span><br>` +
-                    `当前棋类: <span style="color:var(--pix-gold-bright)">${chessType}</span><br>` +
-                    `作弊次数: <span style="color:var(--pix-purple-bright)">${cheats}</span>`;
-            }
-        });
     }
 
     // ────────── 加载遮罩 ──────────

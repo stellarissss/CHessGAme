@@ -11,11 +11,16 @@ const StoryLayer = (() => {
 
     function init() {
         vnStage = document.getElementById('vn-stage');
+        console.log('[StoryLayer] init, vnStage:', vnStage ? 'found' : 'NOT FOUND');
         if (typeof Preview !== 'undefined') {
             Preview.init();
             Preview.setOnEnd((info) => {
+                console.log('[StoryLayer] Preview onEnd:', info);
                 _handleEnd(info);
             });
+            console.log('[StoryLayer] Preview initialized');
+        } else {
+            console.error('[StoryLayer] Preview is undefined! 请检查 preview.js 是否加载');
         }
     }
 
@@ -30,9 +35,13 @@ const StoryLayer = (() => {
     }
 
     function show() {
-        if (!vnStage) return;
+        if (!vnStage) {
+            console.error('[StoryLayer] show() 失败: vnStage 不存在');
+            return;
+        }
         vnStage.style.display = 'block';
         isShowing = true;
+        console.log('[StoryLayer] VN 舞台已显示');
     }
 
     function hide() {
@@ -42,6 +51,7 @@ const StoryLayer = (() => {
         if (typeof Preview !== 'undefined') {
             Preview.reset();
         }
+        console.log('[StoryLayer] VN 舞台已隐藏');
     }
 
     /**
@@ -51,20 +61,32 @@ const StoryLayer = (() => {
      * @param {object} opts - { onEnd: 回调 }
      */
     async function playChapter(storyId, startSceneId, opts = {}) {
+        console.log('[StoryLayer] playChapter:', storyId, 'startSceneId:', startSceneId);
         try {
             const resp = await fetch(`/api/rpg/vn/${storyId}`);
             if (!resp.ok) {
                 throw new Error(`加载章节失败: ${resp.status}`);
             }
             const storyData = await resp.json();
+            console.log('[StoryLayer] 故事数据加载成功，scenes:', storyData.scenes?.length || 0);
             onEndCallback = opts.onEnd || null;
             show();
+            console.log('[StoryLayer] vn-stage 已显示，调用 Preview.playStory');
+            if (typeof Preview === 'undefined') {
+                throw new Error('Preview 对象未定义，preview.js 可能未加载');
+            }
             Preview.playStory(storyData, startSceneId, {
                 onEnd: (info) => _handleEnd(info),
             });
+            console.log('[StoryLayer] Preview.playStory 调用完成');
         } catch (e) {
             console.error('[StoryLayer] playChapter failed:', e);
-            _fallbackAlert(`章节加载失败: ${e.message}`);
+            if (typeof RpgShell !== 'undefined' && RpgShell.toast) {
+                RpgShell.toast(`剧情加载失败: ${e.message}`, 'error');
+            } else {
+                _fallbackAlert(`剧情加载失败: ${e.message}`);
+            }
+            if (opts.onEnd) opts.onEnd({ error: e.message });
         }
     }
 

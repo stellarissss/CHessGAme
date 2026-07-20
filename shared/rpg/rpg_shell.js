@@ -138,8 +138,10 @@ const RpgShell = (() => {
     // ────────── 章节加载 ──────────
 
     async function loadChapter(chapterId) {
+        console.log('[RpgShell] loadChapter:', chapterId);
         // 标题屏激活期间挂起章节加载请求（由 rpg_extras.js 在用户点击「开始游戏」时关闭）
         if (window.__RPG_TITLE_ACTIVE) {
+            console.log('[RpgShell] 标题屏激活中，挂起章节加载:', chapterId);
             window.__RPG_PENDING_CHAPTER = chapterId;
             return;
         }
@@ -161,10 +163,13 @@ const RpgShell = (() => {
 
             if (!chessType) {
                 // 纯 VN 章节：播完 VN 后自动进入下一章
+                console.log('[RpgShell] 纯 VN 章节，播放剧情:', chapter.story_id);
                 _unmountBoard();
+                _hidePlaceholder();
                 skipBtn.style.display = 'none';
                 await _playChapterStory(chapter, {
                     onEnd: async () => {
+                        console.log('[RpgShell] 纯 VN 章节播放结束，进入下一章');
                         await _goNextChapter();
                     },
                 });
@@ -173,7 +178,9 @@ const RpgShell = (() => {
 
             if (!chapter.service_up) {
                 // 棋类服务不可达
+                console.warn('[RpgShell] 棋类服务未启动:', chessType);
                 _unmountBoard();
+                _showPlaceholder();
                 skipBtn.style.display = 'inline-block';
                 const portMap = { xiangqi: 8000, wuziqi: 8001, go: 8002 };
                 const port = portMap[chessType] || '?';
@@ -184,9 +191,13 @@ const RpgShell = (() => {
             }
 
             // 对战章节：先播放章节 VN，结束后加载 iframe
+            console.log('[RpgShell] 对战章节，先播放剧情:', chapter.story_id);
             skipBtn.style.display = 'none';
+            _hidePlaceholder();
             await _playChapterStory(chapter, {
                 onEnd: async () => {
+                    console.log('[RpgShell] 剧情播放完毕，开始对战');
+                    _showPlaceholder();
                     await _startBattle(chapter);
                 },
             });
@@ -199,24 +210,32 @@ const RpgShell = (() => {
     async function _playChapterStory(chapter, opts = {}) {
         const storyId = chapter.story_id;
         if (!storyId) {
+            console.log('[RpgShell] 章节无 story_id，直接结束');
             if (opts.onEnd) opts.onEnd();
             return;
         }
+        console.log('[RpgShell] _playChapterStory:', storyId);
         // 检查 story 是否存在
         try {
             const probe = await fetch(`/api/rpg/vn/${storyId}`);
             if (!probe.ok) {
+                console.error('[RpgShell] 章节剧情未找到:', storyId, probe.status);
                 toast(`章节剧情 ${storyId} 未找到`, 'error');
+                _showPlaceholder();
                 if (opts.onEnd) opts.onEnd();
                 return;
             }
         } catch (e) {
+            console.error('[RpgShell] 检查剧情失败:', e);
+            _showPlaceholder();
             if (opts.onEnd) opts.onEnd();
             return;
         }
 
+        console.log('[RpgShell] 调用 StoryLayer.playChapter');
         StoryLayer.playChapter(storyId, null, {
             onEnd: () => {
+                console.log('[RpgShell] StoryLayer 播放结束');
                 StoryLayer.hide();
                 if (opts.onEnd) opts.onEnd();
             },
@@ -255,6 +274,16 @@ const RpgShell = (() => {
 
     function _hideBoard() {
         _unmountBoard();
+        _showPlaceholder();
+    }
+
+    function _hidePlaceholder() {
+        if (battlePlaceholder) {
+            battlePlaceholder.style.display = 'none';
+        }
+    }
+
+    function _showPlaceholder() {
         if (battlePlaceholder) {
             battlePlaceholder.style.display = 'flex';
         }
@@ -459,9 +488,38 @@ const RpgShell = (() => {
 
     // ────────── 设置 ──────────
 
-    function openSettings() {
-        apiKeyInput.value = '';
+    async function openSettings() {
         _toggleSettings(true);
+        await _refreshSettingsStatus();
+    }
+
+    async function _refreshSettingsStatus() {
+        const statusEl = document.getElementById('rpg-settings-status');
+        try {
+            const resp = await fetch('/api/rpg/apikey');
+            const data = await resp.json();
+            if (data.has_api_key) {
+                apiKeyInput.placeholder = `已加载: ${data.masked}（输入新密钥可覆盖）`;
+            } else {
+                apiKeyInput.placeholder = '输入 API Key 后将自动下发到三个棋类服务';
+            }
+            if (statusEl) {
+                const hasKey = data.has_api_key;
+                const chessType = state.chess_type || '—';
+                const cheats = state.cheats_used || 0;
+                const chapter = state.current_chapter || '—';
+                statusEl.innerHTML =
+                    `API Key: <span style="color:${hasKey ? 'var(--pix-green)' : 'var(--pix-red-bright)'}">${hasKey ? '已设置' : '未设置'}</span><br>` +
+                    `当前章节: <span style="color:var(--pix-cyan-bright)">${chapter}</span><br>` +
+                    `当前棋类: <span style="color:var(--pix-gold-bright)">${chessType}</span><br>` +
+                    `作弊次数: <span style="color:var(--pix-purple-bright)">${cheats}</span>`;
+            }
+        } catch (e) {
+            console.error('[RpgShell] 刷新设置状态失败:', e);
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:var(--pix-red-bright)">状态加载失败</span>`;
+            }
+        }
     }
 
     function _toggleSettings(show) {

@@ -23,7 +23,15 @@ WORKSPACE_ROOT = BASE_DIR.parent.parent              # /workspace
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 RPG_DATA_DIR = WORKSPACE_ROOT / "rpg_data"
 XIANGQI_DIR = WORKSPACE_ROOT / "xiangqi"
-API_KEY_FILE = XIANGQI_DIR / "api密钥.txt"
+WUZIQI_DIR = WORKSPACE_ROOT / "wuziqi"
+GO_DIR = WORKSPACE_ROOT / "go"
+ROOT_CONFIG_FILE = WORKSPACE_ROOT / "config.json"
+API_KEY_FILES = [
+    ("根目录 config.json", ROOT_CONFIG_FILE),
+    ("象棋 api密钥.txt", XIANGQI_DIR / "api密钥.txt"),
+    ("五子棋 api密钥.txt", WUZIQI_DIR / "api密钥.txt"),
+    ("围棋 api密钥.txt", GO_DIR / "api密钥.txt"),
+]
 
 # 将 shared/ 加入 sys.path（复用 schema_validator / json_patch_utils 如需）
 if str(SHARED_DIR) not in sys.path:
@@ -148,22 +156,36 @@ class RpgState:
     # ---------- 加载辅助 ----------
 
     def _load_default_api_key(self) -> str:
-        if API_KEY_FILE.exists():
+        import re
+        for source_name, file_path in API_KEY_FILES:
+            if not file_path.exists():
+                continue
             try:
-                content = API_KEY_FILE.read_text(encoding="utf-8")
+                content = file_path.read_text(encoding="utf-8")
             except Exception:
-                return ""
-            # 文件可能含说明文字，提取首个 sk- 开头的 token（DeepSeek API Key 格式）
-            import re
+                continue
+            # config.json 格式
+            if file_path.suffix == ".json":
+                try:
+                    data = json.loads(content)
+                    key = data.get("api_key", "").strip()
+                    if key:
+                        print(f"[API Key] 已从 {source_name} 加载")
+                        return key
+                except Exception:
+                    pass
+            # 文本文件格式：提取首个 sk- 开头的 token
             m = re.search(r"sk-[A-Za-z0-9]+", content)
             if m:
+                print(f"[API Key] 已从 {source_name} 加载")
                 return m.group(0)
-            # 兜底：取首个非空白行（纯 key 文件）
+            # 兜底：取首个非空白行
             for line in content.splitlines():
                 line = line.strip()
                 if line and not line.startswith("#") and not line.startswith("-"):
+                    print(f"[API Key] 已从 {source_name} 加载")
                     return line
-            return ""
+        print("[API Key] 未找到默认密钥，请在设置界面手动输入")
         return ""
 
     def _load_dialogue_templates(self) -> Dict[str, list]:
@@ -666,6 +688,19 @@ async def set_api_key(req: ApiKeyReq):
         "message": "API Key 已设置并下发",
         "broadcast_results": results,
     }
+
+
+@app.get("/api/rpg/apikey")
+async def get_api_key():
+    """获取掩码后的 API Key（仅用于前端显示，不返回明文）"""
+    key = rpg_state.api_key
+    if not key:
+        return {"has_api_key": False, "masked": ""}
+    if len(key) <= 8:
+        masked = "*" * len(key)
+    else:
+        masked = key[:6] + "..." + key[-4:]
+    return {"has_api_key": True, "masked": masked}
 
 
 @app.get("/api/rpg/health/{chess_type}")
