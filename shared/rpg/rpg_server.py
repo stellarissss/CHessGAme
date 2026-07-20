@@ -23,7 +23,8 @@ WORKSPACE_ROOT = BASE_DIR.parent.parent              # /workspace
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 RPG_DATA_DIR = WORKSPACE_ROOT / "rpg_data"
 XIANGQI_DIR = WORKSPACE_ROOT / "xiangqi"
-API_KEY_FILE = XIANGQI_DIR / "api密钥.txt"
+API_KEY_CONFIG = WORKSPACE_ROOT / "api密钥.txt"        # 主文件夹配置文件（优先）
+API_KEY_FILE = XIANGQI_DIR / "api密钥.txt"             # 兼容回退
 
 # 将 shared/ 加入 sys.path（复用 schema_validator / json_patch_utils 如需）
 if str(SHARED_DIR) not in sys.path:
@@ -148,23 +149,35 @@ class RpgState:
     # ---------- 加载辅助 ----------
 
     def _load_default_api_key(self) -> str:
-        if API_KEY_FILE.exists():
-            try:
-                content = API_KEY_FILE.read_text(encoding="utf-8")
-            except Exception:
-                return ""
-            # 文件可能含说明文字，提取首个 sk- 开头的 token（DeepSeek API Key 格式）
-            import re
-            m = re.search(r"sk-[A-Za-z0-9]+", content)
-            if m:
-                return m.group(0)
-            # 兜底：取首个非空白行（纯 key 文件）
-            for line in content.splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and not line.startswith("-"):
-                    return line
-            return ""
+        # 优先从主文件夹配置文件读取，回退到 xiangqi/api密钥.txt
+        for key_file in [API_KEY_CONFIG, API_KEY_FILE]:
+            if key_file.exists():
+                try:
+                    content = key_file.read_text(encoding="utf-8")
+                except Exception:
+                    continue
+                # 文件可能含说明文字，提取首个 sk- 开头的 token（DeepSeek API Key 格式）
+                import re
+                m = re.search(r"sk-[A-Za-z0-9]+", content)
+                if m:
+                    return m.group(0)
+                # 兜底：取首个非空白行（纯 key 文件）
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith("#") and not line.startswith("-"):
+                        return line
         return ""
+
+    def _save_api_key_to_file(self, api_key: str) -> bool:
+        """将密钥持久化到主文件夹配置文件"""
+        try:
+            API_KEY_CONFIG.write_text(
+                f"# DeepSeek API Key（由 RPG 设置面板写入）\n{api_key}\n",
+                encoding="utf-8",
+            )
+            return True
+        except Exception:
+            return False
 
     def _load_dialogue_templates(self) -> Dict[str, list]:
         path = BASE_DIR / "dialogue_templates.json"
@@ -660,10 +673,11 @@ async def get_vn_story(story_id: str):
 async def set_api_key(req: ApiKeyReq):
     """设置 API Key 并下发到三个棋类服务"""
     rpg_state.api_key = req.api_key
+    saved = rpg_state._save_api_key_to_file(req.api_key)  # 持久化到配置文件
     results = await broadcast_api_key(req.api_key)
     return {
         "success": True,
-        "message": "API Key 已设置并下发",
+        "message": "API Key 已设置并下发" + ("（已持久化）" if saved else "（文件保存失败，仅内存）"),
         "broadcast_results": results,
     }
 

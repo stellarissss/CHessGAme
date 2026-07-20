@@ -2,7 +2,7 @@
   "characters": [
     {
       "id": "boy",
-      "name": "少年",
+      "name": "小明",
       "color": "#7dd3fc",
       "portraits": [
         { "expression": "neutral", "image": "/shared/assets/characters/boy/boy_neutral.png" },
@@ -15,8 +15,21 @@
     },
     {
       "id": "robot",
-      "name": "云子老人",
+      "name": "棋圣系统",
       "color": "#94a3b8",
+      "portraits": [
+        { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
+        { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
+        { "expression": "scheming", "image": "/shared/assets/characters/robot/robot_scheming.png" },
+        { "expression": "surprised", "image": "/shared/assets/characters/robot/robot_surprised.png" },
+        { "expression": "laughing", "image": "/shared/assets/characters/robot/robot_laughing.png" },
+        { "expression": "defeat", "image": "/shared/assets/characters/robot/robot_defeat.png" }
+      ]
+    },
+    {
+      "id": "master",
+      "name": "棋道宗师",
+      "color": "#6b7280",
       "portraits": [
         { "expression": "front_idle", "image": "/shared/assets/characters/robot/robot_front_idle.png" },
         { "expression": "thinking", "image": "/shared/assets/characters/robot/robot_thinking.png" },
@@ -28,7 +41,7 @@
     }
   ],
   "backgrounds": [
-    { "id": "bg_mountain", "name": "云子山", "type": "image", "image": "/shared/rpg/assets/bgs/ch03_go_intro.png" },
+    { "id": "bg_advanced", "name": "棋圣世界·进阶区", "type": "image", "image": "/shared/rpg/assets/bgs/ch03_go_intro.png" },
     { "id": "bg_board", "name": "棋盘", "type": "solid", "color": "#1a1a2e" }
   ],
   "variables": {},
@@ -36,19 +49,19 @@
   "scenes": [
     {
       "id": "scene_1",
-      "name": "云子山·初遇",
+      "name": "进阶区·棋道宗师",
       "start_node_id": "n1",
       "nodes": [
-        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_mountain", "transition": "fade", "next": "n2" } },
-        { "id": "n2", "type": "narration", "data": { "text": "云子山云雾缭绕，古松参天。少年循着棋圣系统的指引，攀上险峻的山道，寻访传说中的围棋宗师——云子老人。", "next": "n3" } },
-        { "id": "n3", "type": "narration", "data": { "text": "山顶一方青石，老者盘膝而坐，面前摆着一方九路棋盘，黑白子零落散布。", "next": "n4" } },
-        { "id": "n4", "type": "show_char", "data": { "character_id": "robot", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n5" } },
-        { "id": "n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "……又是寻道之人。少年，老朽早已封棋远游，不问世间胜负。", "next": "n6" } },
+        { "id": "n1", "type": "bg", "data": { "bg_id": "bg_advanced", "transition": "fade", "next": "n2" } },
+        { "id": "n2", "type": "narration", "data": { "text": "穿过新手村，小明来到了棋圣世界的进阶区。这里云雾缭绕，棋盘状的建筑高耸入云。", "next": "n3" } },
+        { "id": "n3", "type": "narration", "data": { "text": "一位白发老者坐在云端的石凳上，面前摆着一方九路棋盘，黑白子零落散布。", "next": "n4" } },
+        { "id": "n4", "type": "show_char", "data": { "character_id": "master", "expression": "front_idle", "position": "center", "transition": "fade", "next": "n5" } },
+        { "id": "n5", "type": "dialogue", "data": { "character_id": "master", "expression": "thinking", "text": "又是一个追求棋道的少年。我是棋道宗师，守在此处已有千年。", "next": "n6" } },
         { "id": "n6", "type": "show_char", "data": { "character_id": "boy", "expression": "determined", "position": "left", "transition": "fade", "next": "n7" } },
-        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "前辈，我不为胜负。我只是……想知道围棋究竟是什么。", "next": "n8" } },
-        { "id": "n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "surprised", "text": "哦？不为胜负？这倒新鲜。说下去。", "next": "n9" } },
-        { "id": "n9", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "我学过象棋、五子棋，却始终觉得缺了什么。棋圣系统说……围棋里藏着棋道的根。", "next": "n10" } },
-        { "id": "n10", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "哈！好一个棋道的根。少年，你比那些求胜的俗人有趣得多。也罢——老朽便授你一局。", "next": "n11_jump" } },
+        { "id": "n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "前辈，我想继续前进。请指教！", "next": "n8" } },
+        { "id": "n8", "type": "dialogue", "data": { "character_id": "master", "expression": "surprised", "text": "哦？你已经通过了新手村？不错不错。但要过我这关，你得先学会围棋。", "next": "n9" } },
+        { "id": "n9", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "围棋？我……我不太会下围棋。", "next": "n10" } },
+        { "id": "n10", "type": "dialogue", "data": { "character_id": "master", "expression": "laughing", "text": "没关系。我便授你一局。围棋之道，在于「围」字——围地、围势、围人心。", "next": "n11_jump" } },
         { "id": "n11_jump", "type": "jump", "data": { "target_scene_id": "scene_2", "target_node_id": "s2_n1" } }
       ]
     },
@@ -57,14 +70,14 @@
       "name": "围棋之道",
       "start_node_id": "s2_n1",
       "nodes": [
-        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_mountain", "transition": "fade", "next": "s2_n2" } },
-        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "围棋之妙，在于「围」字。九路棋盘，九九八十一目，黑白交替落子，黑先白后。", "next": "s2_n3" } },
-        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "每一枚棋子落下，便生「气」——上下左右空交叉点皆为气。无气之子，便被提去。", "next": "s2_n4" } },
+        { "id": "s2_n1", "type": "bg", "data": { "bg_id": "bg_advanced", "transition": "fade", "next": "s2_n2" } },
+        { "id": "s2_n2", "type": "dialogue", "data": { "character_id": "master", "expression": "thinking", "text": "围棋之妙，在于「围」字。九路棋盘，九九八十一目，黑白交替落子，黑先白后。", "next": "s2_n3" } },
+        { "id": "s2_n3", "type": "dialogue", "data": { "character_id": "master", "expression": "front_idle", "text": "每一枚棋子落下，便生「气」——上下左右空交叉点皆为气。无气之子，便被提去。", "next": "s2_n4" } },
         { "id": "s2_n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "提去？就是把对方的棋子从棋盘上拿掉？", "next": "s2_n5" } },
-        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "正是。但围棋有禁忌——若落子后自己一口气也没了，除非能反提对方，否则此点为「禁着」，不可下。", "next": "s2_n6" } },
-        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "终局时，双方各弃权一次，便数子定胜负。黑方贴 3.75 子——这是九路棋盘的规矩。", "next": "s2_n7" } },
+        { "id": "s2_n5", "type": "dialogue", "data": { "character_id": "master", "expression": "laughing", "text": "正是。但围棋有禁忌——若落子后自己一口气也没了，除非能反提对方，否则此点为「禁着」，不可下。", "next": "s2_n6" } },
+        { "id": "s2_n6", "type": "dialogue", "data": { "character_id": "master", "expression": "thinking", "text": "终局时，双方各弃权一次，便数子定胜负。黑方贴 3.75 子——这是九路棋盘的规矩。", "next": "s2_n7" } },
         { "id": "s2_n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "气和禁着……听起来比象棋的将帅复杂多了。", "next": "s2_n8" } },
-        { "id": "s2_n8", "type": "dialogue", "data": { "character_id": "robot", "expression": "scheming", "text": "复杂才有意思。围棋不争一子之得失，争的是「势」。少年，记住了吗？", "next": "s2_jump" } },
+        { "id": "s2_n8", "type": "dialogue", "data": { "character_id": "master", "expression": "scheming", "text": "复杂才有意思。围棋不争一子之得失，争的是「势」。少年，记住了吗？", "next": "s2_jump" } },
         { "id": "s2_jump", "type": "jump", "data": { "target_scene_id": "scene_3", "target_node_id": "s3_n1" } }
       ]
     },
@@ -73,12 +86,12 @@
       "name": "战前对白",
       "start_node_id": "s3_n1",
       "nodes": [
-        { "id": "s3_n1", "type": "bg", "data": { "bg_id": "bg_mountain", "transition": "fade", "next": "s3_n2" } },
+        { "id": "s3_n1", "type": "bg", "data": { "bg_id": "bg_advanced", "transition": "fade", "next": "s3_n2" } },
         { "id": "s3_n2", "type": "dialogue", "data": { "character_id": "boy", "expression": "determined", "text": "前辈，我准备好了。请指教！", "next": "s3_n3" } },
-        { "id": "s3_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "老朽下棋向来慢，但每一步都看十步之后。少年，你的棋圣系统……咳，你那点小聪明，老朽看着便是。", "next": "s3_n4" } },
+        { "id": "s3_n3", "type": "dialogue", "data": { "character_id": "master", "expression": "front_idle", "text": "老朽下棋向来慢，但每一步都看十步之后。少年，你的棋圣系统……咳，你那点小聪明，老朽看着便是。", "next": "s3_n4" } },
         { "id": "s3_n4", "type": "dialogue", "data": { "character_id": "boy", "expression": "surprised", "text": "（他……察觉到了？）", "next": "s3_n5" } },
-        { "id": "s3_n5", "type": "dialogue", "data": { "character_id": "robot", "expression": "laughing", "text": "放心，老朽不会拆穿。围棋本是修心之道，你能走多远，全凭你自己。", "next": "s3_n6" } },
-        { "id": "s3_n6", "type": "dialogue", "data": { "character_id": "robot", "expression": "thinking", "text": "记住——围棋的胜负不在一城一池。你若作弊，老朽也许看不出来，但你心里会清楚。", "next": "s3_n7" } },
+        { "id": "s3_n5", "type": "dialogue", "data": { "character_id": "master", "expression": "laughing", "text": "放心，老朽不会拆穿。围棋本是修心之道，你能走多远，全凭你自己。", "next": "s3_n6" } },
+        { "id": "s3_n6", "type": "dialogue", "data": { "character_id": "master", "expression": "thinking", "text": "记住——围棋的胜负不在一城一池。你若作弊，老朽也许看不出来，但你心里会清楚。", "next": "s3_n7" } },
         { "id": "s3_n7", "type": "dialogue", "data": { "character_id": "boy", "expression": "thinking", "text": "……我明白了。我会尽力凭实力下。", "next": "s3_jump" } },
         { "id": "s3_jump", "type": "jump", "data": { "target_scene_id": "scene_4", "target_node_id": "s4_n1" } }
       ]
@@ -89,8 +102,8 @@
       "start_node_id": "s4_n1",
       "nodes": [
         { "id": "s4_n1", "type": "bg", "data": { "bg_id": "bg_board", "transition": "fade", "next": "s4_n2" } },
-        { "id": "s4_n2", "type": "narration", "data": { "text": "云子老人拈起一枚黑子，轻轻落在星位。棋盘如云海展开，胜负之数，自此而始。", "next": "s4_n3" } },
-        { "id": "s4_n3", "type": "dialogue", "data": { "character_id": "robot", "expression": "front_idle", "text": "黑先。少年，请。", "next": "s4_n4" } },
+        { "id": "s4_n2", "type": "narration", "data": { "text": "棋道宗师拈起一枚黑子，轻轻落在星位。棋盘如云海展开，胜负之数，自此而始。", "next": "s4_n3" } },
+        { "id": "s4_n3", "type": "dialogue", "data": { "character_id": "master", "expression": "front_idle", "text": "黑先。少年，请。", "next": "s4_n4" } },
         { "id": "s4_n4", "type": "narration", "data": { "text": "（围棋对局开始——黑白交锋，气与势的较量。）", "next": "s4_end" } },
         { "id": "s4_end", "type": "end", "data": { "ending_type": "neutral" } }
       ]
