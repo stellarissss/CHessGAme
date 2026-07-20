@@ -1,26 +1,2240 @@
-/* ═══════════════════════════════════════════════════════════════
-   无限制象棋 - 前端应用
-   ═══════════════════════════════════════════════════════════════ */
+export class WuziqiBoard extends HTMLElement {
+    static get observedAttributes() {
+        return ['api-base', 'rpg-mode', 'player-side'];
+    }
 
-const App = {
-    // ═══════════════════════════════════════════════════════════════
-    // 状态
-    // ═══════════════════════════════════════════════════════════════
-    configs: {},
-    boardState: null,
-    uiConfig: null,
-    selectedPiece: null,
-    validMoves: [],
-    lastMove: null,
-    aiThinking: false,
-    coordInsertMode: false,
-    selectMode: 'coord',
-    regionPoints: [],
-    coordDots: [],
+    constructor() {
+        super();
+        this.configs = {};
+        this.boardState = null;
+        this.uiConfig = null;
+        this.selectedPiece = null;
+        this.validMoves = [];
+        this.lastMove = null;
+        this.aiThinking = false;
+        this.coordInsertMode = false;
+        this.selectMode = 'coord';
+        this.regionPoints = [];
+        this.coordDots = [];
+        this.thinkingPollInterval = null;
+        this._regionRectEl = null;
+        this._keydownHandler = null;
 
-    // ═══════════════════════════════════════════════════════════════
-    // 初始化
-    // ═══════════════════════════════════════════════════════════════
+        this._personalityInfo = {
+            normal:     { icon: '🧠', name: '标准型', subtitle: 'Normal',    desc: '攻守平衡的标准AI',          agg: 0.5, def: 0.5 },
+            aggressive: { icon: '⚔️', name: '激进型', subtitle: 'Aggressive', desc: '进攻至上，全力出击',        agg: 0.9, def: 0.2 },
+            defensive:  { icon: '🛡️', name: '保守型', subtitle: 'Defensive',  desc: '稳扎稳打，防守反击',        agg: 0.2, def: 0.9 },
+            random:     { icon: '🎲', name: '随机型', subtitle: 'Random',     desc: '天马行空，随心所欲',        agg: 0.5, def: 0.5 },
+            custom:     { icon: '✨', name: '自定义', subtitle: 'Custom',     desc: '独一无二的神秘风格',        agg: 0.5, def: 0.5 },
+        };
+
+        this._mechanismMeta = {
+            skip_turns:  { icon: '⏸️',  label: '冻结',     type: 'skip',   unit: '回合' },
+            ai_control:  { icon: '🤖',  label: 'AI接管',   type: 'ai',     unit: '回合' },
+            random_moves:{ icon: '🎲',  label: '随机走棋', type: 'random', unit: '步'   },
+            extra_turns: { icon: '⚡',  label: '额外回合', type: 'extra',  unit: '回合' },
+            move_limits: { icon: '🚶',  label: '多步行走', type: 'limit',  unit: '步'   },
+        };
+    }
+
+    get apiBase() {
+        return this.getAttribute('api-base') || '';
+    }
+
+    get rpgMode() {
+        return this.hasAttribute('rpg-mode');
+    }
+
+    get playerSide() {
+        return this.getAttribute('player-side') || 'black';
+    }
+
+    attributeChangedCallback(name, oldVal, newVal) {
+        if (name === 'rpg-mode') {
+            this._updateRpgMode();
+        }
+    }
+
+    _updateRpgMode() {
+        const sidePanel = this.shadowRoot?.querySelector('.side-panel');
+        const inputSection = this.shadowRoot?.querySelector('.input-section');
+        if (this.rpgMode) {
+            if (sidePanel) sidePanel.style.display = 'none';
+            if (inputSection) inputSection.style.display = 'none';
+        } else {
+            if (sidePanel) sidePanel.style.display = '';
+            if (inputSection) inputSection.style.display = '';
+        }
+    }
+
+    connectedCallback() {
+        this.attachShadow({ mode: 'open' });
+        this._renderShadowDom();
+        this._updateRpgMode();
+    }
+
+    disconnectedCallback() {
+        this.destroy();
+    }
+
+    _renderShadowDom() {
+        const style = document.createElement('style');
+        style.textContent = this._getStyles();
+        this.shadowRoot.appendChild(style);
+
+        const container = document.createElement('div');
+        container.id = 'app';
+        container.innerHTML = this._getHtmlTemplate();
+        this.shadowRoot.appendChild(container);
+    }
+
+    _getHtmlTemplate() {
+        return `
+        <div id="thinking-overlay" class="thinking-overlay">
+            <div class="thinking-content">
+                <div class="thinking-spinner"></div>
+                <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
+                <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+            </div>
+        </div>
+
+        <div id="settings-modal" class="modal">
+            <div class="modal-content">
+                <h3>设 置</h3>
+                <div class="form-group">
+                    <label>DeepSeek API Key</label>
+                    <input type="password" id="api-key-input" placeholder="输入您的API密钥">
+                    <small>您的API密钥仅保存在本地，不会发送到我们的服务器</small>
+                </div>
+                <div class="form-group">
+                    <label>AI难度</label>
+                    <select id="difficulty-select">
+                        <option value="easy">简单</option>
+                        <option value="medium" selected>中等</option>
+                        <option value="hard">困难</option>
+                    </select>
+                </div>
+                <div class="modal-buttons">
+                    <button id="close-settings" class="btn">取消</button>
+                    <button id="save-settings" class="btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="logs-modal" class="modal">
+            <div class="modal-content logs-content">
+                <h3>AI 对话日志</h3>
+                <div id="logs-container" class="logs-container"></div>
+                <div class="modal-buttons">
+                    <button id="btn-clear-logs" class="btn danger">清空日志</button>
+                    <button id="btn-refresh-logs" class="btn">刷新</button>
+                    <button id="close-logs" class="btn-primary">关闭</button>
+                </div>
+            </div>
+        </div>
+
+        <header class="header">
+            <h1>无限制五子棋</h1>
+            <div class="header-actions">
+                <span id="turn-indicator">黑方回合</span>
+                <button id="btn-settings" class="btn-icon" title="设置">⚙</button>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="board-section">
+                <div id="board-container"></div>
+            </div>
+
+            <aside class="side-panel">
+                <div class="panel-section">
+                    <h3 data-num="01">AI 助手</h3>
+                    <div id="ai-messages" class="messages"></div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 data-num="02">游戏目标</h3>
+                    <div id="game-objectives" class="objectives-list">
+                        <span class="empty">加载中...</span>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 data-num="03">Token 消耗</h3>
+                    <div id="token-stats" class="token-stats">
+                        <div class="token-stat">
+                            <span class="stat-label">总消耗</span>
+                            <span class="stat-value" id="token-total">0</span>
+                        </div>
+                        <div class="token-stat">
+                            <span class="stat-label">今日消耗</span>
+                            <span class="stat-value" id="token-today">0</span>
+                        </div>
+                        <div class="token-stat">
+                            <span class="stat-label">调用次数</span>
+                            <span class="stat-value" id="token-calls">0</span>
+                        </div>
+                        <div class="token-stat cost">
+                            <span class="stat-label">估算费用</span>
+                            <span class="stat-value" id="token-cost">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 data-num="04">AI 性格</h3>
+                    <div id="ai-personality" class="personality-card">
+                        <div class="personality-header">
+                            <span class="personality-icon" id="personality-icon">🧠</span>
+                            <div class="personality-title">
+                                <span class="personality-type" id="personality-type">标准型</span>
+                                <span class="personality-subtitle" id="personality-subtitle">Normal</span>
+                            </div>
+                        </div>
+                        <p class="personality-desc" id="personality-desc">攻守平衡的标准AI</p>
+                        <div class="personality-bars">
+                            <div class="personality-bar">
+                                <span class="bar-label">进攻</span>
+                                <span class="bar-chars aggressive" id="bar-agg">█████░░░░░</span>
+                                <span class="bar-percent" id="bar-agg-pct">50%</span>
+                            </div>
+                            <div class="personality-bar">
+                                <span class="bar-label">防守</span>
+                                <span class="bar-chars defensive" id="bar-def">█████░░░░░</span>
+                                <span class="bar-percent" id="bar-def-pct">50%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 data-num="05">游戏机制</h3>
+                    <div id="active-mechanisms" class="mechanisms-list">
+                        <span class="empty">无激活机制</span>
+                    </div>
+                </div>
+
+                <div class="panel-section">
+                    <h3 data-num="06">已激活规则</h3>
+                    <div id="active-rules" class="rules-list">
+                        <span class="empty">暂无自定义规则</span>
+                    </div>
+                </div>
+
+                <div class="panel-section controls">
+                    <h3 data-num="07">操 作</h3>
+                    <button id="btn-undo" class="btn">悔 棋</button>
+                    <button id="btn-undo-config" class="btn">撤回AI修改</button>
+                    <button id="btn-restart" class="btn">重新开始</button>
+                    <button id="btn-logs" class="btn">查看日志</button>
+                    <button id="btn-reset-configs" class="btn danger">重置所有配置</button>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="input-section">
+            <div class="input-wrapper">
+                <input
+                    type="text"
+                    id="command-input"
+                    placeholder="输入指令，例如：让我的棋子可以飞、悔一步棋..."
+                    autocomplete="off"
+                >
+                <div class="coord-select-btn-wrapper">
+                    <button id="btn-insert-coord" class="btn" title="点击后在棋盘上选择格子，自动插入坐标到输入框">📍 选坐标</button>
+                    <button id="btn-toggle-coord-mode" class="btn-toggle-mode" title="切换选坐标/选区域">⇄</button>
+                </div>
+                <button id="btn-send" class="btn-primary">发送</button>
+            </div>
+            <div class="hints">
+                试试："棋子变大"、"棋盘变成圆形"、"让AI变蠢"、"把棋盘掀了"
+            </div>
+        </footer>
+        `;
+    }
+
+    _getStyles() {
+        return `
+@font-face {
+    font-family: 'Resource Han Rounded CN';
+    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot');
+    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot?#iefix') format('embedded-opentype'),
+         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff2') format('woff2'),
+         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff') format('woff'),
+         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.ttf') format('truetype'),
+         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.svg#Resource Han Rounded CN') format('svg');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
+:host {
+    --paper: #fafaf8;
+    --paper-warm: #f5f3ef;
+    --paper-dark: #ebe8e2;
+    --ink: #1a1a1a;
+    --ink-soft: #2d2d2d;
+    --ink-medium: #4a4a4a;
+    --ink-light: #7a7a7a;
+    --ink-faint: #b8b8b8;
+    --line: #e0ddd7;
+    --line-strong: #c9c5be;
+
+    --board-bg: #DEB887;
+    --board-line: #333333;
+    --white-stone: #ffffff;
+    --black-stone: #1a1a1a;
+
+    --neon-cyan: #00f0ff;
+    --neon-magenta: #ff00aa;
+    --neon-pink: #ff2d6f;
+    --neon-green: #39ff14;
+    --neon-gold: #ffd700;
+
+    --highlight: #1a1a1a;
+    --valid-move: #3d7a3d;
+    --last-move: #8b5a2b;
+    --danger: #9b2c2c;
+    --success: #2d6a4f;
+    --warning: #8b6914;
+    --text-light: #4a4a4a;
+
+    --muted-ink: #7a7a7a;
+    --accent-green: #2d6a4f;
+
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Resource Han Rounded CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image:
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    background-blend-mode: multiply;
+    overflow: hidden;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 32px;
+    background: var(--paper);
+    border-bottom: 1px solid var(--line);
+    position: relative;
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+.header::after {
+    content: '';
+    position: absolute;
+    left: 32px; right: 32px; bottom: -1px;
+    height: 1px;
+    background: var(--ink);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+}
+
+.header h1 {
+    font-family: 'Playfair Display', Georgia, 'Resource Han Rounded CN', 'PingFang SC', serif;
+    font-weight: 500;
+    font-size: 1.5rem;
+    letter-spacing: 0.02em;
+    color: var(--ink);
+    font-style: italic;
+}
+
+.header h1::before {
+    content: '五 子 棋';
+    display: block;
+    font-family: 'Playfair Display', serif;
+    font-size: 0.65rem;
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    color: var(--ink-light);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+    font-style: normal;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
+#turn-indicator {
+    padding: 8px 20px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    border: none;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#turn-indicator::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    transition: left 0.5s ease;
+}
+
+#turn-indicator:hover::before {
+    left: 100%;
+}
+
+.btn-icon {
+    padding: 8px 12px;
+    border: none;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 1.1rem;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+}
+
+.btn-icon::after {
+    content: '';
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 60%;
+    height: 1px;
+    background: var(--ink);
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn-icon:hover::after {
+    transform: translateX(-50%) scaleX(1);
+}
+
+.btn-icon:hover {
+    color: var(--ink-soft);
+}
+
+/* Main */
+.main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    padding: 24px 32px;
+    gap: 32px;
+}
+
+.board-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+#board-container {
+    position: relative;
+    width: min(90vmin, 600px);
+    height: min(90vmin, 600px);
+    background: var(--board-bg);
+    border-radius: 4px;
+    box-shadow:
+        0 0 0 1px rgba(26, 26, 26, 0.1),
+        0 4px 20px rgba(0, 0, 0, 0.08),
+        0 20px 60px rgba(0, 0, 0, 0.12);
+}
+
+/* Side Panel */
+.side-panel {
+    width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.side-panel::-webkit-scrollbar { width: 4px; }
+.side-panel::-webkit-scrollbar-track { background: transparent; }
+.side-panel::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 2px;
+}
+
+.panel-section {
+    position: relative;
+    background: var(--paper-warm);
+    border: 1px solid var(--line);
+    padding: 20px 22px;
+    animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.panel-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 24px; height: 24px;
+    border-top: 1px solid var(--ink);
+    border-left: 1px solid var(--ink);
+    pointer-events: none;
+}
+
+.panel-section::after {
+    content: '';
+    position: absolute;
+    bottom: 0; right: 0;
+    width: 24px; height: 24px;
+    border-bottom: 1px solid var(--ink);
+    border-right: 1px solid var(--ink);
+    pointer-events: none;
+}
+
+.panel-section:nth-child(1) { animation-delay: 0.25s; }
+.panel-section:nth-child(2) { animation-delay: 0.32s; }
+.panel-section:nth-child(3) { animation-delay: 0.39s; }
+.panel-section:nth-child(4) { animation-delay: 0.46s; }
+.panel-section:nth-child(5) { animation-delay: 0.53s; }
+.panel-section:nth-child(6) { animation-delay: 0.60s; }
+.panel-section:nth-child(7) { animation-delay: 0.67s; }
+
+.panel-section h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-size: 1rem;
+    margin-bottom: 14px;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+    font-style: italic;
+}
+
+.panel-section h3::before {
+    content: attr(data-num);
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: var(--ink-light);
+    margin-right: 10px;
+    font-style: normal;
+    vertical-align: middle;
+}
+
+/* Messages */
+.messages {
+    max-height: 220px;
+    overflow-y: auto;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    padding-right: 6px;
+}
+
+.messages::-webkit-scrollbar { width: 4px; }
+.messages::-webkit-scrollbar-track { background: transparent; }
+.messages::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.message {
+    padding: 10px 0 10px 16px;
+    margin-bottom: 4px;
+    border-left: 2px solid var(--ink-faint);
+    color: var(--ink-soft);
+    position: relative;
+    animation: slideInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    transition: all 0.2s ease;
+}
+
+.message:hover {
+    border-left-color: var(--ink);
+    background: rgba(26, 26, 26, 0.02);
+    padding-left: 20px;
+}
+
+.message.success {
+    border-left-color: var(--success);
+    color: var(--ink-soft);
+}
+
+.message.success:hover {
+    background: rgba(45, 106, 79, 0.04);
+}
+
+.message.error {
+    border-left-color: var(--danger);
+    color: var(--ink-soft);
+}
+
+.message.error:hover {
+    background: rgba(155, 44, 44, 0.04);
+}
+
+.message.fun {
+    border-left-color: var(--ink);
+    color: var(--ink);
+    font-style: italic;
+}
+
+.message.fun:hover {
+    background: rgba(26, 26, 26, 0.03);
+}
+
+/* Rules list */
+.rules-list {
+    font-size: 0.82rem;
+    font-family: 'DM Sans', sans-serif;
+}
+
+.rules-list .empty {
+    color: var(--ink-light);
+    font-style: italic;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 16px 0;
+    border: 1px dashed var(--line);
+}
+
+.rule-item {
+    padding: 8px 0 8px 28px;
+    margin-bottom: 2px;
+    border-bottom: 1px dotted var(--line);
+    color: var(--ink-soft);
+    font-size: 0.8rem;
+    position: relative;
+    transition: all 0.2s ease;
+    counter-increment: rule-counter;
+}
+
+.rules-list {
+    counter-reset: rule-counter;
+}
+
+.rule-item::before {
+    content: counter(rule-counter, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--ink-light);
+    letter-spacing: 0.05em;
+}
+
+.rule-item:hover {
+    color: var(--ink);
+    border-bottom-color: var(--ink-faint);
+}
+
+.rule-item:hover::before {
+    color: var(--ink);
+}
+
+/* Token stats */
+.token-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+}
+
+.token-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 12px 14px;
+    background: var(--paper);
+    transition: background 0.2s ease;
+}
+
+.token-stat:hover {
+    background: var(--paper-warm);
+}
+
+.token-stat .stat-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-light);
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.token-stat .stat-value {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.3rem;
+    font-weight: 500;
+    color: var(--ink);
+    font-style: italic;
+}
+
+.token-stat.cost {
+    grid-column: span 2;
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.token-stat.cost:hover {
+    background: var(--ink-soft);
+}
+
+.token-stat.cost .stat-label {
+    color: rgba(250, 250, 248, 0.6);
+}
+
+.token-stat.cost .stat-value {
+    color: var(--paper);
+    font-size: 1.5rem;
+}
+
+/* Controls */
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Board elements */
+.board-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Stones */
+.piece {
+    position: absolute;
+    width: 6%;
+    height: 6%;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    z-index: 10;
+}
+
+.piece:hover {
+    transform: translate(-50%, -50%) scale(1.1);
+}
+
+.piece.red {
+    background: var(--white-stone);
+    border: 2px solid var(--black-stone);
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.4),
+        inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.piece.black {
+    background: var(--black-stone);
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.5),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.piece.selected {
+    box-shadow:
+        0 0 0 3px var(--neon-cyan),
+        0 0 16px rgba(0, 240, 255, 0.8),
+        0 0 32px rgba(0, 240, 255, 0.5);
+    z-index: 20;
+}
+
+.piece.last-moved {
+    box-shadow:
+        0 0 0 3px var(--neon-pink),
+        0 0 14px rgba(255, 45, 111, 0.7),
+        0 0 28px rgba(255, 45, 111, 0.4);
+}
+
+.piece.ai-moved {
+    border: 3px solid var(--neon-gold);
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    z-index: 100;
+}
+
+.valid-move-indicator {
+    position: absolute;
+    width: 4%;
+    height: 3.6%;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--neon-green) 0%, rgba(57, 255, 20, 0.4) 60%, transparent 100%);
+    box-shadow: 0 0 8px var(--neon-green), 0 0 16px rgba(57, 255, 20, 0.5);
+    opacity: 0.85;
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Input section */
+.input-section {
+    padding: 20px 32px 24px;
+    background: var(--paper);
+    border-top: 1px solid var(--line);
+    position: relative;
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+}
+
+.input-section::before {
+    content: '';
+    position: absolute;
+    left: 32px; right: 32px; top: -1px;
+    height: 1px;
+    background: var(--ink);
+    transform: scaleX(0);
+    transform-origin: right;
+    animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
+}
+
+.input-wrapper {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
+#command-input {
+    flex: 1;
+    padding: 14px 18px;
+    border: 1px solid var(--line-strong);
+    background: var(--paper-warm);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.88rem;
+    letter-spacing: 0.01em;
+    border-radius: 0;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#command-input::placeholder {
+    color: var(--ink-faint);
+    font-style: italic;
+    font-family: 'DM Sans', sans-serif;
+}
+
+#command-input:focus {
+    outline: none;
+    border-color: var(--ink);
+    background: var(--paper);
+    box-shadow: 0 2px 0 var(--ink);
+}
+
+.hints {
+    margin-top: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    letter-spacing: 0.03em;
+    font-style: italic;
+}
+
+.hints::before {
+    content: '—  ';
+    color: var(--ink-faint);
+    font-style: normal;
+}
+
+/* Buttons */
+.btn {
+    padding: 12px 20px;
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 0;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn::before {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 100%;
+    height: 0;
+    background: var(--ink);
+    transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: -1;
+}
+
+.btn:hover {
+    color: var(--paper);
+}
+
+.btn:hover::before {
+    height: 100%;
+}
+
+.btn-primary {
+    padding: 12px 24px;
+    border: none;
+    background: var(--ink);
+    color: var(--paper);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-radius: 0;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.btn-primary::after {
+    content: '→';
+    display: inline-block;
+    margin-left: 8px;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn-primary:hover {
+    background: var(--ink-soft);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+}
+
+.btn-primary:hover::after {
+    transform: translateX(4px);
+}
+
+.btn.danger {
+    border-color: var(--danger);
+    color: var(--danger);
+}
+
+.btn.danger::before {
+    background: var(--danger);
+}
+
+.btn.danger:hover {
+    color: var(--paper);
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(26, 26, 26, 0.5);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    position: relative;
+    background: var(--paper);
+    padding: 36px 32px;
+    width: 90%;
+    max-width: 440px;
+    border: 1px solid var(--line-strong);
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.15),
+        0 2px 0 var(--ink);
+    animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modal-content::before {
+    content: '';
+    position: absolute;
+    top: 12px; left: 12px; right: 12px; bottom: 12px;
+    border: 1px solid var(--line);
+    pointer-events: none;
+}
+
+.modal-content h3 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-size: 1.6rem;
+    margin-bottom: 24px;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+    font-style: italic;
+    text-align: center;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+    position: relative;
+}
+
+.modal-content h3::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 1px;
+    background: var(--ink);
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-medium);
+    font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 0;
+    background: var(--paper-warm);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--ink);
+    background: var(--paper);
+    box-shadow: 0 2px 0 var(--ink);
+}
+
+.form-group small {
+    display: block;
+    margin-top: 6px;
+    color: var(--ink-light);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    font-style: italic;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 28px;
+}
+
+.modal-buttons .btn {
+    min-width: 100px;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .main {
+        flex-direction: column;
+        padding: 16px 20px;
+        gap: 20px;
+    }
+
+    .side-panel {
+        width: 100%;
+        flex-direction: row;
+        flex-wrap: wrap;
+        max-height: 200px;
+    }
+
+    .panel-section {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .messages {
+        max-height: 120px;
+    }
+
+    .header {
+        padding: 16px 20px;
+    }
+
+    .header::after {
+        left: 20px; right: 20px;
+    }
+
+    .input-section {
+        padding: 16px 20px 20px;
+    }
+
+    .input-section::before {
+        left: 20px; right: 20px;
+    }
+}
+
+@media (max-width: 600px) {
+    .header h1 {
+        font-size: 1.2rem;
+    }
+
+    .header-actions {
+        gap: 10px;
+    }
+
+    #turn-indicator {
+        padding: 6px 14px;
+        font-size: 0.7rem;
+    }
+
+    .side-panel {
+        flex-direction: column;
+        max-height: none;
+    }
+
+    .panel-section {
+        min-width: auto;
+    }
+
+    .controls {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .controls .btn {
+        flex: 1;
+        min-width: 120px;
+    }
+
+    .modal-content {
+        padding: 24px 20px;
+    }
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes scaleIn {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Game Over Overlay */
+.game-over-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(250, 250, 248, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    border-radius: 4px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: fadeIn 0.4s ease;
+}
+
+.game-over-overlay::before {
+    content: '';
+    position: absolute;
+    top: 24px; left: 24px; right: 24px; bottom: 24px;
+    border: 1px solid var(--line-strong);
+    pointer-events: none;
+}
+
+.game-over-overlay::after {
+    content: '';
+    position: absolute;
+    top: 32px; left: 32px; right: 32px; bottom: 32px;
+    border: 1px solid var(--line);
+    pointer-events: none;
+}
+
+.game-over-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-size: 2.8rem;
+    color: var(--ink);
+    margin-bottom: 12px;
+    letter-spacing: 0.02em;
+    font-style: italic;
+    position: relative;
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+.game-over-overlay h2::before,
+.game-over-overlay h2::after {
+    content: '—';
+    display: inline-block;
+    margin: 0 16px;
+    font-weight: 300;
+    color: var(--ink-faint);
+    font-style: normal;
+    vertical-align: middle;
+    font-size: 0.5em;
+}
+
+.game-over-overlay p {
+    font-family: 'DM Sans', sans-serif;
+    color: var(--ink-medium);
+    margin-bottom: 32px;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 0 20px;
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
+.game-over-overlay button {
+    padding: 14px 32px;
+    border: 1px solid var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.85rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+.game-over-overlay button::after {
+    content: ' ↻';
+    display: inline-block;
+    margin-left: 8px;
+    transition: transform 0.3s ease;
+}
+
+.game-over-overlay button:hover {
+    background: var(--ink-soft);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(26, 26, 26, 0.25);
+}
+
+.game-over-overlay button:hover::after {
+    transform: rotate(-180deg);
+}
+
+/* AI Thinking Overlay */
+.thinking-overlay {
+    display: none;
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(250, 250, 248, 0.9);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.thinking-overlay.show {
+    display: flex;
+}
+
+.thinking-content {
+    position: relative;
+    text-align: center;
+    color: var(--ink);
+    z-index: 1;
+}
+
+.thinking-spinner {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 28px;
+    border-radius: 50%;
+}
+
+.thinking-spinner::before,
+.thinking-spinner::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid transparent;
+}
+
+.thinking-spinner::before {
+    inset: 0;
+    border-top-color: var(--ink);
+    border-right-color: var(--ink);
+    animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.thinking-spinner::after {
+    inset: 12px;
+    border-bottom-color: var(--ink-faint);
+    border-left-color: var(--ink-faint);
+    animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
+}
+
+.thinking-text {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+    font-style: italic;
+}
+
+.thinking-stage {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    color: var(--ink-light);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.thinking-stage::after {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    text-align: left;
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0% { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+    100% { content: ''; }
+}
+
+/* Logs Modal */
+.logs-content {
+    width: 90%;
+    max-width: 780px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+    border: 1px solid var(--line-strong);
+    padding: 28px;
+    box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.15),
+        0 2px 0 var(--ink);
+    position: relative;
+    animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.logs-content::before {
+    content: '';
+    position: absolute;
+    top: 10px; left: 10px; right: 10px; bottom: 10px;
+    border: 1px solid var(--line);
+    pointer-events: none;
+}
+
+.logs-container {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--paper-warm);
+    padding: 20px 24px;
+    margin: 16px 0;
+    max-height: 65vh;
+    border: 1px solid var(--line);
+    position: relative;
+}
+
+.logs-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50px;
+    width: 1px;
+    height: 100%;
+    background: var(--line-strong);
+    opacity: 0.5;
+}
+
+.logs-container::-webkit-scrollbar { width: 5px; }
+.logs-container::-webkit-scrollbar-track { background: transparent; }
+.logs-container::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.log-entry {
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px dotted var(--line-strong);
+    position: relative;
+}
+
+.log-entry:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.log-entry.error {
+    border-left: 2px solid var(--danger);
+    padding-left: 16px;
+}
+
+.log-entry.success {
+    border-left: 2px solid var(--success);
+    padding-left: 16px;
+}
+
+.log-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    letter-spacing: 0.03em;
+}
+
+.log-user-input {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--ink);
+    margin-bottom: 12px;
+    padding: 8px 0;
+    font-size: 0.95rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.log-user-input::before {
+    content: '"';
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2em;
+    color: var(--ink-faint);
+    line-height: 0;
+    vertical-align: -0.2em;
+    margin-right: 2px;
+}
+
+.log-user-input::after {
+    content: '"';
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2em;
+    color: var(--ink-faint);
+    line-height: 0;
+    vertical-align: -0.2em;
+    margin-left: 2px;
+}
+
+.log-section {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+}
+
+.log-section-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    color: var(--ink-medium);
+    margin-bottom: 8px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.log-content {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--paper-warm);
+    padding: 10px 12px;
+    color: var(--ink-soft);
+    border: 1px solid var(--line);
+    line-height: 1.6;
+}
+
+.log-json {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink-medium);
+}
+
+/* Locked states */
+.board-locked {
+    pointer-events: none;
+    opacity: 0.65;
+    filter: grayscale(0.3) brightness(0.85);
+}
+
+.input-locked {
+    pointer-events: none;
+    opacity: 0.45;
+    filter: grayscale(0.4);
+}
+
+/* Toast */
+.toast-container {
+    position: absolute;
+    top: 80px;
+    right: 32px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.toast {
+    padding: 14px 20px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    border-left: 3px solid var(--paper);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    animation: toastIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    max-width: 320px;
+    position: relative;
+}
+
+.toast.success {
+    border-left-color: var(--success);
+}
+
+.toast.error {
+    border-left-color: var(--danger);
+}
+
+.toast.fade-out {
+    animation: toastOut 0.3s ease forwards;
+}
+
+@keyframes toastIn {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes toastOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+}
+
+#board-container.coord-insert-mode {
+    cursor: crosshair;
+}
+
+#board-container.coord-insert-mode .piece {
+    cursor: crosshair;
+}
+
+#board-container.coord-insert-mode .valid-move-indicator {
+    cursor: crosshair;
+}
+
+.btn.active {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+.btn.active::before {
+    height: 100%;
+}
+
+/* Coord dots */
+.coord-dot {
+    cursor: pointer;
+    pointer-events: auto;
+    transition: all 0.15s ease;
+}
+
+.coord-dot:hover {
+    r: 0.35;
+    filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.9));
+}
+
+.coord-dot.selected {
+    filter: drop-shadow(0 0 8px rgba(34, 197, 94, 1));
+}
+
+.coord-dot.in-region {
+    fill: #86efac;
+}
+
+/* Region rect */
+.region-rect {
+    pointer-events: none;
+    fill: rgba(34, 197, 94, 0.15);
+    stroke: #22c55e;
+    stroke-width: 0.08;
+    filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.3));
+}
+
+/* Coord select button */
+.coord-select-btn-wrapper {
+    position: relative;
+    display: inline-flex;
+}
+
+.coord-select-btn-wrapper .btn {
+    padding-right: 32px;
+}
+
+.btn-toggle-mode {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: 1px solid var(--ink);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 12px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    z-index: 2;
+    line-height: 1;
+    padding: 0;
+}
+
+.btn-toggle-mode:hover {
+    background: var(--ink);
+    color: var(--paper);
+}
+
+/* AI Personality Card */
+.personality-card {
+    position: relative;
+    padding: 14px 12px 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.personality-card::before {
+    content: '';
+    position: absolute;
+    top: 6px; left: 6px; right: 6px; bottom: 6px;
+    border: 1px solid var(--line);
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.personality-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--line);
+}
+
+.personality-icon {
+    font-size: 1.6rem;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--paper-warm);
+    border: 1px solid var(--line);
+    animation: float 3s ease-in-out infinite;
+}
+
+.personality-title {
+    display: flex;
+    flex-direction: column;
+}
+
+.personality-type {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1rem;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+}
+
+.personality-subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink-light);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.personality-desc {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink-medium);
+    line-height: 1.5;
+    margin-bottom: 12px;
+    font-style: italic;
+    padding-left: 4px;
+}
+
+.personality-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0 4px;
+}
+
+.personality-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bar-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink-light);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    width: 36px;
+    flex-shrink: 0;
+}
+
+.bar-chars {
+    flex: 1;
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+    transition: all 0.4s ease;
+}
+
+.bar-chars.aggressive {
+    color: var(--neon-pink);
+    text-shadow: 0 0 6px rgba(255, 45, 111, 0.4);
+}
+
+.bar-chars.defensive {
+    color: var(--neon-cyan);
+    text-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+}
+
+.bar-percent {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink-soft);
+    min-width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+.personality-card.type-aggressive {
+    border-color: rgba(255, 45, 111, 0.3);
+}
+.personality-card.type-aggressive .personality-icon {
+    border-color: rgba(255, 45, 111, 0.4);
+    box-shadow: 0 0 12px rgba(255, 45, 111, 0.2);
+}
+
+.personality-card.type-defensive {
+    border-color: rgba(0, 240, 255, 0.3);
+}
+.personality-card.type-defensive .personality-icon {
+    border-color: rgba(0, 240, 255, 0.4);
+    box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+}
+
+.personality-card.type-random {
+    border-color: rgba(255, 215, 0, 0.4);
+}
+.personality-card.type-random .personality-icon {
+    border-color: rgba(255, 215, 0, 0.5);
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.25);
+    animation: spin-slow 4s linear infinite;
+}
+
+.personality-card.personality-changed {
+    animation: personalityPulse 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes personalityPulse {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.03); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    100% { transform: scale(1); }
+}
+
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-3px); }
+}
+
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Mechanisms List */
+.mechanisms-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.mechanisms-list::-webkit-scrollbar { width: 4px; }
+.mechanisms-list::-webkit-scrollbar-track { background: transparent; }
+.mechanisms-list::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 2px;
+}
+
+.mechanism-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink-soft);
+    position: relative;
+    overflow: hidden;
+    animation: mechanismSlideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition: all 0.25s ease;
+}
+
+.mechanism-badge:hover {
+    border-color: var(--ink-faint);
+    background: var(--paper-warm);
+}
+
+.mechanism-badge.leaving {
+    animation: mechanismSlideOut 0.3s ease forwards;
+}
+
+.mechanism-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.mechanism-text {
+    flex: 1;
+    line-height: 1.3;
+}
+
+.mechanism-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    font-weight: 500;
+    padding: 2px 6px;
+    background: var(--ink);
+    color: var(--paper);
+    flex-shrink: 0;
+    min-width: 24px;
+    text-align: center;
+}
+
+.mechanism-stop {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border: 1px solid var(--danger);
+    background: transparent;
+    color: var(--danger);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    letter-spacing: 0.05em;
+}
+
+.mechanism-stop:hover {
+    background: var(--danger);
+    color: var(--paper);
+}
+
+.mechanism-badge.type-skip {
+    border-left: 3px solid var(--warning);
+}
+.mechanism-badge.type-skip .mechanism-count {
+    background: var(--warning);
+    color: var(--paper);
+}
+
+.mechanism-badge.type-ai {
+    border-left: 3px solid var(--neon-cyan);
+}
+.mechanism-badge.type-ai .mechanism-count {
+    background: var(--neon-cyan);
+    color: var(--ink);
+}
+
+.mechanism-badge.type-random {
+    border-left: 3px solid var(--neon-gold);
+}
+.mechanism-badge.type-random .mechanism-count {
+    background: var(--neon-gold);
+    color: var(--ink);
+}
+
+.mechanism-badge.type-extra {
+    border-left: 3px solid var(--neon-green);
+}
+.mechanism-badge.type-extra .mechanism-count {
+    background: var(--neon-green);
+    color: var(--ink);
+}
+
+.mechanism-badge.type-limit {
+    border-left: 3px solid var(--neon-magenta);
+}
+.mechanism-badge.type-limit .mechanism-count {
+    background: var(--neon-magenta);
+    color: var(--paper);
+}
+
+@keyframes mechanismSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes mechanismSlideOut {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+        max-height: 60px;
+        margin-bottom: 6px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-16px);
+        max-height: 0;
+        margin-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+}
+
+/* Board mechanism effects */
+#board-container.freeze-effect::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg,
+        rgba(0, 240, 255, 0.08) 0%,
+        rgba(0, 240, 255, 0.02) 50%,
+        rgba(0, 240, 255, 0.08) 100%);
+    pointer-events: none;
+    z-index: 30;
+    border-radius: 4px;
+    animation: frostPulse 2s ease-in-out infinite;
+}
+
+#board-container.freeze-effect::after {
+    content: '❄ 冻结中';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.5rem;
+    font-style: italic;
+    color: var(--neon-cyan);
+    text-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+    z-index: 31;
+    pointer-events: none;
+    opacity: 0.8;
+    animation: frostText 2s ease-in-out infinite;
+}
+
+@keyframes frostPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+@keyframes frostText {
+    0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+    50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.05); }
+}
+
+.piece.random-move {
+    animation: randomGlow 0.6s ease;
+}
+
+@keyframes randomGlow {
+    0% { filter: brightness(1); }
+    50% { filter: brightness(1.4) hue-rotate(30deg); }
+    100% { filter: brightness(1); }
+}
+
+#turn-indicator.ai-control {
+    background: linear-gradient(90deg, var(--ink), #333);
+}
+
+#turn-indicator.ai-control::after {
+    content: '🤖';
+    display: inline-block;
+    margin-left: 8px;
+    font-size: 0.9em;
+    animation: robotPulse 1s ease-in-out infinite;
+}
+
+@keyframes robotPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+}
+
+/* Game Objectives Panel */
+.objectives-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.objectives-list .empty {
+    color: var(--muted-ink);
+    font-style: italic;
+    font-size: 0.85rem;
+    opacity: 0.5;
+}
+
+.objective-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--paper-dark);
+    border-radius: 3px;
+    background: var(--paper);
+    transition: all 0.3s ease;
+}
+
+.objective-item.enabled {
+    border-color: var(--ink);
+}
+
+.objective-item.achieved {
+    border-color: #b8860b;
+    background: linear-gradient(135deg,
+        rgba(184, 134, 11, 0.06) 0%,
+        rgba(184, 134, 11, 0.02) 100%);
+}
+
+.objective-item.disabled {
+    opacity: 0.35;
+    border-style: dashed;
+}
+
+.objective-icon {
+    font-size: 1.4rem;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.objective-item.achieved .objective-icon {
+    filter: drop-shadow(0 0 4px rgba(184, 134, 11, 0.5));
+}
+
+.objective-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.objective-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 3px;
+    letter-spacing: 0.02em;
+}
+
+.objective-item.achieved .objective-title {
+    color: #8b6914;
+}
+
+.objective-item.disabled .objective-title {
+    text-decoration: line-through;
+    text-decoration-thickness: 1px;
+}
+
+.objective-desc {
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    font-size: 0.78rem;
+    color: var(--muted-ink);
+    line-height: 1.4;
+}
+
+.objective-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+}
+
+.objective-badge.victory {
+    background: rgba(184, 134, 11, 0.1);
+    color: #8b6914;
+}
+
+.objective-badge.draw {
+    background: rgba(100, 100, 100, 0.1);
+    color: #555;
+}
+
+.objective-badge.special {
+    background: rgba(88, 166, 135, 0.1);
+    color: #3a7a5e;
+}
+
+.objective-status {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid var(--paper-dark);
+}
+
+.objective-item.enabled .objective-status {
+    color: var(--accent-green);
+}
+
+.objective-item.achieved .objective-status {
+    color: #b8860b;
+}
+
+.objective-item.disabled .objective-status {
+    color: var(--muted-ink);
+}
+
+@keyframes objectiveAchieved {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.objective-item.achieved {
+    animation: objectiveAchieved 0.6s ease;
+}
+`;
+    }
+
     async init() {
         await this.loadConfigs();
         this.renderBoard();
@@ -33,61 +2247,45 @@ const App = {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
-    },
+        this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
 
     async loadTokenStats() {
         try {
-            const resp = await fetch('/api/token_stats');
+            const resp = await fetch(`${this.apiBase}/api/token_stats`);
             const data = await resp.json();
 
-            document.getElementById('token-total').textContent = data.total_tokens.toLocaleString();
-            document.getElementById('token-today').textContent = data.today_tokens.toLocaleString();
-            document.getElementById('token-calls').textContent = data.total_calls.toLocaleString();
-            document.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
+            this.shadowRoot.getElementById('token-total').textContent = data.total_tokens.toLocaleString();
+            this.shadowRoot.getElementById('token-today').textContent = data.today_tokens.toLocaleString();
+            this.shadowRoot.getElementById('token-calls').textContent = data.total_calls.toLocaleString();
+            this.shadowRoot.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
         } catch (e) {
             console.error('Failed to load token stats:', e);
         }
-    },
+    }
 
     async loadConfigs() {
-        const resp = await fetch('/api/config/all', { cache: 'no-store' });
+        const resp = await fetch(`${this.apiBase}/api/config/all`, { cache: 'no-store' });
         this.configs = await resp.json();
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
         console.log('[DEBUG] loadConfigs - board.appearance:', this.configs.board?.appearance);
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // 棋盘渲染
-    // ═══════════════════════════════════════════════════════════════
+    }
 
     _getBoardLayoutConfig() {
         const defaults = {
             grid: {
                 line_thickness: 0.03,
                 show_horizontal: true,
-                show_vertical: true,
-                river_gap: true
-            },
-            palace: {
-                enabled: true,
-                show_diagonals: true,
-                line_thickness: 0.03
-            },
-            river: {
-                enabled: true,
-                text: '楚 河          漢 界',
-                text_size: 0.5,
-                gap_ratio: 1.0
+                show_vertical: true
             },
             appearance: {
-                background_color: '#f0d9b5',
-                line_color: '#5c3a1e',
-                palace_line_color: null
+                background_color: '#DEB887',
+                line_color: '#333333'
             },
             layout: {
-                viewbox_padding_left: 0.444,
-                viewbox_padding_right: 0.444,
+                viewbox_padding_left: 0.5,
+                viewbox_padding_right: 0.5,
                 viewbox_padding_top: 0.5,
                 viewbox_padding_bottom: 0.5,
                 board_size: '90vmin'
@@ -97,6 +2295,9 @@ const App = {
                     enabled: false,
                     thickness: 0.1,
                     color: null
+                },
+                star_points: {
+                    enabled: true
                 },
                 custom_lines: [],
                 background_pattern: null
@@ -121,50 +2322,33 @@ const App = {
 
         try {
             const merged = merge(defaults, user);
-            // 修复：board.json 中 background_color/line_color/palace_line_color 直接位于 appearance 下
-            // （见 board.schema.json），而 defaults 把它们嵌套在 appearance 子对象里。
-            // merge() 会去查找 user.appearance（不存在，user 本身就是 appearance 对象），
-            // 导致颜色始终回退为默认值。这里用 user 中的真实颜色值修正 merged.appearance。
-            // 用 !== undefined 而非 ??，因为 palace_line_color 合法可为 null。
             merged.appearance = {
                 background_color: user.background_color !== undefined
                     ? user.background_color : defaults.appearance.background_color,
                 line_color: user.line_color !== undefined
                     ? user.line_color : defaults.appearance.line_color,
-                palace_line_color: user.palace_line_color !== undefined
-                    ? user.palace_line_color : defaults.appearance.palace_line_color,
             };
             return merged;
         } catch (e) {
             console.error('Failed to merge board layout config:', e);
             return defaults;
         }
-    },
+    }
 
     renderBoard() {
-        const container = document.getElementById('board-container');
+        const container = this.shadowRoot.getElementById('board-container');
         container.innerHTML = '';
 
         const layoutConfig = this._getBoardLayoutConfig();
 
         const geometry = this.configs.board?.geometry || {};
-        const width = geometry.width || 9;
-        const height = geometry.height || 10;
-        const riverLine = geometry.river_line || 5;
-        const palace = geometry.palace || {
-            black: { top_left: [3, 0], bottom_right: [5, 2] },
-            red: { top_left: [3, 7], bottom_right: [5, 9] }
-        };
-
-        let orientation = geometry.orientation;
-        if (!orientation) {
-            orientation = width > height ? 'vertical' : 'horizontal';
-        }
+        const width = geometry.width || 15;
+        const height = geometry.height || 15;
 
         const bgColor = layoutConfig.appearance.background_color;
         console.log('[DEBUG] renderBoard - background_color:', bgColor, 'from layoutConfig:', layoutConfig.appearance);
         container.style.backgroundColor = bgColor;
-        document.documentElement.style.setProperty('--board-bg', bgColor);
+        this.style.setProperty('--board-bg', bgColor);
 
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.classList.add('board-grid');
@@ -181,131 +2365,48 @@ const App = {
 
         const lineColor = layoutConfig.appearance.line_color;
         const sw = String(layoutConfig.grid.line_thickness);
-        const riverGap = layoutConfig.grid.river_gap;
         const showHorizontal = layoutConfig.grid.show_horizontal;
         const showVertical = layoutConfig.grid.show_vertical;
 
-        if (orientation === 'horizontal') {
-            if (showHorizontal) {
-                for (let i = 0; i < height; i++) {
-                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', '0');
-                    line.setAttribute('y1', i);
-                    line.setAttribute('x2', width - 1);
-                    line.setAttribute('y2', i);
-                    line.setAttribute('stroke', lineColor);
-                    line.setAttribute('stroke-width', sw);
-                    svg.appendChild(line);
-                }
-            }
-
-            if (showVertical) {
-                for (let i = 0; i < width; i++) {
-                    const x = i;
-                    if (riverGap) {
-                        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line1.setAttribute('x1', x);
-                        line1.setAttribute('y1', '0');
-                        line1.setAttribute('x2', x);
-                        line1.setAttribute('y2', riverLine - 1);
-                        line1.setAttribute('stroke', lineColor);
-                        line1.setAttribute('stroke-width', sw);
-                        svg.appendChild(line1);
-
-                        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line2.setAttribute('x1', x);
-                        line2.setAttribute('y1', riverLine);
-                        line2.setAttribute('x2', x);
-                        line2.setAttribute('y2', height - 1);
-                        line2.setAttribute('stroke', lineColor);
-                        line2.setAttribute('stroke-width', sw);
-                        svg.appendChild(line2);
-                    } else {
-                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line.setAttribute('x1', x);
-                        line.setAttribute('y1', '0');
-                        line.setAttribute('x2', x);
-                        line.setAttribute('y2', height - 1);
-                        line.setAttribute('stroke', lineColor);
-                        line.setAttribute('stroke-width', sw);
-                        svg.appendChild(line);
-                    }
-                }
-            }
-        } else {
-            if (showVertical) {
-                for (let i = 0; i < width; i++) {
-                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', i);
-                    line.setAttribute('y1', '0');
-                    line.setAttribute('x2', i);
-                    line.setAttribute('y2', height - 1);
-                    line.setAttribute('stroke', lineColor);
-                    line.setAttribute('stroke-width', sw);
-                    svg.appendChild(line);
-                }
-            }
-
-            if (showHorizontal) {
-                for (let i = 0; i < height; i++) {
-                    const y = i;
-                    if (riverGap) {
-                        const line1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line1.setAttribute('x1', '0');
-                        line1.setAttribute('y1', y);
-                        line1.setAttribute('x2', riverLine - 1);
-                        line1.setAttribute('y2', y);
-                        line1.setAttribute('stroke', lineColor);
-                        line1.setAttribute('stroke-width', sw);
-                        svg.appendChild(line1);
-
-                        const line2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line2.setAttribute('x1', riverLine);
-                        line2.setAttribute('y1', y);
-                        line2.setAttribute('x2', width - 1);
-                        line2.setAttribute('y2', y);
-                        line2.setAttribute('stroke', lineColor);
-                        line2.setAttribute('stroke-width', sw);
-                        svg.appendChild(line2);
-                    } else {
-                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line.setAttribute('x1', '0');
-                        line.setAttribute('y1', y);
-                        line.setAttribute('x2', width - 1);
-                        line.setAttribute('y2', y);
-                        line.setAttribute('stroke', lineColor);
-                        line.setAttribute('stroke-width', sw);
-                        svg.appendChild(line);
-                    }
-                }
+        if (showHorizontal) {
+            for (let i = 0; i < height; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', '0');
+                line.setAttribute('y1', i);
+                line.setAttribute('x2', width - 1);
+                line.setAttribute('y2', i);
+                line.setAttribute('stroke', lineColor);
+                line.setAttribute('stroke-width', sw);
+                svg.appendChild(line);
             }
         }
 
-        if (layoutConfig.palace.enabled && layoutConfig.palace.show_diagonals) {
-            const palaceLines = [];
-            if (palace.black) {
-                const tl = palace.black.top_left;
-                const br = palace.black.bottom_right;
-                palaceLines.push([tl, br]);
-                palaceLines.push([[br[0], tl[1]], [tl[0], br[1]]]);
-            }
-            if (palace.red) {
-                const tl = palace.red.top_left;
-                const br = palace.red.bottom_right;
-                palaceLines.push([tl, br]);
-                palaceLines.push([[br[0], tl[1]], [tl[0], br[1]]]);
-            }
-            const palaceLineColor = layoutConfig.appearance.palace_line_color || lineColor;
-            const palaceSw = String(layoutConfig.palace.line_thickness);
-            palaceLines.forEach(([start, end]) => {
+        if (showVertical) {
+            for (let i = 0; i < width; i++) {
                 const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                line.setAttribute('x1', start[0]);
-                line.setAttribute('y1', start[1]);
-                line.setAttribute('x2', end[0]);
-                line.setAttribute('y2', end[1]);
-                line.setAttribute('stroke', palaceLineColor);
-                line.setAttribute('stroke-width', palaceSw);
+                line.setAttribute('x1', i);
+                line.setAttribute('y1', '0');
+                line.setAttribute('x2', i);
+                line.setAttribute('y2', height - 1);
+                line.setAttribute('stroke', lineColor);
+                line.setAttribute('stroke-width', sw);
                 svg.appendChild(line);
+            }
+        }
+
+        if (layoutConfig.decorations.star_points?.enabled) {
+            const starPoints = [
+                [3, 3], [11, 3], [7, 7], [3, 11], [11, 11]
+            ];
+            starPoints.forEach(([x, y]) => {
+                if (x < width && y < height) {
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('cx', x);
+                    circle.setAttribute('cy', y);
+                    circle.setAttribute('r', 0.12);
+                    circle.setAttribute('fill', lineColor);
+                    svg.appendChild(circle);
+                }
             });
         }
 
@@ -326,93 +2427,52 @@ const App = {
 
         container.appendChild(svg);
 
-        if (layoutConfig.river.enabled) {
-            const riverText = document.createElement('div');
-            riverText.className = 'river-text';
-            riverText.textContent = layoutConfig.river.text;
-            riverText.style.color = lineColor;
-
-            if (orientation === 'horizontal') {
-                const riverTopPct = 5 + ((riverLine - 0.5) / (height - 1)) * 90;
-                riverText.style.top = `${riverTopPct}%`;
-                riverText.style.left = '50%';
-                riverText.style.transform = 'translate(-50%, -50%)';
-                riverText.style.writingMode = 'horizontal-tb';
-            } else {
-                const riverLeftPct = 5 + ((riverLine - 0.5) / (width - 1)) * 90;
-                riverText.style.left = `${riverLeftPct}%`;
-                riverText.style.top = '50%';
-                riverText.style.transform = 'translate(-50%, -50%)';
-                riverText.style.writingMode = 'vertical-rl';
-            }
-
-            container.appendChild(riverText);
-        }
-
         this.applyUiConfig();
-    },
+    }
 
     applyUiConfig() {
         const rotation = this.uiConfig?.layout?.rotation || 0;
-        const container = document.getElementById('board-container');
+        const container = this.shadowRoot.getElementById('board-container');
         if (container) {
             container.style.transform = `rotate(${rotation}deg)`;
             container.style.transition = 'transform 0.3s ease';
         }
 
-        document.querySelectorAll('.piece-text').forEach(el => {
-            el.style.transform = `rotate(${-rotation}deg)`;
-            el.style.transition = 'transform 0.3s ease';
-        });
-
         const customStyleId = 'custom-ui-css';
-        let styleEl = document.getElementById(customStyleId);
+        let styleEl = this.shadowRoot.getElementById(customStyleId);
         if (!styleEl) {
             styleEl = document.createElement('style');
             styleEl.id = customStyleId;
-            document.head.appendChild(styleEl);
+            this.shadowRoot.appendChild(styleEl);
         }
         styleEl.textContent = this.uiConfig?.custom_css || '';
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 棋子渲染
-    // ═══════════════════════════════════════════════════════════════
     renderPieces() {
-        const container = document.getElementById('board-container');
-        // 移除现有棋子
+        const container = this.shadowRoot.getElementById('board-container');
         container.querySelectorAll('.piece').forEach(el => el.remove());
-
-        const piecesTheme = this.uiConfig?.theme?.pieces || {};
-        const fontFamily = piecesTheme.font_family || "'KaiTi', serif";
 
         const pieces = this.boardState?.pieces || [];
         pieces.forEach(piece => {
             if (!piece.is_alive) return;
-            this.createPieceElement(piece, piecesTheme, fontFamily);
+            this.createPieceElement(piece);
         });
 
-        // 标记最后移动的棋子
         if (this.lastMove) {
             const el = container.querySelector(`[data-piece-id="${this.lastMove.piece_id}"]`);
             if (el) el.classList.add('last-moved');
         }
-    },
+    }
 
-    createPieceElement(piece, theme, fontFamily) {
-        const container = document.getElementById('board-container');
+    createPieceElement(piece) {
+        const container = this.shadowRoot.getElementById('board-container');
         const el = document.createElement('div');
         el.className = `piece ${piece.side}`;
         el.dataset.pieceId = piece.id;
 
-        const textSpan = document.createElement('span');
-        textSpan.className = 'piece-text';
-        textSpan.textContent = piece.name;
-        el.appendChild(textSpan);
-
         const geometry = this.configs.board?.geometry || {};
-        const width = geometry.width || 9;
-        const height = geometry.height || 10;
+        const width = geometry.width || 15;
+        const height = geometry.height || 15;
 
         const [x, y] = piece.position;
         const leftPct = 5 + (x / (width - 1)) * 90;
@@ -421,25 +2481,14 @@ const App = {
         el.style.left = `${leftPct}%`;
         el.style.top = `${topPct}%`;
         el.style.transform = 'translate(-50%, -50%)';
-        el.style.fontFamily = fontFamily;
 
-        // 应用主题颜色
-        if (piece.side === 'red') {
-            el.style.color = theme.red_color || '#cc0000';
-            el.style.background = theme.red_bg || '#fff5e6';
-            el.style.borderColor = theme.red_color || '#cc0000';
-        } else {
-            el.style.color = theme.black_color || '#1a1a1a';
-            el.style.background = theme.black_bg || '#e6e6e6';
-            el.style.borderColor = theme.black_color || '#1a1a1a';
-        }
-
-        // 应用自定义属性
         if (piece.custom_properties) {
             const cp = piece.custom_properties;
-            if (cp.color) el.style.color = cp.color;
-            if (cp.bg) el.style.background = cp.bg;
-            if (cp.font_size) el.style.fontSize = cp.font_size;
+            if (cp.color) el.style.background = cp.color;
+            if (cp.size) {
+                el.style.width = cp.size;
+                el.style.height = cp.size;
+            }
         }
 
         el.addEventListener('click', (e) => {
@@ -453,40 +2502,31 @@ const App = {
         });
 
         container.appendChild(el);
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 棋子交互
-    // ═══════════════════════════════════════════════════════════════
     async onPieceClick(piece) {
         if (this.aiThinking) return;
         if (this.boardState?.game_status?.state === 'ended') return;
 
-        // 如果点击的是对方棋子且有选中棋子，尝试吃子
-        if (this.selectedPiece && piece.side !== this.selectedPiece.side) {
-            if (this.validMoves.some(m => m[0] === piece.position[0] && m[1] === piece.position[1])) {
-                await this.executeMove(this.selectedPiece.id, piece.position);
-                return;
-            }
-        }
-
-        // 只能选自己的棋子（红方）
-        if (piece.side !== 'red') {
+        if (!this._isCurrentTurnPlayerControlled()) {
             if (this.selectedPiece) {
                 this.clearSelection();
             }
             return;
         }
 
-        if (this.boardState?.current_turn !== 'red') return;
+        if (piece.side !== this.boardState?.current_turn) {
+            if (this.selectedPiece) {
+                this.clearSelection();
+            }
+            return;
+        }
 
-        // 选中棋子
         this.selectedPiece = piece;
         this.highlightPiece(piece);
 
-        // 获取合法移动
         try {
-            const resp = await fetch('/api/valid_moves', {
+            const resp = await fetch(`${this.apiBase}/api/valid_moves`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ piece_id: piece.id, to: piece.position })
@@ -496,23 +2536,24 @@ const App = {
             this.showValidMoves();
         } catch (e) {
             console.error('获取合法移动失败:', e);
+            this._dispatchError('获取合法移动失败', e);
         }
-    },
+    }
 
     highlightPiece(piece) {
-        document.querySelectorAll('.piece').forEach(el => {
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
             el.classList.remove('selected');
         });
-        const el = document.querySelector(`[data-piece-id="${piece.id}"]`);
+        const el = this.shadowRoot.querySelector(`[data-piece-id="${piece.id}"]`);
         if (el) el.classList.add('selected');
-    },
+    }
 
     showValidMoves() {
         this.clearValidMoves();
-        const container = document.getElementById('board-container');
+        const container = this.shadowRoot.getElementById('board-container');
         const geometry = this.configs.board?.geometry || {};
-        const width = geometry.width || 9;
-        const height = geometry.height || 10;
+        const width = geometry.width || 15;
+        const height = geometry.height || 15;
         this.validMoves.forEach(([x, y]) => {
             const indicator = document.createElement('div');
             indicator.className = 'valid-move-indicator';
@@ -522,14 +2563,13 @@ const App = {
             indicator.style.top = `${topPct}%`;
             indicator.style.transform = 'translate(-50%, -50%)';
             indicator.style.cursor = 'pointer';
-            indicator.style.pointerEvents = 'auto'; // 允许点击
+            indicator.style.pointerEvents = 'auto';
 
             const highlight = this.uiConfig?.theme?.highlight;
             if (highlight?.valid_move) {
                 indicator.style.background = highlight.valid_move;
             }
 
-            // 添加点击事件 - 点击合法移动位置执行移动
             indicator.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (this.coordInsertMode) {
@@ -543,34 +2583,30 @@ const App = {
 
             container.appendChild(indicator);
         });
-    },
+    }
 
     clearValidMoves() {
-        document.querySelectorAll('.valid-move-indicator').forEach(el => el.remove());
-    },
+        this.shadowRoot.querySelectorAll('.valid-move-indicator').forEach(el => el.remove());
+    }
 
     clearSelection() {
         this.selectedPiece = null;
         this.validMoves = [];
-        document.querySelectorAll('.piece').forEach(el => {
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
             el.classList.remove('selected');
         });
         this.clearValidMoves();
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 执行移动
-    // ═══════════════════════════════════════════════════════════════
     async executeMove(pieceId, toPosition) {
         this.clearSelection();
-        // 清除AI棋子高亮
-        document.querySelectorAll('.piece').forEach(el => {
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
             el.classList.remove('ai-moved');
         });
         this.aiThinking = true;
 
         try {
-            const resp = await fetch('/api/move', {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ piece_id: pieceId, to: toPosition })
@@ -587,19 +2623,19 @@ const App = {
                 this.updateMechanisms();
                 this.loadTokenStats();
 
-                // 检查游戏结束
+                this._dispatchMoveEvent();
+
                 if (this.boardState.game_status.state === 'ended') {
                     this.showGameOver();
+                    this._dispatchGameEndEvent();
                     this.aiThinking = false;
                     return;
                 }
 
-                // AI走棋
                 await this.sleep(800);
                 await this.makeAIMove();
             } else {
                 this.addMessage(data.message || '移动失败', 'error');
-                // 如果是因为AI接管导致失败，自动触发AI走棋
                 if (data.ai_controlled && !this.aiThinking) {
                     this.aiThinking = true;
                     await this.sleep(500);
@@ -609,10 +2645,11 @@ const App = {
             }
         } catch (e) {
             this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('移动失败', e);
         }
 
         this.aiThinking = false;
-    },
+    }
 
     async makeAIMove(depth = 0) {
         if (depth > 10) return;
@@ -620,7 +2657,7 @@ const App = {
         this.addMessage('AI思考中...', 'info');
 
         try {
-            const resp = await fetch('/api/ai_move', {
+            const resp = await fetch(`${this.apiBase}/api/ai_move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({})
@@ -636,26 +2673,22 @@ const App = {
                 this.updateGameObjectives();
                 this.updateMechanisms();
 
-                // 高亮AI移动的棋子
                 this.highlightAIMovedPiece(data.ai_move.piece_id);
 
-                // 移除"思考中"消息
-                const messages = document.getElementById('ai-messages');
+                const messages = this.shadowRoot.getElementById('ai-messages');
                 const lastMsg = messages.lastElementChild;
                 if (lastMsg && lastMsg.textContent.includes('思考中')) {
                     lastMsg.remove();
                 }
 
-                if (data.ai_move?.captured) {
-                    this.addMessage(`AI走了${this.getPieceName(data.ai_move.piece_id)}`, 'info');
-                }
+                this._dispatchMoveEvent();
 
                 if (this.boardState.game_status.state === 'ended') {
                     this.showGameOver();
+                    this._dispatchGameEndEvent();
                     return;
                 }
 
-                // 检查当前回合方是否需要AI走棋（黑方默认AI，或被AI接管），如果是，继续递归走棋
                 if (this._isCurrentTurnAITurn()) {
                     await this.sleep(600);
                     await this.makeAIMove(depth + 1);
@@ -665,68 +2698,117 @@ const App = {
             }
         } catch (e) {
             this.addMessage(`AI错误: ${e.message}`, 'error');
+            this._dispatchError('AI移动失败', e);
         }
-    },
+    }
+
+    _dispatchMoveEvent() {
+        const lastMove = this.boardState?.move_history?.slice(-1)[0];
+        const gameStatus = this.boardState?.game_status || {};
+        const mover = this.boardState?.current_turn === 'black' ? 'white' : 'black';
+
+        this.dispatchEvent(new CustomEvent('move', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                captured: lastMove?.captured || null,
+                mover: mover,
+                is_check: false,
+                game_ended: gameStatus.state === 'ended',
+                winner: gameStatus.winner || null,
+                is_five_in_a_row: gameStatus.win_condition === 'five_in_a_row' || false,
+                go_captures: 0
+            }
+        }));
+    }
+
+    _dispatchGameEndEvent() {
+        const gameStatus = this.boardState?.game_status || {};
+        this.dispatchEvent(new CustomEvent('gameend', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                winner: gameStatus.winner || null,
+                win_condition: gameStatus.win_condition || null
+            }
+        }));
+    }
+
+    _dispatchError(message, error) {
+        this.dispatchEvent(new CustomEvent('error', {
+            bubbles: true,
+            composed: true,
+            detail: { message, error: error?.message || error }
+        }));
+    }
 
     _isCurrentTurnAITurn() {
-        const currentTurn = this.boardState?.current_turn || 'red';
-        // 黑方默认由AI走棋
-        if (currentTurn === 'black') return true;
-        // 检查当前回合方是否被AI接管
-        return this._isCurrentTurnAIControlled();
-    },
+        const currentTurn = this.boardState?.current_turn || 'black';
+        if (this._isCurrentTurnAIControlled()) return true;
+        if (!this._isCurrentTurnPlayerControlled()) return true;
+        return false;
+    }
 
     _isCurrentTurnAIControlled() {
         const mechanisms = this.boardState?.mechanisms || {};
-        const currentTurn = this.boardState?.current_turn || 'red';
+        const currentTurn = this.boardState?.current_turn || 'black';
         const aiControl = mechanisms.ai_control || [];
         return aiControl.some(item => item.side === currentTurn && item.remaining !== 0);
-    },
+    }
+
+    _isCurrentTurnPlayerControlled() {
+        const currentTurn = this.boardState?.current_turn || 'black';
+        const mechanisms = this.boardState?.mechanisms || {};
+        const playerControl = mechanisms.player_control || [];
+
+        if (!playerControl || playerControl.length === 0) {
+            return currentTurn === this.playerSide;
+        }
+
+        for (const item of playerControl) {
+            const side = item.side;
+            if (side === 'both') return true;
+            if (side === currentTurn) return true;
+        }
+
+        return false;
+    }
 
     highlightAIMovedPiece(pieceId) {
-        // 先清除之前的高亮
-        document.querySelectorAll('.piece').forEach(el => {
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
             el.classList.remove('ai-moved');
         });
-        // 高亮新移动的棋子
-        const el = document.querySelector(`[data-piece-id="${pieceId}"]`);
+        const el = this.shadowRoot.querySelector(`[data-piece-id="${pieceId}"]`);
         if (el) {
             el.classList.add('ai-moved');
         }
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 玩家指令处理
-    // ═══════════════════════════════════════════════════════════════
     async sendCommand(command) {
         if (!command.trim()) return;
 
         this.addMessage(`📝 你: ${command}`, 'user');
 
-        // 显示AI思考状态
         this.showThinking('ChatAI 正在理解您的意图...', '意图解析');
 
         try {
-            const resp = await fetch('/api/command', {
+            const resp = await fetch(`${this.apiBase}/api/command`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command: command })
             });
             const data = await resp.json();
 
-            // 隐藏思考状态
             this.hideThinking();
 
             if (data.success) {
                 if (data.type === 'applied') {
                     this.addMessage(`✅ ${data.message}`, 'success');
-                    // D2 类 HTML 修改需要刷新页面以重新绑定事件
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
                         return;
                     }
-                    // 重新加载配置
                     await this.loadConfigs();
                     this.renderBoard();
                     this.renderPieces();
@@ -737,19 +2819,16 @@ const App = {
                     this.updateMechanisms();
                     this.loadTokenStats();
 
-                    // 触发性格变化动画
                     if (data.classification === 'A') {
                         this.triggerPersonalityChangeAnimation();
                     }
 
-                    // 检查游戏是否因本指令而结束（如"让对方投降"）
                     const gameStatus = this.boardState?.game_status;
                     console.log('[DEBUG] sendCommand - game_status:', gameStatus);
                     if (gameStatus && gameStatus.state === 'ended') {
                         setTimeout(() => this.showGameOver(), 100);
                     }
 
-                    // 检查当前回合方是否需要AI走棋，如果是，自动触发AI走棋
                     if (this._isCurrentTurnAITurn() && !this.aiThinking) {
                         this.aiThinking = true;
                         await this.sleep(500);
@@ -770,55 +2849,49 @@ const App = {
         } catch (e) {
             this.hideThinking();
             this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('发送指令失败', e);
         }
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // AI思考状态UI
-    // ═══════════════════════════════════════════════════════════════
     showThinking(text, stage) {
-        const overlay = document.getElementById('thinking-overlay');
-        const textEl = document.getElementById('thinking-text');
-        const stageEl = document.getElementById('thinking-stage');
+        const overlay = this.shadowRoot.getElementById('thinking-overlay');
+        const textEl = this.shadowRoot.getElementById('thinking-text');
+        const stageEl = this.shadowRoot.getElementById('thinking-stage');
 
         textEl.textContent = text;
         stageEl.textContent = `阶段: ${stage}`;
         overlay.classList.add('show');
 
-        // 锁定棋盘和输入
-        document.getElementById('board-container').classList.add('board-locked');
-        document.getElementById('input-section')?.classList.add('input-locked');
-        document.getElementById('command-input').disabled = true;
+        this.shadowRoot.getElementById('board-container').classList.add('board-locked');
+        this.shadowRoot.getElementById('input-section')?.classList.add('input-locked');
+        this.shadowRoot.getElementById('command-input').disabled = true;
 
-        // 开始轮询思考状态
         this.pollThinkingStatus();
-    },
+    }
 
     hideThinking() {
-        const overlay = document.getElementById('thinking-overlay');
+        const overlay = this.shadowRoot.getElementById('thinking-overlay');
         overlay.classList.remove('show');
 
-        // 解锁
-        document.getElementById('board-container').classList.remove('board-locked');
-        document.getElementById('input-section')?.classList.remove('input-locked');
-        document.getElementById('command-input').disabled = false;
+        this.shadowRoot.getElementById('board-container').classList.remove('board-locked');
+        this.shadowRoot.getElementById('input-section')?.classList.remove('input-locked');
+        this.shadowRoot.getElementById('command-input').disabled = false;
 
-        // 停止轮询
         if (this.thinkingPollInterval) {
             clearInterval(this.thinkingPollInterval);
             this.thinkingPollInterval = null;
         }
-    },
+    }
 
     async pollThinkingStatus() {
         this.thinkingPollInterval = setInterval(async () => {
             try {
-                const resp = await fetch('/api/thinking_status');
+                const resp = await fetch(`${this.apiBase}/api/thinking_status`);
                 const data = await resp.json();
 
                 if (data.thinking) {
-                    const textEl = document.getElementById('thinking-text');
-                    const stageEl = document.getElementById('thinking-stage');
+                    const textEl = this.shadowRoot.getElementById('thinking-text');
+                    const stageEl = this.shadowRoot.getElementById('thinking-stage');
 
                     if (data.stage === 'intent') {
                         textEl.textContent = 'ChatAI 正在理解您的意图...';
@@ -832,28 +2905,23 @@ const App = {
                 console.error('轮询思考状态失败:', e);
             }
         }, 500);
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 日志功能
-    // ═══════════════════════════════════════════════════════════════
     async showLogs() {
-        const modal = document.getElementById('logs-modal');
-        const container = document.getElementById('logs-container');
-
+        const modal = this.shadowRoot.getElementById('logs-modal');
         modal.classList.add('show');
         await this.refreshLogs();
-    },
+    }
 
     hideLogs() {
-        document.getElementById('logs-modal').classList.remove('show');
-    },
+        this.shadowRoot.getElementById('logs-modal').classList.remove('show');
+    }
 
     async refreshLogs() {
-        const container = document.getElementById('logs-container');
+        const container = this.shadowRoot.getElementById('logs-container');
 
         try {
-            const resp = await fetch('/api/logs?count=10');
+            const resp = await fetch(`${this.apiBase}/api/logs?count=10`);
             const data = await resp.json();
 
             if (data.logs && data.logs.length > 0) {
@@ -864,7 +2932,7 @@ const App = {
         } catch (e) {
             container.innerHTML = `<div class="error">加载日志失败: ${e.message}</div>`;
         }
-    },
+    }
 
     renderLogEntry(log, index) {
         const intent = log.intent_analysis || {};
@@ -948,10 +3016,9 @@ const App = {
                 </div>
             </div>
         `;
-    },
+    }
 
     renderCodeDiff(code) {
-        // 优先展示 patch 操作明细
         if (code.patch_operations_detail && Array.isArray(code.patch_operations_detail) && code.patch_operations_detail.length > 0) {
             return code.patch_operations_detail.map(op => {
                 const opStr = op.op || '?';
@@ -964,7 +3031,6 @@ const App = {
                 return `<span style="color: var(--neon-magenta)">${this.escapeHtml(opStr)}</span> <span style="color: var(--neon-cyan)">${this.escapeHtml(pathStr)}</span>${valStr ? ` → ${this.escapeHtml(valStr)}` : ''}`;
             }).join('<br>');
         }
-        // 其次展示 diff 操作明细
         if (code.diff_operations_detail && Array.isArray(code.diff_operations_detail) && code.diff_operations_detail.length > 0) {
             return code.diff_operations_detail.map(op => {
                 const opStr = op.op || '?';
@@ -977,7 +3043,6 @@ const App = {
                 return `<span style="color: var(--neon-magenta)">${this.escapeHtml(opStr)}</span> <span style="color: var(--neon-cyan)">${this.escapeHtml(pathStr)}</span>${valStr ? ` → ${this.escapeHtml(valStr)}` : ''}`;
             }).join('<br>');
         }
-        // D2 类 HTML 修改：展示区段名 + 内容摘要
         if (code.modified_sections_detail && typeof code.modified_sections_detail === 'object' && Object.keys(code.modified_sections_detail).length > 0) {
             return Object.entries(code.modified_sections_detail).map(([section, content]) => {
                 let contentStr = typeof content === 'string' ? content : JSON.stringify(content);
@@ -985,18 +3050,16 @@ const App = {
                 return `<span style="color: var(--neon-cyan)">[${this.escapeHtml(section)}]</span><br>${this.escapeHtml(contentStr)}`;
             }).join('<br><br>');
         }
-        // 无代码修改片段
         if (code.patch_apply_error) return `<span style="color: var(--danger)">Patch应用失败: ${this.escapeHtml(code.patch_apply_error)}</span>`;
         if (code.diff_apply_error) return `<span style="color: var(--danger)">Diff应用失败: ${this.escapeHtml(code.diff_apply_error)}</span>`;
         if (code.parse_error) return `<span style="color: var(--danger)">${this.escapeHtml(code.parse_error)}</span>`;
-        // Fallback: 如果有 raw_output 但没有 detail，显示截断的原始输出
         if (code.raw_output) {
             let raw = code.raw_output;
             if (raw.length > 500) raw = raw.substring(0, 500) + '...';
             return `<span style="color: var(--text-light); opacity: 0.7">${this.escapeHtml(raw)}</span>`;
         }
         return '<span style="color: var(--text-light); opacity: 0.5">无代码修改片段</span>';
-    },
+    }
 
     escapeHtml(text) {
         if (!text) return '';
@@ -1006,13 +3069,13 @@ const App = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
-    },
+    }
 
     async clearLogs() {
         if (!confirm('确定要清空所有日志吗？')) return;
 
         try {
-            const resp = await fetch('/api/clear_logs', { method: 'POST' });
+            const resp = await fetch(`${this.apiBase}/api/clear_logs`, { method: 'POST' });
             const data = await resp.json();
             if (data.success) {
                 await this.refreshLogs();
@@ -1020,42 +3083,38 @@ const App = {
         } catch (e) {
             console.error('清空日志失败:', e);
         }
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // UI 辅助方法
-    // ═══════════════════════════════════════════════════════════════
     addMessage(text, type = 'info') {
-        const container = document.getElementById('ai-messages');
+        const container = this.shadowRoot.getElementById('ai-messages');
         const msg = document.createElement('div');
         msg.className = `message ${type}`;
         msg.textContent = text;
         container.appendChild(msg);
         container.scrollTop = container.scrollHeight;
 
-        // 限制消息数量
         while (container.children.length > 50) {
             container.removeChild(container.firstChild);
         }
-    },
+    }
 
     updateTurnIndicator() {
-        const indicator = document.getElementById('turn-indicator');
+        const indicator = this.shadowRoot.getElementById('turn-indicator');
         const turn = this.boardState?.current_turn;
         const state = this.boardState?.game_status;
 
         if (state?.state === 'ended') {
-            const winner = state.winner === 'red' ? '红方' : '黑方';
+            const winner = state.winner === 'black' ? '黑方' : '白方';
             indicator.textContent = `${winner}获胜!`;
             indicator.style.background = 'var(--success)';
         } else {
-            indicator.textContent = turn === 'red' ? '红方回合' : '黑方回合';
-            indicator.style.background = turn === 'red' ? '#8B0000' : '#333';
+            indicator.textContent = turn === 'black' ? '黑方回合' : '白方回合';
+            indicator.style.background = turn === 'black' ? '#333' : '#8B0000';
         }
-    },
+    }
 
     updateActiveRules() {
-        const container = document.getElementById('active-rules');
+        const container = this.shadowRoot.getElementById('active-rules');
         const rules = this.boardState?.game_status?.custom_rules_active || [];
 
         if (rules.length === 0) {
@@ -1063,10 +3122,10 @@ const App = {
         } else {
             container.innerHTML = rules.map(r => `<div class="rule-item">✨ ${r}</div>`).join('');
         }
-    },
+    }
 
     updateGameObjectives() {
-        const container = document.getElementById('game-objectives');
+        const container = this.shadowRoot.getElementById('game-objectives');
         if (!container) return;
 
         const winConditions = this.configs?.rules?.win_conditions || {};
@@ -1112,38 +3171,23 @@ const App = {
                 </div>
             `;
         }).join('');
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // AI 性格显示
-    // ═══════════════════════════════════════════════════════════════
-
-    _personalityInfo: {
-        normal:     { icon: '🧠', name: '标准型', subtitle: 'Normal',    desc: '攻守平衡的标准AI',          agg: 0.5, def: 0.5 },
-        aggressive: { icon: '⚔️', name: '激进型', subtitle: 'Aggressive', desc: '进攻至上，全力出击',        agg: 0.9, def: 0.2 },
-        defensive:  { icon: '🛡️', name: '保守型', subtitle: 'Defensive',  desc: '稳扎稳打，防守反击',        agg: 0.2, def: 0.9 },
-        random:     { icon: '🎲', name: '随机型', subtitle: 'Random',     desc: '天马行空，随心所欲',        agg: 0.5, def: 0.5 },
-        custom:     { icon: '✨', name: '自定义', subtitle: 'Custom',     desc: '独一无二的神秘风格',        agg: 0.5, def: 0.5 },
-    },
+    }
 
     updateAIPersonality() {
-        const card = document.getElementById('ai-personality');
+        const card = this.shadowRoot.getElementById('ai-personality');
         if (!card) return;
 
         const personality = this.configs?.rules?.ai_difficulty?.personality || {};
         const type = personality.type || 'normal';
         const info = this._personalityInfo[type] || this._personalityInfo.custom;
 
-        // 应用类型样式
         card.className = `personality-card type-${type}`;
 
-        // 更新内容
-        document.getElementById('personality-icon').textContent = info.icon;
-        document.getElementById('personality-type').textContent = info.name;
-        document.getElementById('personality-subtitle').textContent = info.subtitle;
-        document.getElementById('personality-desc').textContent = info.desc;
+        this.shadowRoot.getElementById('personality-icon').textContent = info.icon;
+        this.shadowRoot.getElementById('personality-type').textContent = info.name;
+        this.shadowRoot.getElementById('personality-subtitle').textContent = info.subtitle;
+        this.shadowRoot.getElementById('personality-desc').textContent = info.desc;
 
-        // 计算进度条数值
         let agg = personality.aggressiveness ?? info.agg;
         let def = personality.conservatism ?? info.def;
         if (type === 'custom') {
@@ -1155,34 +3199,22 @@ const App = {
         const aggBars = Math.round(agg * totalBars);
         const defBars = Math.round(def * totalBars);
 
-        document.getElementById('bar-agg').textContent = '█'.repeat(aggBars) + '░'.repeat(totalBars - aggBars);
-        document.getElementById('bar-def').textContent = '█'.repeat(defBars) + '░'.repeat(totalBars - defBars);
-        document.getElementById('bar-agg-pct').textContent = `${Math.round(agg * 100)}%`;
-        document.getElementById('bar-def-pct').textContent = `${Math.round(def * 100)}%`;
-    },
+        this.shadowRoot.getElementById('bar-agg').textContent = '█'.repeat(aggBars) + '░'.repeat(totalBars - aggBars);
+        this.shadowRoot.getElementById('bar-def').textContent = '█'.repeat(defBars) + '░'.repeat(totalBars - defBars);
+        this.shadowRoot.getElementById('bar-agg-pct').textContent = `${Math.round(agg * 100)}%`;
+        this.shadowRoot.getElementById('bar-def-pct').textContent = `${Math.round(def * 100)}%`;
+    }
 
     triggerPersonalityChangeAnimation() {
-        const card = document.getElementById('ai-personality');
+        const card = this.shadowRoot.getElementById('ai-personality');
         if (!card) return;
         card.classList.remove('personality-changed');
         void card.offsetWidth;
         card.classList.add('personality-changed');
-    },
-
-    // ═══════════════════════════════════════════════════════════════
-    // 游戏机制显示
-    // ═══════════════════════════════════════════════════════════════
-
-    _mechanismMeta: {
-        skip_turns:  { icon: '⏸️',  label: '冻结',     type: 'skip',   unit: '回合' },
-        ai_control:  { icon: '🤖',  label: 'AI接管',   type: 'ai',     unit: '回合' },
-        random_moves:{ icon: '🎲',  label: '随机走棋', type: 'random', unit: '步'   },
-        extra_turns: { icon: '⚡',  label: '额外回合', type: 'extra',  unit: '回合' },
-        move_limits: { icon: '🚶',  label: '多步行走', type: 'limit',  unit: '步'   },
-    },
+    }
 
     updateMechanisms() {
-        const container = document.getElementById('active-mechanisms');
+        const container = this.shadowRoot.getElementById('active-mechanisms');
         if (!container) return;
 
         const mechanisms = this.boardState?.mechanisms || {};
@@ -1191,7 +3223,7 @@ const App = {
         for (const [key, meta] of Object.entries(this._mechanismMeta)) {
             const list = mechanisms[key] || [];
             for (const item of list) {
-                const sideLabel = item.side === 'red' ? '红方' : '黑方';
+                const sideLabel = item.side === 'black' ? '黑方' : '白方';
                 const remaining = item.remaining ?? item.limit ?? 0;
                 const reason = item.reason ? ` — ${item.reason}` : '';
                 const isInfinite = remaining < 0;
@@ -1212,31 +3244,42 @@ const App = {
         if (items.length === 0) {
             container.innerHTML = '<span class="empty">无激活机制</span>';
         } else {
-            container.innerHTML = items.map((item, idx) => `
+            container.innerHTML = items.map((item, idx) => {
+                const btnId = `stop-mech-${idx}`;
+                return `
                 <div class="mechanism-badge type-${item.type}">
                     <span class="mechanism-icon">${item.icon}</span>
                     <span class="mechanism-text">${item.text}</span>
                     <span class="mechanism-count">${item.count}${item.unit}</span>
-                    ${item.canStop ? `<button class="mechanism-stop" onclick="App.stopMechanism('${item.mechanismKey}', '${item.side}')">截停</button>` : ''}
+                    ${item.canStop ? `<button class="mechanism-stop" id="${btnId}">截停</button>` : ''}
                 </div>
-            `).join('');
+            `}).join('');
+            
+            items.forEach((item, idx) => {
+                if (item.canStop) {
+                    const btn = this.shadowRoot.getElementById(`stop-mech-${idx}`);
+                    if (btn) {
+                        btn.addEventListener('click', () => {
+                            this.stopMechanism(item.mechanismKey, item.side);
+                        });
+                    }
+                }
+            });
         }
 
-        // 更新棋盘冻结效果
-        const boardContainer = document.getElementById('board-container');
+        const boardContainer = this.shadowRoot.getElementById('board-container');
         const hasFreeze = (mechanisms.skip_turns || []).length > 0;
         boardContainer.classList.toggle('freeze-effect', hasFreeze);
 
-        // 更新回合指示器AI接管效果
-        const turnIndicator = document.getElementById('turn-indicator');
+        const turnIndicator = this.shadowRoot.getElementById('turn-indicator');
         const currentTurn = this.boardState?.current_turn;
         const hasAIControl = (mechanisms.ai_control || []).some(m => m.side === currentTurn);
         turnIndicator.classList.toggle('ai-control', hasAIControl);
-    },
+    }
 
     async stopMechanism(mechanismType, side) {
         try {
-            const resp = await fetch('/api/stop_mechanism', {
+            const resp = await fetch(`${this.apiBase}/api/stop_mechanism`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ mechanism_type: mechanismType, side: side })
@@ -1252,11 +3295,11 @@ const App = {
         } catch (e) {
             this.addMessage(`截停失败: ${e.message}`, 'error');
         }
-    },
+    }
 
     async refreshMechanisms() {
         try {
-            const resp = await fetch('/api/mechanisms');
+            const resp = await fetch(`${this.apiBase}/api/mechanisms`);
             const data = await resp.json();
             if (data.success && data.raw) {
                 if (!this.boardState.mechanisms) {
@@ -1268,16 +3311,15 @@ const App = {
         } catch (e) {
             console.error('Failed to refresh mechanisms:', e);
         }
-    },
+    }
 
     showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
-        const winner = state.winner === 'red' ? '红方' : '黑方';
-        const container = document.getElementById('board-container');
+        const winner = state.winner === 'black' ? '黑方' : '白方';
+        const container = this.shadowRoot.getElementById('board-container');
 
-        // 移除已有遮罩
         const existing = container.querySelector('.game-over-overlay');
         if (existing) existing.remove();
 
@@ -1286,16 +3328,18 @@ const App = {
         overlay.innerHTML = `
             <h2>🎮 游戏结束</h2>
             <p>${winner} 获胜！</p>
-            <button class="btn-primary" onclick="App.restart()">再来一局</button>
+            <button class="btn-primary">再来一局</button>
         `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => this.restart());
         container.appendChild(overlay);
-    },
+    }
 
     async restart() {
-        const overlay = document.querySelector('.game-over-overlay');
+        const overlay = this.shadowRoot.querySelector('.game-over-overlay');
         if (overlay) overlay.remove();
 
-        const resp = await fetch('/api/restart', { method: 'POST' });
+        const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
         const data = await resp.json();
         if (data.success) {
             await this.loadConfigs();
@@ -1310,43 +3354,40 @@ const App = {
             this.updateMechanisms();
             this.addMessage('🔄 游戏已重新开始', 'info');
         }
-    },
+    }
 
     getPieceName(pieceId) {
         const piece = this.boardState?.pieces?.find(p => p.id === pieceId);
-        return piece ? piece.name : pieceId;
-    },
+        return piece ? (piece.name || piece.side) : pieceId;
+    }
 
     sleep(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 设置
-    // ═══════════════════════════════════════════════════════════════
     async checkApiKey() {
-        const resp = await fetch('/api/apikey/status');
+        const resp = await fetch(`${this.apiBase}/api/apikey/status`);
         const data = await resp.json();
         if (!data.has_key) {
             this.showSettings();
             this.addMessage('⚠️ 请先设置DeepSeek API Key', 'error');
         }
-    },
+    }
 
     showSettings() {
-        document.getElementById('settings-modal').classList.add('show');
-    },
+        this.shadowRoot.getElementById('settings-modal').classList.add('show');
+    }
 
     hideSettings() {
-        document.getElementById('settings-modal').classList.remove('show');
-    },
+        this.shadowRoot.getElementById('settings-modal').classList.remove('show');
+    }
 
     async saveSettings() {
-        const apiKey = document.getElementById('api-key-input').value;
-        const difficulty = document.getElementById('difficulty-select').value;
+        const apiKey = this.shadowRoot.getElementById('api-key-input').value;
+        const difficulty = this.shadowRoot.getElementById('difficulty-select').value;
 
         if (apiKey) {
-            const resp = await fetch('/api/apikey', {
+            const resp = await fetch(`${this.apiBase}/api/apikey`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ api_key: apiKey })
@@ -1357,7 +3398,7 @@ const App = {
             }
         }
 
-        const resp2 = await fetch('/api/difficulty', {
+        const resp2 = await fetch(`${this.apiBase}/api/difficulty`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ difficulty: difficulty })
@@ -1368,15 +3409,11 @@ const App = {
         }
 
         this.hideSettings();
-    },
+    }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 事件绑定
-    // ═══════════════════════════════════════════════════════════════
     bindEvents() {
-        // 输入框
-        const input = document.getElementById('command-input');
-        const sendBtn = document.getElementById('btn-send');
+        const input = this.shadowRoot.getElementById('command-input');
+        const sendBtn = this.shadowRoot.getElementById('btn-send');
 
         const sendCommand = () => {
             const cmd = input.value;
@@ -1391,20 +3428,18 @@ const App = {
             if (e.key === 'Enter') sendCommand();
         });
 
-        // 设置按钮
-        document.getElementById('btn-settings').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-settings').addEventListener('click', () => {
             this.showSettings();
         });
-        document.getElementById('save-settings').addEventListener('click', () => {
+        this.shadowRoot.getElementById('save-settings').addEventListener('click', () => {
             this.saveSettings();
         });
-        document.getElementById('close-settings').addEventListener('click', () => {
+        this.shadowRoot.getElementById('close-settings').addEventListener('click', () => {
             this.hideSettings();
         });
 
-        // 悔棋
-        document.getElementById('btn-undo').addEventListener('click', async () => {
-            const resp = await fetch('/api/undo', { method: 'POST' });
+        this.shadowRoot.getElementById('btn-undo').addEventListener('click', async () => {
+            const resp = await fetch(`${this.apiBase}/api/undo`, { method: 'POST' });
             const data = await resp.json();
             if (data.success) {
                 this.boardState = data.board_state;
@@ -1419,9 +3454,8 @@ const App = {
             }
         });
 
-        // 撤回AI修改
-        document.getElementById('btn-undo-config').addEventListener('click', async () => {
-            const resp = await fetch('/api/undo_config', { method: 'POST' });
+        this.shadowRoot.getElementById('btn-undo-config').addEventListener('click', async () => {
+            const resp = await fetch(`${this.apiBase}/api/undo_config`, { method: 'POST' });
             const data = await resp.json();
             if (data.success) {
                 await this.loadConfigs();
@@ -1438,15 +3472,13 @@ const App = {
             }
         });
 
-        // 重新开始
-        document.getElementById('btn-restart').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-restart').addEventListener('click', () => {
             this.restart();
         });
 
-        // 重置所有配置
-        document.getElementById('btn-reset-configs').addEventListener('click', async () => {
+        this.shadowRoot.getElementById('btn-reset-configs').addEventListener('click', async () => {
             if (!confirm('确定要重置所有配置吗？所有自定义规则将被清除。')) return;
-            const resp = await fetch('/api/reset_configs', { method: 'POST' });
+            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
             const data = await resp.json();
             if (data.success) {
                 await this.loadConfigs();
@@ -1463,72 +3495,63 @@ const App = {
             }
         });
 
-        // 查看日志
-        document.getElementById('btn-logs').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-logs').addEventListener('click', () => {
             this.showLogs();
         });
-        document.getElementById('close-logs').addEventListener('click', () => {
+        this.shadowRoot.getElementById('close-logs').addEventListener('click', () => {
             this.hideLogs();
         });
-        document.getElementById('btn-refresh-logs').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-refresh-logs').addEventListener('click', () => {
             this.refreshLogs();
         });
-        document.getElementById('btn-clear-logs').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-clear-logs').addEventListener('click', () => {
             this.clearLogs();
         });
 
-        // 选坐标按钮
-        document.getElementById('btn-insert-coord').addEventListener('click', () => {
+        this.shadowRoot.getElementById('btn-insert-coord').addEventListener('click', () => {
             this.toggleCoordInsertMode();
         });
 
-        // 切换选坐标/选区域模式
-        document.getElementById('btn-toggle-coord-mode').addEventListener('click', (e) => {
+        this.shadowRoot.getElementById('btn-toggle-coord-mode').addEventListener('click', (e) => {
             e.stopPropagation();
             this.toggleSelectMode();
         });
 
-        // ESC 键退出坐标插入模式
-        document.addEventListener('keydown', (e) => {
+        this._keydownHandler = (e) => {
             if (e.key === 'Escape' && this.coordInsertMode) {
                 this.exitCoordInsertMode();
             }
-        });
+        };
+        document.addEventListener('keydown', this._keydownHandler);
 
-        // 点击棋盘空白处 - 检查是否点击了合法移动位置
-        document.getElementById('board-container').addEventListener('click', (e) => {
-            // 坐标插入模式下，点击空白区域不响应（只有绿点才有效）
+        this.shadowRoot.getElementById('board-container').addEventListener('click', (e) => {
             if (this.coordInsertMode) {
                 return;
             }
 
-            // 如果点击的是棋子或合法移动指示器，不处理（它们会stopPropagation）
-            // 这里处理的是真正的空白位置
             if (this.selectedPiece && this.validMoves.length > 0) {
                 const [gridX, gridY] = this._getGridCoordsFromEvent(e);
                 if (gridX === null) return;
 
-                // 检查是否是合法移动
                 const isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
                 if (isValidMove) {
                     this.executeMove(this.selectedPiece.id, [gridX, gridY]);
                     return;
                 }
             }
-            // 否则取消选择
             this.clearSelection();
         });
-    },
+    }
 
     _getGridCoordsFromEvent(e) {
-        const container = document.getElementById('board-container');
+        const container = this.shadowRoot.getElementById('board-container');
         const rect = container.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
 
         const geometry = this.configs.board?.geometry || {};
-        const width = geometry.width || 9;
-        const height = geometry.height || 10;
+        const width = geometry.width || 15;
+        const height = geometry.height || 15;
 
         const boardX = (x / rect.width - 0.05) / 0.9 * (width - 1);
         const boardY = (y / rect.height - 0.05) / 0.9 * (height - 1);
@@ -1540,7 +3563,7 @@ const App = {
             return [null, null];
         }
         return [gridX, gridY];
-    },
+    }
 
     toggleCoordInsertMode() {
         if (this.coordInsertMode) {
@@ -1548,37 +3571,37 @@ const App = {
         } else {
             this.enterCoordInsertMode();
         }
-    },
+    }
 
     enterCoordInsertMode() {
         this.coordInsertMode = true;
         this.regionPoints = [];
-        document.getElementById('btn-insert-coord').classList.add('active');
-        document.getElementById('board-container').classList.add('coord-insert-mode');
+        this.shadowRoot.getElementById('btn-insert-coord').classList.add('active');
+        this.shadowRoot.getElementById('board-container').classList.add('coord-insert-mode');
         this.updateCoordButtonText();
         this.showCoordDots();
-    },
+    }
 
     exitCoordInsertMode() {
         this.coordInsertMode = false;
         this.regionPoints = [];
-        const btn = document.getElementById('btn-insert-coord');
+        const btn = this.shadowRoot.getElementById('btn-insert-coord');
         if (btn) btn.classList.remove('active');
-        const board = document.getElementById('board-container');
+        const board = this.shadowRoot.getElementById('board-container');
         if (board) board.classList.remove('coord-insert-mode');
         this.hideCoordDots();
         this.clearRegionSelection();
-    },
+    }
 
     updateCoordButtonText() {
-        const btn = document.getElementById('btn-insert-coord');
+        const btn = this.shadowRoot.getElementById('btn-insert-coord');
         if (!btn) return;
         if (this.selectMode === 'region') {
             btn.innerHTML = '🔲 选区域';
         } else {
             btn.innerHTML = '📍 选坐标';
         }
-    },
+    }
 
     toggleSelectMode() {
         if (this.selectMode === 'coord') {
@@ -1592,16 +3615,16 @@ const App = {
         if (this.coordInsertMode) {
             this.showCoordDots();
         }
-    },
+    }
 
     showCoordDots() {
         this.hideCoordDots();
-        const svg = document.querySelector('#board-container svg.board-grid');
+        const svg = this.shadowRoot.querySelector('#board-container svg.board-grid');
         if (!svg) return;
 
         const geometry = this.configs.board?.geometry || {};
-        const width = geometry.width || 9;
-        const height = geometry.height || 10;
+        const width = geometry.width || 15;
+        const height = geometry.height || 15;
 
         const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         g.setAttribute('id', 'coord-dots-group');
@@ -1633,12 +3656,12 @@ const App = {
         }
 
         svg.appendChild(g);
-    },
+    }
 
     hideCoordDots() {
         this.coordDots.forEach(dot => dot.remove());
         this.coordDots = [];
-    },
+    }
 
     onCoordDotClick(x, y) {
         if (this.selectMode === 'coord') {
@@ -1647,7 +3670,7 @@ const App = {
         } else if (this.selectMode === 'region') {
             this.onRegionPointClick(x, y);
         }
-    },
+    }
 
     onRegionPointClick(x, y) {
         if (this.regionPoints.length === 0) {
@@ -1669,13 +3692,13 @@ const App = {
             this.clearRegionSelection();
             this.updateRegionVisual();
         }
-    },
+    }
 
     updateRegionVisual() {
         this.clearRegionVisual();
         if (this.regionPoints.length === 0) return;
 
-        const svg = document.querySelector('#board-container svg.board-grid');
+        const svg = this.shadowRoot.querySelector('#board-container svg.board-grid');
         if (!svg) return;
 
         this.coordDots.forEach(dot => {
@@ -1721,7 +3744,7 @@ const App = {
             svg.appendChild(rect);
             this._regionRectEl = rect;
         }
-    },
+    }
 
     clearRegionVisual() {
         if (this._regionRectEl) {
@@ -1733,15 +3756,15 @@ const App = {
             dot.setAttribute('r', 0.2);
             dot.setAttribute('fill', '#22c55e');
         });
-    },
+    }
 
     clearRegionSelection() {
         this.clearRegionVisual();
         this.regionPoints = [];
-    },
+    }
 
     insertCoordToInput(x, y) {
-        const input = document.getElementById('command-input');
+        const input = this.shadowRoot.getElementById('command-input');
         const coordStr = `[${x}, ${y}]`;
 
         const start = input.selectionStart;
@@ -1752,7 +3775,7 @@ const App = {
         const newPos = start + coordStr.length;
         input.setSelectionRange(newPos, newPos);
         input.focus();
-    },
+    }
 
     insertRegionToInput() {
         if (this.regionPoints.length < 2) return;
@@ -1762,7 +3785,7 @@ const App = {
         const minY = Math.min(p1[1], p2[1]);
         const maxY = Math.max(p1[1], p2[1]);
 
-        const input = document.getElementById('command-input');
+        const input = this.shadowRoot.getElementById('command-input');
         const regionStr = `[${minX}, ${minY}]-[${maxX}, ${maxY}]`;
 
         const start = input.selectionStart;
@@ -1773,10 +3796,68 @@ const App = {
         const newPos = start + regionStr.length;
         input.setSelectionRange(newPos, newPos);
         input.focus();
-    },
-};
+    }
 
-// 启动
-document.addEventListener('DOMContentLoaded', () => {
-    App.init();
-});
+    async applyCheatPatch(modifiedConfigs) {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/config/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(modifiedConfigs)
+            });
+            const data = await resp.json();
+            if (data.success) {
+                await this.loadConfigs();
+                this.renderBoard();
+                this.renderPieces();
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateAIPersonality();
+                this.updateMechanisms();
+            }
+            return data;
+        } catch (e) {
+            this._dispatchError('应用补丁失败', e);
+            throw e;
+        }
+    }
+
+    getBoardSnapshot() {
+        return {
+            boardState: this.boardState,
+            configs: this.configs
+        };
+    }
+
+    async resetBoard() {
+        const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.success) {
+            await this.loadConfigs();
+            this.lastMove = null;
+            this.clearSelection();
+            this.renderBoard();
+            this.renderPieces();
+            this.updateTurnIndicator();
+            this.updateActiveRules();
+            this.updateGameObjectives();
+            this.updateAIPersonality();
+            this.updateMechanisms();
+        }
+        return data;
+    }
+
+    destroy() {
+        if (this.thinkingPollInterval) {
+            clearInterval(this.thinkingPollInterval);
+            this.thinkingPollInterval = null;
+        }
+        if (this._keydownHandler) {
+            document.removeEventListener('keydown', this._keydownHandler);
+            this._keydownHandler = null;
+        }
+    }
+}
+
+if (!customElements.get('wuziqi-board')) customElements.define('wuziqi-board', WuziqiBoard);

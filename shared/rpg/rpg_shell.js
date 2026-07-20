@@ -21,9 +21,23 @@ const RpgShell = (() => {
     };
 
     let currentChapter = null;       // 当前章节元信息
-    let iframe = null;
-    let iframeReady = false;
-    let pendingInit = false;
+    let currentBoardElement = null;
+
+    const CHESS_MODULES = {
+        xiangqi: '/xiangqi/static/app.js',
+        wuziqi: '/wuziqi/static/app.js',
+        go: '/go/static/app.js',
+    };
+    const CHESS_ELEMENTS = {
+        xiangqi: 'xiangqi-board',
+        wuziqi: 'wuziqi-board',
+        go: 'go-board',
+    };
+    const CHESS_BASE_URLS = {
+        xiangqi: 'http://localhost:8000',
+        wuziqi: 'http://localhost:8001',
+        go: 'http://localhost:8002',
+    };
 
     // ────────── DOM ──────────
     let chapterTitleEl, energyFillEl, energyValueEl, turnCountEl;
@@ -42,7 +56,6 @@ const RpgShell = (() => {
         turnCountEl = document.getElementById('rpg-turn-count');
         battleContainer = document.getElementById('rpg-battle-container');
         battlePlaceholder = document.getElementById('rpg-battle-placeholder');
-        iframe = document.getElementById('rpg-chess-iframe');
         skipBtn = document.getElementById('rpg-btn-skip');
         chapterDrawer = document.getElementById('rpg-chapter-drawer');
         chapterList = document.getElementById('rpg-chapter-list');
@@ -61,9 +74,6 @@ const RpgShell = (() => {
         document.getElementById('rpg-btn-close-settings').addEventListener('click', () => _toggleSettings(false));
         document.getElementById('rpg-btn-save-settings').addEventListener('click', _onSaveSettings);
         skipBtn.addEventListener('click', _onSkipChapter);
-
-        // postMessage 监听
-        window.addEventListener('message', _onIframeMessage);
 
         // 拉取初始状态
         await refreshState();
@@ -146,7 +156,7 @@ const RpgShell = (() => {
 
             if (!chessType) {
                 // 纯 VN 章节：播完 VN 后自动进入下一章
-                _hideIframe();
+                _unmountBoard();
                 skipBtn.style.display = 'none';
                 await _playChapterStory(chapter, {
                     onEnd: async () => {
@@ -158,7 +168,7 @@ const RpgShell = (() => {
 
             if (!chapter.service_up) {
                 // 棋类服务不可达
-                _hideIframe();
+                _unmountBoard();
                 skipBtn.style.display = 'inline-block';
                 const portMap = { xiangqi: 8000, wuziqi: 8001, go: 8002 };
                 const port = portMap[chessType] || '?';
@@ -231,59 +241,77 @@ const RpgShell = (() => {
             return;
         }
 
-        // 加载 iframe
-        if (chapter.iframe_url) {
-            battlePlaceholder.style.display = 'none';
-            iframe.style.display = 'block';
-            iframeReady = false;
-            pendingInit = true;
-            iframe.src = chapter.iframe_url;
+        // 加载棋盘组件
+        try {
+            await _mountBoard(chapter.chess_type, data.player_side);
+        } catch (e) {
+            toast(`棋盘加载失败: ${e.message}`, 'error');
         }
     }
 
-    function _hideIframe() {
-        if (iframe) {
-            iframe.src = 'about:blank';
-            iframe.style.display = 'none';
-        }
+    function _hideBoard() {
+        _unmountBoard();
         if (battlePlaceholder) {
             battlePlaceholder.style.display = 'flex';
         }
     }
 
-    // ────────── postMessage 协议 ──────────
+    // ────────── Web Components 棋盘 ──────────
 
-    function _onIframeMessage(event) {
-        const msg = event.data;
-        if (!msg || !msg.type) return;
+    async function loadChessComponent(chessType) {
+        const modulePath = CHESS_MODULES[chessType];
+        if (!modulePath) throw new Error(`未知棋类: ${chessType}`);
+        await import(modulePath);
+        const elementName = CHESS_ELEMENTS[chessType];
+        if (!customElements.get(elementName)) {
+            throw new Error(`组件 ${elementName} 注册失败`);
+        }
+        return elementName;
+    }
 
-        switch (msg.type) {
-            case 'RPG_READY':
-                // iframe 就绪，发送 INIT
-                iframeReady = true;
-                sendToIframe({
-                    type: 'RPG_INIT',
-                    chapter_id: currentChapter?.chapter_id,
-                    player_side: currentChapter?.player_side,
-                    chess_type: currentChapter?.chess_type,
-                });
-                break;
-            case 'RPG_MOVE_COMPLETE':
-                _onMoveComplete(msg);
-                break;
-            case 'RPG_GAME_END':
-                _onGameEnd(msg);
-                break;
+    async function _mountBoard(chessType, playerSide) {
+        _unmountBoard();
+        const elementName = await loadChessComponent(chessType);
+        const boardEl = document.createElement(elementName);
+        boardEl.setAttribute('api-base', CHESS_BASE_URLS[chessType]);
+        boardEl.setAttribute('player-side', playerSide || 'red');
+        boardEl.setAttribute('rpg-mode', '');
+        boardEl.addEventListener('move', _onBoardMove);
+        boardEl.addEventListener('gameend', _onBoardGameEnd);
+        boardEl.addEventListener('ready', _onBoardReady);
+        boardEl.addEventListener('error', _onBoardError);
+        battlePlaceholder.style.display = 'none';
+        battleContainer.appendChild(boardEl);
+        currentBoardElement = boardEl;
+        await boardEl.init();
+        return boardEl;
+    }
+
+    function _unmountBoard() {
+        if (currentBoardElement) {
+            if (typeof currentBoardElement.destroy === 'function') {
+                currentBoardElement.destroy();
+            }
+            currentBoardElement.remove();
+            currentBoardElement = null;
         }
     }
 
-    function sendToIframe(msg) {
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage(msg, '*');
-        }
+    function getBoardElement() {
+        return currentBoardElement;
     }
 
-    async function _onMoveComplete(msg) {
+    function _onBoardReady(e) {
+        console.log('[RpgShell] 棋盘组件就绪');
+    }
+
+    function _onBoardError(e) {
+        const msg = e.detail?.message || '未知错误';
+        toast(`棋盘错误: ${msg}`, 'error');
+    }
+
+    async function _onBoardMove(e) {
+        const msg = e.detail;
         try {
             const resp = await fetch('/api/rpg/move_complete', {
                 method: 'POST',
@@ -309,7 +337,7 @@ const RpgShell = (() => {
                     toast(data.reason.join(' / '), 'success');
                 }
                 if (data.game_ended) {
-                    _onGameEnd({ winner: data.winner });
+                    _onBoardGameEnd({ detail: { winner: data.winner } });
                 }
             }
         } catch (e) {
@@ -317,7 +345,8 @@ const RpgShell = (() => {
         }
     }
 
-    async function _onGameEnd(msg) {
+    async function _onBoardGameEnd(e) {
+        const msg = e.detail;
         try {
             const resp = await fetch('/api/rpg/battle/end', {
                 method: 'POST',
@@ -364,6 +393,7 @@ const RpgShell = (() => {
             _showFinalEnding(ending);
             return;
         }
+        _unmountBoard();
         await loadChapter(currentChapter.next_chapter);
         await _renderChapterList();
     }
@@ -488,7 +518,7 @@ const RpgShell = (() => {
         getState,
         stateHasApiKey,
         openSettings,
-        sendToIframe,
+        getBoardElement,
         toast,
         loadChapter,
     };
