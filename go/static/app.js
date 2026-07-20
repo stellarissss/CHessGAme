@@ -378,7 +378,6 @@ const App = {
                 // 显示AI落子信息
                 if (data.ai_move && data.ai_move.to) {
                     const [ax, ay] = data.ai_move.to;
-                    const sideLabel = this.lastMove?.side === 'black' ? '黑方' : '白方';
                     // 根据 board_state 的 current_turn 反推：AI走完后回合已切换，所以AI是另一方
                     const aiSide = this.boardState?.current_turn === 'black' ? '白方' : '黑方';
                     this.addMessage(`${aiSide}AI落子(${ax},${ay})`, 'info');
@@ -525,14 +524,14 @@ const App = {
                         if (textEl) textEl.textContent = 'ChatAI 正在理解您的意图...';
                         if (stageEl) stageEl.textContent = '阶段: 意图解析';
                     } else if (data.stage === 'code') {
-                        if (textEl) textEl.textContent = 'ChatAI 正在生成修改方案...';
+                        if (textEl) textEl.textContent = 'CodeAI 正在生成代码...';
                         if (stageEl) stageEl.textContent = '阶段: 代码生成';
                     }
                 }
             } catch (e) {
                 // 忽略轮询错误
             }
-        }, 1000);
+        }, 500);
     },
 
     showToast(message, type = 'success') {
@@ -860,34 +859,196 @@ const App = {
         }
     },
 
-    async loadLogs() {
-        try {
-            const resp = await fetch('/api/logs');
-            const data = await resp.json();
-            const logs = data.logs || [];
+    // ═══════════════════════════════════════════════════════════════
+    // 日志功能
+    // ═══════════════════════════════════════════════════════════════
+    async showLogs() {
+        const modal = document.getElementById('logs-modal');
+        const container = document.getElementById('logs-container');
 
-            const container = document.getElementById('logs-container');
-            container.innerHTML = logs.map(log => `
-                <div class="log-entry ${log.type || ''}">
-                    <div class="log-header">
-                        <span>${log.timestamp || ''}</span>
-                        <span>${log.stage || ''}</span>
-                    </div>
-                    ${log.user_input ? `<div class="log-user-input">${log.user_input}</div>` : ''}
-                    ${log.content ? `<div class="log-section"><div class="log-section-title">响应</div><div class="log-content">${log.content}</div></div>` : ''}
-                </div>
-            `).join('');
-        } catch (error) {
-            console.error('Load logs failed:', error);
+        modal.classList.add('show');
+        await this.refreshLogs();
+    },
+
+    hideLogs() {
+        document.getElementById('logs-modal').classList.remove('show');
+    },
+
+    // 兼容旧调用名
+    async loadLogs() {
+        return this.refreshLogs();
+    },
+
+    async refreshLogs() {
+        const container = document.getElementById('logs-container');
+
+        try {
+            const resp = await fetch('/api/logs?count=10');
+            const data = await resp.json();
+
+            if (data.logs && data.logs.length > 0) {
+                container.innerHTML = data.logs.map((log, index) => this.renderLogEntry(log, index)).join('');
+            } else {
+                container.innerHTML = '<div class="empty">暂无日志</div>';
+            }
+        } catch (e) {
+            container.innerHTML = `<div class="error">加载日志失败: ${e.message}</div>`;
         }
     },
 
+    renderLogEntry(log, index) {
+        const intent = log.intent_analysis || {};
+        const code = log.code_generation || {};
+        const final = log.final_result || {};
+
+        let statusClass = '';
+        if (final.type === 'error' || log.errors?.length > 0) statusClass = 'error';
+        else if (final.type === 'applied') statusClass = 'success';
+
+        return `
+            <div class="log-entry ${statusClass}">
+                <div class="log-header">
+                    <span>#${index + 1} ${this.escapeHtml(log.timestamp || '未知时间')}</span>
+                    <span>分类: ${this.escapeHtml(log.classification || 'N/A')}</span>
+                </div>
+                <div class="log-user-input">👤 用户: ${this.escapeHtml(log.user_input || '')}</div>
+
+                ${intent.success ? `
+                <div class="log-section">
+                    <div class="log-section-title">🤖 ChatAI 意图解析 (${intent.elapsed_time?.toFixed(2) || '?'}s)</div>
+                    <div class="log-content">${this.escapeHtml(JSON.stringify(intent.parsed_result || {}, null, 2))}</div>
+                </div>
+                ` : intent.error ? `
+                <div class="log-section">
+                    <div class="log-section-title">🤖 ChatAI 意图解析 - 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${this.escapeHtml(intent.error)}</div>
+                </div>
+                ` : ''}
+
+                ${code.success ? `
+                <div class="log-section">
+                    <div class="log-section-title">💻 CodeAI 代码生成 (${code.elapsed_time?.toFixed(2) || '?'}s)${code.patch_mode ? ` · ${code.patch_mode}` : ''}${code.patch_operations != null ? ` · ${code.patch_operations}项操作` : (code.diff_operations != null ? ` · ${code.diff_operations}项差异` : '')}</div>
+                    <div class="log-content log-json">${this.renderCodeDiff(code)}</div>
+                </div>
+                ` : code.error ? `
+                <div class="log-section">
+                    <div class="log-section-title">💻 CodeAI 代码生成 - 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${this.escapeHtml(code.error)}</div>
+                </div>
+                ` : ''}
+
+                ${code.validation ? (code.validation.success ? `
+                <div class="log-section">
+                    <div class="log-section-title">✅ 检查通过 (${code.validation.elapsed_time?.toFixed(2) || '?'}s)${code.validation.retry_count ? ` · 重试${code.validation.retry_count}次` : ''}</div>
+                    ${code.validation.warnings?.length > 0 ? `
+                    <div class="log-content" style="color: var(--warning)">
+                        <strong>警告:</strong><br>
+                        ${code.validation.warnings.map(w => this.escapeHtml(w)).join('<br>')}
+                    </div>
+                    ` : ''}
+                </div>
+                ` : `
+                <div class="log-section">
+                    <div class="log-section-title">⚠️ 检查失败 (${code.validation.elapsed_time?.toFixed(2) || '?'}s)${code.validation.retry_count ? ` · 重试${code.validation.retry_count}次` : ''}</div>
+                    ${code.validation.errors?.length > 0 ? `
+                    <div class="log-content" style="color: var(--danger)">
+                        <strong>错误:</strong><br>
+                        ${code.validation.errors.map(e => this.escapeHtml(e.message || e)).join('<br>')}
+                    </div>
+                    ` : ''}
+                    ${code.validation.warnings?.length > 0 ? `
+                    <div class="log-content" style="color: var(--warning)">
+                        <strong>警告:</strong><br>
+                        ${code.validation.warnings.map(w => this.escapeHtml(w)).join('<br>')}
+                    </div>
+                    ` : ''}
+                </div>
+                `) : ''}
+
+                ${log.errors?.length > 0 ? `
+                <div class="log-section">
+                    <div class="log-section-title">⚠️ 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${log.errors.map(e => this.escapeHtml(e)).join('<br>')}</div>
+                </div>
+                ` : ''}
+
+                <div class="log-section">
+                    <div class="log-section-title">✅ 最终结果: ${this.escapeHtml(final.type || 'unknown')}</div>
+                    <div class="log-content">${this.escapeHtml(final.message || final.response || JSON.stringify(final, null, 2))}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderCodeDiff(code) {
+        // 优先展示 patch 操作明细
+        if (code.patch_operations_detail && Array.isArray(code.patch_operations_detail) && code.patch_operations_detail.length > 0) {
+            return code.patch_operations_detail.map(op => {
+                const opStr = op.op || '?';
+                const pathStr = op.path || '';
+                let valStr = '';
+                if (op.value !== undefined) {
+                    valStr = JSON.stringify(op.value);
+                    if (valStr.length > 200) valStr = valStr.substring(0, 200) + '...';
+                }
+                return `<span style="color: var(--neon-magenta)">${this.escapeHtml(opStr)}</span> <span style="color: var(--neon-cyan)">${this.escapeHtml(pathStr)}</span>${valStr ? ` → ${this.escapeHtml(valStr)}` : ''}`;
+            }).join('<br>');
+        }
+        // 其次展示 diff 操作明细
+        if (code.diff_operations_detail && Array.isArray(code.diff_operations_detail) && code.diff_operations_detail.length > 0) {
+            return code.diff_operations_detail.map(op => {
+                const opStr = op.op || '?';
+                const pathStr = op.path || '';
+                let valStr = '';
+                if (op.value !== undefined) {
+                    valStr = JSON.stringify(op.value);
+                    if (valStr.length > 200) valStr = valStr.substring(0, 200) + '...';
+                }
+                return `<span style="color: var(--neon-magenta)">${this.escapeHtml(opStr)}</span> <span style="color: var(--neon-cyan)">${this.escapeHtml(pathStr)}</span>${valStr ? ` → ${this.escapeHtml(valStr)}` : ''}`;
+            }).join('<br>');
+        }
+        // D2 类 HTML 修改：展示区段名 + 内容摘要
+        if (code.modified_sections_detail && typeof code.modified_sections_detail === 'object' && Object.keys(code.modified_sections_detail).length > 0) {
+            return Object.entries(code.modified_sections_detail).map(([section, content]) => {
+                let contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+                if (contentStr.length > 300) contentStr = contentStr.substring(0, 300) + '...';
+                return `<span style="color: var(--neon-cyan)">[${this.escapeHtml(section)}]</span><br>${this.escapeHtml(contentStr)}`;
+            }).join('<br><br>');
+        }
+        // 无代码修改片段
+        if (code.patch_apply_error) return `<span style="color: var(--danger)">Patch应用失败: ${this.escapeHtml(code.patch_apply_error)}</span>`;
+        if (code.diff_apply_error) return `<span style="color: var(--danger)">Diff应用失败: ${this.escapeHtml(code.diff_apply_error)}</span>`;
+        if (code.parse_error) return `<span style="color: var(--danger)">${this.escapeHtml(code.parse_error)}</span>`;
+        // Fallback: 如果有 raw_output 但没有 detail，显示截断的原始输出
+        if (code.raw_output) {
+            let raw = code.raw_output;
+            if (raw.length > 500) raw = raw.substring(0, 500) + '...';
+            return `<span style="color: var(--text-light); opacity: 0.7">${this.escapeHtml(raw)}</span>`;
+        }
+        return '<span style="color: var(--text-light); opacity: 0.5">无代码修改片段</span>';
+    },
+
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        return String(text)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
     async clearLogs() {
+        if (!confirm('确定要清空所有日志吗？')) return;
+
         try {
-            await fetch('/api/clear_logs', { method: 'POST' });
-            document.getElementById('logs-container').innerHTML = '';
-        } catch (error) {
-            console.error('Clear logs failed:', error);
+            const resp = await fetch('/api/clear_logs', { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await this.refreshLogs();
+            }
+        } catch (e) {
+            console.error('清空日志失败:', e);
         }
     },
 
@@ -912,10 +1073,24 @@ const App = {
         }
     },
 
-    checkApiKey() {
+    async checkApiKey() {
+        // 先用本地保存的 key 填充输入框
         const savedKey = localStorage.getItem('deepseek_api_key');
         if (savedKey) {
-            document.getElementById('api-key-input').value = savedKey;
+            const inputEl = document.getElementById('api-key-input');
+            if (inputEl) inputEl.value = savedKey;
+        }
+
+        // 再校验服务器是否已配置 API Key
+        try {
+            const resp = await fetch('/api/apikey/status');
+            const data = await resp.json();
+            if (!data.has_key) {
+                document.getElementById('settings-modal').classList.add('show');
+                this.addMessage('⚠️ 请先设置 DeepSeek API Key', 'error');
+            }
+        } catch (e) {
+            console.error('Check API key status failed:', e);
         }
     },
 
@@ -972,14 +1147,13 @@ const App = {
         document.getElementById('save-settings').addEventListener('click', () => this.saveSettings());
 
         document.getElementById('btn-logs').addEventListener('click', () => {
-            document.getElementById('logs-modal').classList.add('show');
-            this.loadLogs();
+            this.showLogs();
         });
         document.getElementById('close-logs').addEventListener('click', () => {
-            document.getElementById('logs-modal').classList.remove('show');
+            this.hideLogs();
         });
         document.getElementById('btn-clear-logs').addEventListener('click', () => this.clearLogs());
-        document.getElementById('btn-refresh-logs').addEventListener('click', () => this.loadLogs());
+        document.getElementById('btn-refresh-logs').addEventListener('click', () => this.refreshLogs());
 
         document.getElementById('btn-insert-coord').addEventListener('click', () => {
             this.coordInsertMode = !this.coordInsertMode;

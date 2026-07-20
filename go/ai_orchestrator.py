@@ -1637,20 +1637,26 @@ class AIOrchestrator:
                                any(kw in str(next_prompt).lower() for kw in ["拓宽", "增加一竖", "增加一行", "增加列", "增加行", "board_width", "board_height", "grid_columns", "grid_rows"])
 
         # 如果检测到棋盘尺寸修改，自动同步修改 board_state.json
+        # 注意：go 的 board_state.json 不存储棋盘尺寸（尺寸在 board.json 的 geometry 中），
+        # 仅当 board_state 已包含 "board" 子键时才同步更新，避免 KeyError。
         auto_board_state_update = None
         if is_board_size_change and "board_state" in configs:
             import copy
             board_state = copy.deepcopy(configs["board_state"])
             params = parameters if isinstance(parameters, dict) else {}
+            board_sub = board_state.get("board") if isinstance(board_state, dict) else None
 
-            if "total_columns" in params or "board_width" in params or "new_column_index" in params:
-                new_width = params.get("total_columns") or params.get("board_width") or (board_state["board"]["width"] + 1)
-                board_state["board"]["width"] = new_width
-                auto_board_state_update = board_state
-            elif "total_rows" in params or "board_height" in params or "rows_to_add" in params:
-                new_height = params.get("total_rows") or params.get("board_height") or (board_state["board"]["height"] + (params.get("rows_to_add", 1)))
-                board_state["board"]["height"] = new_height
-                auto_board_state_update = board_state
+            if isinstance(board_sub, dict):
+                if "total_columns" in params or "board_width" in params or "new_column_index" in params:
+                    cur_w = board_sub.get("width") or configs.get("board", {}).get("geometry", {}).get("width", 19)
+                    new_width = params.get("total_columns") or params.get("board_width") or (cur_w + 1)
+                    board_sub["width"] = new_width
+                    auto_board_state_update = board_state
+                elif "total_rows" in params or "board_height" in params or "rows_to_add" in params:
+                    cur_h = board_sub.get("height") or configs.get("board", {}).get("geometry", {}).get("height", 19)
+                    new_height = params.get("total_rows") or params.get("board_height") or (cur_h + (params.get("rows_to_add", 1)))
+                    board_sub["height"] = new_height
+                    auto_board_state_update = board_state
 
         # 构建详细提示词
         size_change_note = ""
