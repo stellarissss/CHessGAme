@@ -67,9 +67,17 @@ CHAPTERS = {
     "ch01_tutorial_wuziqi": {
         "title": "第 0 章·教程",
         "chess_type": "wuziqi",
-        "next": "ch02_city_xiangqi",
+        "next": "ch01b_white_board",
         "story_id": "ch01_tutorial_wuziqi",
         "opponent": {"id": "robot", "name": "棋圣系统"},
+        "player_side": "black",
+    },
+    "ch01b_white_board": {
+        "title": "第 0.5 章·涂白",
+        "chess_type": "wuziqi",
+        "next": "ch02_city_xiangqi",
+        "story_id": "ch01b_white_board",
+        "opponent": {"id": "robot", "name": "幻影棋手"},
         "player_side": "black",
     },
     "ch02_city_xiangqi": {
@@ -148,6 +156,20 @@ class RpgState:
     # ---------- 加载辅助 ----------
 
     def _load_default_api_key(self) -> str:
+        # 优先从主目录 config.json 读取
+        main_config = WORKSPACE_ROOT / "config.json"
+        if main_config.exists():
+            try:
+                with open(main_config, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if "api_key" in data:
+                        key = data["api_key"].strip()
+                        if key:
+                            return key
+            except Exception:
+                pass
+        
+        # 其次从 xiangqi/api密钥.txt 读取
         if API_KEY_FILE.exists():
             try:
                 content = API_KEY_FILE.read_text(encoding="utf-8")
@@ -184,7 +206,11 @@ class RpgState:
         self.current_chapter = chapter_id
         self.chess_type = chess_type
         self.player_side = player_side or "red"
-        self.energy = 0
+        # 特殊章节初始能量设置
+        if chapter_id == "ch01b_white_board":
+            self.energy = 50
+        else:
+            self.energy = 0
         self.turn_count = 0
         self.battle_started = True
 

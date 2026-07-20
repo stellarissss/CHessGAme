@@ -378,16 +378,26 @@ const RpgShell = (() => {
 
     async function _playOutcomeStory(winner, ending) {
         const playerWon = winner === state.player_side;
-        // 简单胜负旁白，后续章节可扩展为完整 story
-        const text = playerWon
-            ? '你赢了。\n棋圣系统在你脑中低语：感觉如何？打破规则的力量……是否令你着迷？'
-            : '你输了。\n棋圣系统沉默了一瞬：这不是结束。再来一局，你将看到更多。';
-        StoryLayer.playSystemMessage(text, {
-            onEnd: async () => {
-                StoryLayer.hide();
-                await _goNextChapter();
-            },
-        });
+        
+        if (currentChapter && currentChapter.chapter_id === 'ch01b_white_board' && playerWon) {
+            const text = '你赢了！棋盘已变成白色。\n\n【最优方法揭秘】\n你可能通过下白子、AI落子等方式完成了任务，但真正的最优解是——直接修改棋盘背景颜色为白色！\n\n只需要对 UI 配置发送一个简单的修改请求，将背景色设为 #FFFFFF，整个棋盘就会瞬间变成白色。\n\n这就是 AI 修改的真正力量：不只是操纵棋子，更是改写规则本身。';
+            StoryLayer.playSystemMessage(text, {
+                onEnd: async () => {
+                    StoryLayer.hide();
+                    await _goNextChapter();
+                },
+            });
+        } else {
+            const text = playerWon
+                ? '你赢了。\n棋圣系统在你脑中低语：感觉如何？打破规则的力量……是否令你着迷？'
+                : '你输了。\n棋圣系统沉默了一瞬：这不是结束。再来一局，你将看到更多。';
+            StoryLayer.playSystemMessage(text, {
+                onEnd: async () => {
+                    StoryLayer.hide();
+                    await _goNextChapter();
+                },
+            });
+        }
     }
 
     async function _goNextChapter() {
@@ -460,7 +470,14 @@ const RpgShell = (() => {
     // ────────── 设置 ──────────
 
     function openSettings() {
-        apiKeyInput.value = '';
+        const hasKey = state.has_api_key;
+        if (hasKey) {
+            apiKeyInput.value = '';
+            apiKeyInput.placeholder = '已设置 API Key（输入新密钥可覆盖）';
+        } else {
+            apiKeyInput.value = '';
+            apiKeyInput.placeholder = '输入 API Key 后将自动下发到三个棋类服务';
+        }
         _toggleSettings(true);
     }
 

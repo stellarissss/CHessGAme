@@ -52,19 +52,34 @@ const StoryLayer = (() => {
      */
     async function playChapter(storyId, startSceneId, opts = {}) {
         try {
+            console.log('[StoryLayer] Loading chapter:', storyId);
             const resp = await fetch(`/api/rpg/vn/${storyId}`);
+            console.log('[StoryLayer] Response status:', resp.status);
+            
             if (!resp.ok) {
-                throw new Error(`加载章节失败: ${resp.status}`);
+                const errText = await resp.text().catch(() => '');
+                throw new Error(`加载章节失败: ${resp.status} - ${errText}`);
             }
+            
             const storyData = await resp.json();
+            console.log('[StoryLayer] Story data loaded, scenes:', storyData.scenes?.length || 0);
+            
             onEndCallback = opts.onEnd || null;
             show();
-            Preview.playStory(storyData, startSceneId, {
-                onEnd: (info) => _handleEnd(info),
-            });
+            
+            if (typeof Preview !== 'undefined' && typeof Preview.playStory === 'function') {
+                Preview.playStory(storyData, startSceneId, {
+                    onEnd: (info) => _handleEnd(info),
+                });
+            } else {
+                throw new Error('Preview 模块未加载或 playStory 方法不可用');
+            }
         } catch (e) {
             console.error('[StoryLayer] playChapter failed:', e);
             _fallbackAlert(`章节加载失败: ${e.message}`);
+            if (opts.onEnd) {
+                setTimeout(() => opts.onEnd(), 100);
+            }
         }
     }
 
