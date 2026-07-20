@@ -4,8 +4,8 @@
 >
 > 三种传统棋类（中国象棋 / 五子棋 / 围棋）被包装为 RPG 关卡，所有「作弊能力」由二级 AI 协作流水线（意图解析 + 代码生成）现场实现——这是项目「灵活编码」最高纲领的体现。
 
-**版本**：v0.3（RPG Demo 骨架）
-**最后更新**：2026-07-18
+**版本**：v0.4（Web Components 架构）
+**最后更新**：2026-07-20
 
 ---
 
@@ -14,8 +14,8 @@
 ```
 棋圣/  (workspace root)
 ├── README.md                       ← 你正在看的文件：架构总览
+├── main.py                         ← ✨ 统一启动器（一键启动所有服务）
 ├── 项目计划书_RPG大游戏.md          ← 必读：后续开发路线图
-├── 执行方案.md                      ← 历史执行蓝图（技术细节参考）
 ├── requirements.txt                ← 整体 Python 依赖
 │
 ├── shared/                         ← 跨子项目共享层
@@ -24,11 +24,10 @@
 │   ├── schemas/                    ← 共享 JSON Schema（board/pieces/rules/ui_config）
 │   ├── assets/
 │   │   └── characters/{boy,robot}/ ← 主角 + 棋圣系统立绘（各 17-18 张表情）
-│   │       └── generate_all.py     ← Seedream 像素资产生成脚本
-│   └── rpg/                        ← ✨ RPG 外壳层（端口 80）
+│   └── rpg/                        ← ✨ RPG 外壳层（端口 8080）
 │       ├── rpg_server.py           ← RPG 主后端（688 行，12 条路由）
 │       ├── rpg_shell.html          ← RPG 外壳页面
-│       ├── rpg_shell.js            ← 章节管理 / Web Component 动态加载 / 状态同步
+│       ├── rpg_shell.js            ← 章节管理 / Web Components / 状态同步
 │       ├── cheat_panel.js          ← 棋圣系统作弊面板
 │       ├── story_layer.js          ← VN 故事层封装
 │       ├── rpg_style.css           ← RPG 像素风样式（426 行）
@@ -41,35 +40,33 @@
 ├── rpg_data/                       ← ✨ RPG 章节剧情数据
 │   └── chapters/
 │       ├── ch00_prologue.json      ← 序章·觉醒（4 场景 25 节点，完整）
-│       ├── ch01_tutorial_wuziqi.json ← 第 0 章·教程（2 场景 19 节点，骨架）
+│       ├── ch01_tutorial_wuziqi.json ← 第 0 章·教程（6 场景 46 节点，完整）
 │       ├── ch02_city_xiangqi.json  ← 第 1 章·入门（2 场景 15 节点，骨架）
-│       ├── ch03_go_intro.json      ← 第 2 章·进阶（围棋，降级骨架）
-│       ├── ch04_boss_wuziqi.json   ← 第 3 章·BOSS战（骨架）
-│       ├── ch05_final_xiangqi.json ← 第 4 章·终极对决（骨架）
-│       └── ch06_finale_go.json     ← 第 5 章·终局（围棋，降级骨架）
+│       ├── ch03_go_intro.json      ← 第 2 章·进阶（4 场景 33 节点，完整）
+│       ├── ch04_boss_wuziqi.json   ← 第 3 章·BOSS战（1 场景 9 节点，骨架）
+│       ├── ch05_final_xiangqi.json ← 第 4 章·终极对决（1 场景 9 节点，骨架）
+│       └── ch06_finale_go.json     ← 第 5 章·终局（3 场景 24 节点，完整）
 │
 ├── xiangqi/                        ← 子项目①：无限制象棋（9×10 棋盘，端口 8000）
-│   ├── main.py                     ← FastAPI 入口（含 /api/rpg/* 代理 + dry_run）
-│   ├── ai_orchestrator.py          ← 二级 AI 编排（已透传 cost_energy）
+│   ├── main.py                     ← FastAPI 入口
+│   ├── ai_orchestrator.py          ← 二级 AI 编排
 │   ├── rule_engine.py              ← jump/ray 双原子规则引擎
 │   ├── chess_ai.py                 ← ChessAI（Minimax + Alpha-Beta）
 │   ├── mechanism_engine.py         ← 5 种机制原语 + AI 性格系统
-│   ├── prompts.py                  ← DeepSeek 提示词（已加 cost_energy 字段）
+│   ├── prompts.py                  ← DeepSeek 提示词
 │   ├── configs/                    ← 象棋 JSON 配置
-│   ├── static/                     ← 象棋前端（Web Component `<xiangqi-board>`）
-│   └── api密钥.txt                 ← DeepSeek API Key
+│   └── static/                     ← 象棋前端（Web Component）
+│       └── app.js                  ← XiangqiBoard 自定义元素
 │
 ├── wuziqi/                         ← 子项目②：无限制五子棋（15×15 棋盘，端口 8001）
 │   ├── (结构与 xiangqi 一致)
-│   └── main.py                     ← 端口已改为 8001
+│   └── main.py                     ← 端口 8001
 │
 ├── go/                             ← 子项目③：简化围棋 9×9（端口 8002）
-│   └── ❌ 尚未创建（rpg_server 已预留接入点，ch03/ch06 自动降级）
+│   └── main.py                     ← 端口 8002，9×9 简化围棋
 │
-└── story-editor/                   ← 子项目④：剧情 / Galgame 编辑器（端口 8003，开发用）
-    ├── modules/preview.js          ← VN 引擎源头（已被复制到 shared/rpg/vn_player/）
-    ├── modules/variable-manager.js ← 变量管理源头
-    └── docs/integration_guide.md   ← 集成指南
+└── story-editor/                   ← 子项目④：剧情 / Galgame 编辑器（端口 8003）
+    └── modules/preview.js          ← VN 引擎源头
 ```
 
 ---
@@ -161,7 +158,7 @@ JSON Schema 校验 + 业务规则验证
 | 序章·觉醒 | 4 min | — | VN：少年觉醒棋圣系统 |
 | 第 0 章·教程 | 8 min | 五子棋 | 棋圣系统手把手教作弊 |
 | 第 1 章·入门 | 8 min | 象棋 | vs 街亭棋客（aggressive） |
-| 第 2 章·进阶 | 10 min | 围棋 9×9 | vs 云子老人（围棋服务未就绪时降级） |
+| 第 2 章·进阶 | 10 min | 围棋 9×9 | vs 云子老人 |
 | 第 3 章·BOSS战 | 10 min | 五子棋 | vs 夜枭（规则变体） |
 | 第 4 章·终极对决 | 15 min | 象棋 | vs 棋圣真身 |
 | 第 5 章·终局 | 8 min | 围棋 9×9 | vs 执念化身 + 结局判定 |
@@ -171,61 +168,67 @@ JSON Schema 校验 + 业务规则验证
 
 ## 🏗️ 技术架构
 
-### Web Components + ES Modules 模块化架构
+### Web Components + ES Modules 架构
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│              浏览器 / RPG 外壳 (localhost:80)              │
-│  ┌────────────┐  ┌──────────────────────────────────┐    │
-│  │  RpgShell  │  │  <xiangqi-board> / <wuziqi-board> │    │
-│  │  • 章节管理 │  │  / <go-board>  Web Component       │    │
-│  │  • 能量/识破│  │  + 棋圣系统作弊侧栏              │    │
-│  │  • VN 故事层│  │  + 能量条 / 回合数               │    │
-│  └────────────┘  └──────────────────────────────────┘    │
-│         │ 直接方法调用 + CustomEvent                       │
-│         │ applyCheatPatch() / getBoardSnapshot()           │
+│              浏览器 / RPG 外壳 (localhost:8080)            │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │  RpgShell (rpg_shell.js)                          │    │
+│  │  • 章节管理 / 能量/识破 / VN 故事层                │    │
+│  │  • CheatPanel (作弊面板)                          │    │
+│  │                                                  │    │
+│  │  ┌──────────────────────────────────────────┐    │    │
+│  │  │  Shadow DOM: <xiangqi-board>             │    │    │
+│  │  │  (Web Component, ES Module 动态导入)       │    │    │
+│  │  │  • 棋盘渲染 / 棋子交互 / AI 走棋           │    │    │
+│  │  │  • 公开方法：applyCheatPatch() 等         │    │    │
+│  │  │  • 自定义事件：move / gameend             │    │    │
+│  │  └──────────────────────────────────────────┘    │    │
+│  └──────────────────────────────────────────────────┘    │
 └──────────────────────┬───────────────────────────────────┘
-                       │ HTTP fetch
+                       │ HTTP fetch（跨域 CORS 已开启）
 ┌──────────────────────▼───────────────────────────────────┐
-│                RPG 后端 (FastAPI, port 80)                 │
-│  12 条路由：章节 / 对战 / 作弊 / 状态 / VN / API Key       │
-│  转发到 → xiangqi:8000 / wuziqi:8001 / go:8002            │
+│  后端服务群（FastAPI，零改动）                              │
+│  rpg_server:8080  →  代理转发  →  xiangqi:8000 / wuziqi:8001│
 └──────────────────────────────────────────────────────────┘
 ```
 
-**为何选 Web Components**：
-- **Shadow DOM 样式隔离**：RPG 外壳与棋盘 CSS 互不污染，替代 iframe 天然隔离
-- **直接方法调用**：`boardEl.applyCheatPatch(patch)` 零序列化通信，替代 postMessage 往返
-- **统一请求上下文**：RPG 外壳统一管理 fetch，状态同步无歧义
-- **轻量高效**：Web Component 是普通 DOM 元素，无 iframe 完整浏览器上下文开销
-- **桌面打包友好**：纯 ES Module 相对路径加载，无 iframe 本地路径沙箱/跨域问题
+### 核心架构特点
 
-#### Web Component 接口契约
+| 特点 | 说明 |
+|---|---|
+| **Web Components** | 棋类前端封装为自定义元素（`<xiangqi-board>`, `<wuziqi-board>`, `<go-board>`） |
+| **Shadow DOM** | 样式完全隔离，替代 iframe 的天然隔离 |
+| **ES Modules** | 动态 import 棋类模块，按需加载 |
+| **自定义事件** | `move` / `gameend` / `ready` / `error` 事件替代 postMessage |
+| **方法调用** | 直接调用组件方法（`applyCheatPatch()`）替代 postMessage 通信 |
+| **后端零改动** | Python 后端代码保持不变 |
 
-三个棋类组件（`<xiangqi-board>` / `<wuziqi-board>` / `<go-board>`）遵循统一接口：
+### 棋类 Web Component 规范
 
-| 类别 | 名称 | 说明 |
+| 属性 | 类型 | 说明 |
 |---|---|---|
-| 属性 | `api-base` | 棋类后端 base URL（RPG 模式下设为 `http://localhost:800x`） |
-| 属性 | `player-side` | 玩家方（red/black） |
-| 属性 | `rpg-mode` | 存在即隐藏 side-panel/input-section 等 standalone UI |
-| 方法 | `init()` | 加载配置并渲染（幂等） |
-| 方法 | `applyCheatPatch(configs)` | 重新拉取后端配置并重渲染 |
-| 方法 | `getBoardSnapshot()` | 返回当前棋盘状态快照 |
-| 方法 | `destroy()` | 清理定时器/监听器，防止内存泄漏 |
-| 事件 | `ready` | 初始化完成 |
-| 事件 | `move` | 走棋完成（含 captured/mover/game_ended 等） |
-| 事件 | `gameend` | 游戏结束（含 winner） |
-| 事件 | `error` | 错误通知 |
+| `api-base` | string | API 基础路径（如 `http://localhost:8000`） |
+| `player-side` | string | 玩家方：`red` / `black` |
+| `rpg-mode` | boolean | RPG 模式，隐藏原生侧栏和输入区 |
+
+| 方法 | 参数 | 说明 |
+|---|---|---|
+| `init()` | 无 | 初始化组件，加载配置并渲染棋盘 |
+| `applyCheatPatch(modifiedConfigs)` | object | 应用作弊补丁，重新渲染棋盘 |
+| `getBoardSnapshot()` | 无 | 获取当前棋盘完整状态 |
+| `resetBoard()` | 无 | 重置棋盘到初始状态 |
+| `destroy()` | 无 | 清理资源（定时器、事件监听） |
 
 ### 端口分配
 
 | 服务 | 端口 | 用途 | 状态 |
 |---|---|---|---|
-| RPG 主服务 | 80 | RPG 外壳 + API 网关 | ✅ |
+| RPG 主服务 | 8080 | RPG 外壳 + API 网关 | ✅ |
 | 象棋服务 | 8000 | 象棋对战 | ✅ |
 | 五子棋服务 | 8001 | 五子棋对战 | ✅ |
-| 围棋服务 | 8002 | 围棋对战 | ❌ 未实现 |
+| 围棋服务 | 8002 | 围棋对战 | ✅ |
 | 剧情编辑器 | 8003 | 剧情 JSON 编辑（开发用） | ✅ |
 
 ---
@@ -241,6 +244,17 @@ pip install -r requirements.txt
 
 ### 启动服务
 
+**方式一：使用统一启动器（推荐）**
+
+```bash
+cd /workspace
+python main.py
+```
+
+一键启动所有服务，访问 `http://localhost:8080/` 开始游戏。
+
+**方式二：手动启动**
+
 ```bash
 # 终端 1：象棋服务
 cd /workspace/xiangqi && python main.py  # 端口 8000
@@ -249,12 +263,10 @@ cd /workspace/xiangqi && python main.py  # 端口 8000
 cd /workspace/wuziqi && python main.py   # 端口 8001
 
 # 终端 3：RPG 主服务
-cd /workspace/shared/rpg && python rpg_server.py  # 端口 80
+cd /workspace/shared/rpg && python rpg_server.py  # 端口 8080
 ```
 
-打开浏览器访问 `http://localhost/`，开始游戏。
-
-> 围棋服务（端口 8002）未实现时，第 2 章 / 第 5 章会自动降级为纯 VN 跳过。
+打开浏览器访问 `http://localhost:8080/`，开始游戏。
 
 ### 配置 AI Key
 
@@ -272,29 +284,22 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | RPG 后端 | `shared/rpg/rpg_server.py` | 12 条路由，RpgState 状态管理，识破公式，结局判定 |
-| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，Web Component 动态加载，CustomEvent 通信 |
+| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，Web Components 动态加载 |
 | 作弊面板 | `shared/rpg/cheat_panel.js` | 评估消耗 → 确认执行 → 对手台词触发 |
 | VN 故事层 | `shared/rpg/story_layer.js` + `vn_player/` | 封装 Preview.playStory，11 种节点类型 |
-| 棋类组件 | `xiangqi/wuziqi/go/static/app.js` | Web Components（Shadow DOM 隔离 + ES Module 导出） |
-| 章节剧情 | `rpg_data/chapters/ch00-ch06` | 7 个章节 JSON（ch00 完整，其余骨架） |
+| 章节剧情 | `rpg_data/chapters/ch00-ch06` | 7 个章节 JSON（ch00/ch01/ch03/ch06 完整） |
 | 对手台词 | `shared/rpg/dialogue_templates.json` | 6 类 × 4 条 = 24 条认知扭曲台词 |
-| 象棋子项目 | `xiangqi/` | jump/ray 引擎 + 二级 AI + 机制原语 + cost_energy + dry_run |
-| 五子棋子项目 | `wuziqi/` | 五连检测 + GomokuAI + cost_energy + dry_run |
+| 象棋子项目 | `xiangqi/` | Web Component + jump/ray 引擎 + 二级 AI + 机制原语 |
+| 五子棋子项目 | `wuziqi/` | Web Component + 五连检测 + GomokuAI |
+| 围棋子项目 | `go/` | Web Component + 9×9 简化围棋 + 启发式 AI |
+| 统一启动器 | `main.py` | 一键启动所有服务 |
 | 角色立绘 | `shared/assets/characters/{boy,robot}` | 主角 18 张 + 棋圣系统 17 张表情 |
-| 共享工具 | `shared/{schema_validator,json_patch_utils}.py` | JSON Schema 校验 + RFC 6902 Patch |
 
 ### ❌ 未完成（详见 [项目计划书](./项目计划书_RPG大游戏.md)）
 
 | 待办 | 优先级 | 说明 |
 |---|---|---|
-| 围棋子项目 `go/` | 高 | 9×9 简化围棋引擎 + AI + 前端 |
-| 像素画资产 | 高 | 15 个背景/图标/UI 资产（Seedream 生成） |
-| 标题屏 + 加载遮罩 | 高 | `rpg_extras.js` + 标题屏 UI + 粒子动画 |
-| 游玩文档模态框 | 中 | 内置游戏教程 + 玩法说明页面 |
-| 教程章节扩展 | 中 | ch01 扩展为完整剧情化系统教学（6 场景） |
-| 章节背景图片化 | 中 | 7 个章节背景从 solid 纯色改为像素画 PNG |
-| ch03-ch06 完整剧情 | 中 | 从骨架扩展为完整 VN 内容 |
-| 端到端测试脚本 | 中 | Playwright 视觉测试 + 服务器端验证 |
+| ch02/ch04/ch05 完整剧情 | 中 | 从骨架扩展为完整 VN 内容 |
 | 存档系统 | 低 | JSON 文件存档（多槽位） |
 | BGM / 音效 | 低 | 章节主题曲 + 作弊/识破音效 |
 
@@ -305,11 +310,9 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 | 文档 | 内容 |
 |---|---|
 | [项目计划书_RPG大游戏.md](./项目计划书_RPG大游戏.md) | **必读**：后续开发路线图，含真实状态清单与优先级 |
-| [执行方案.md](./执行方案.md) | 历史执行蓝图：Option A 架构、postMessage 协议、作弊执行流程 |
-| [.trae/documents/](./.trae/documents/) | 历史实施记录（实现计划 / 收尾计划 / 测试计划） |
-| [无限制象棋_完整计划书_v4.0.md](./无限制象棋_完整计划书_v4.0.md) | v4 历史计划书：二级 AI 协作、机制引擎、AI 性格系统 |
-| [story-editor/docs/integration_guide.md](./story-editor/docs/integration_guide.md) | VN 引擎集成指南：11 种节点类型、VisualNovelPlayer API |
-| [shared/assets/generate_all.py](./shared/assets/generate_all.py) | Seedream 像素资产生成器 |
+| [执行方案.md](./执行方案.md) | 历史执行蓝图（技术细节参考） |
+| [.trae/documents/webcomponents_refactor_plan.md](./.trae/documents/webcomponents_refactor_plan.md) | Web Components 重构计划 |
+| [story-editor/docs/integration_guide.md](./story-editor/docs/integration_guide.md) | VN 引擎集成指南 |
 
 ---
 
@@ -319,11 +322,9 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 |---|---|---|
 | v1 单一象棋 | 自然语言指令 + 二级 AI + jump/ray 引擎 | ✅ 完成 |
 | v2 多元引擎 | 拆分为象棋 / 五子棋 / 剧情编辑器子项目 | ✅ 完成 |
-| v3 RPG 骨架 | RPG 外壳 + iframe + 7 章节骨架 + 作弊链路 | ✅ 完成（当前） |
-| v3.1 视觉打磨 | 像素资产 + 标题屏 + 文档模态框 + 教程扩展 | 🚧 进行中 |
-| v3.2 围棋接入 | 9×9 围棋引擎 + AI + 前端 | 📅 计划中 |
-| v3.3 内容补全 | ch03-ch06 完整剧情 + 端到端测试 | 📅 计划中 |
-| v4 大游戏 | 完整 RPG 主线 + 多结局 + BOSS 战 + 棋圣称号 | 📅 长远目标 |
+| v3 RPG 骨架 | RPG 外壳 + iframe + 7 章节骨架 + 作弊链路 | ✅ 完成 |
+| v4 Web Components | 架构重构为 Web Components + ES Modules | ✅ **当前** |
+| v4.1 内容补全 | ch02-ch06 完整剧情 + 端到端测试 | 📅 计划中 |
 
 ---
 
