@@ -43,7 +43,7 @@ const RpgShell = (() => {
     let chapterTitleEl, energyFillEl, energyValueEl, turnCountEl;
     let battleContainer, battlePlaceholder, skipBtn;
     let chapterDrawer, chapterList;
-    let settingsModal, apiKeyInput;
+    let settingsModal, apiKeyInput, settingsStatusEl;
     let toastEl;
 
     // ────────── 初始化 ──────────
@@ -61,6 +61,7 @@ const RpgShell = (() => {
         chapterList = document.getElementById('rpg-chapter-list');
         settingsModal = document.getElementById('rpg-settings-modal');
         apiKeyInput = document.getElementById('rpg-api-key-input');
+        settingsStatusEl = document.getElementById('rpg-settings-status');
         toastEl = document.getElementById('rpg-toast');
 
         // 初始化子模块
@@ -162,9 +163,12 @@ const RpgShell = (() => {
             if (!chessType) {
                 // 纯 VN 章节：播完 VN 后自动进入下一章
                 _unmountBoard();
+                battlePlaceholder.style.display = 'none';
                 skipBtn.style.display = 'none';
                 await _playChapterStory(chapter, {
                     onEnd: async () => {
+                        StoryLayer.hide();
+                        battlePlaceholder.style.display = 'flex';
                         await _goNextChapter();
                     },
                 });
@@ -459,9 +463,29 @@ const RpgShell = (() => {
 
     // ────────── 设置 ──────────
 
-    function openSettings() {
+    async function openSettings() {
         apiKeyInput.value = '';
         _toggleSettings(true);
+        await _refreshSettingsStatus();
+    }
+
+    async function _refreshSettingsStatus() {
+        if (!settingsStatusEl) return;
+        settingsStatusEl.textContent = '检查中…';
+        try {
+            const resp = await fetch('/api/rpg/apikey');
+            const data = await resp.json();
+            if (data.has_api_key) {
+                settingsStatusEl.textContent = `已配置: ${data.masked || '***'}`;
+                settingsStatusEl.style.color = '#52b788';
+            } else {
+                settingsStatusEl.textContent = '未配置，请输入 API Key';
+                settingsStatusEl.style.color = '#ef4444';
+            }
+        } catch (e) {
+            settingsStatusEl.textContent = '检查失败';
+            settingsStatusEl.style.color = '#ef4444';
+        }
     }
 
     function _toggleSettings(show) {
@@ -484,7 +508,7 @@ const RpgShell = (() => {
             if (data.success) {
                 state.has_api_key = true;
                 toast('API Key 已保存并下发到棋类服务', 'success');
-                _toggleSettings(false);
+                await _refreshSettingsStatus();
             } else {
                 toast('保存失败: ' + (data.message || ''), 'error');
             }

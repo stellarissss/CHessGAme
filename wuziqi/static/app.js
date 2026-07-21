@@ -3531,16 +3531,28 @@ export class WuziqiBoard extends HTMLElement {
                 return;
             }
 
-            if (this.selectedPiece && this.validMoves.length > 0) {
-                const [gridX, gridY] = this._getGridCoordsFromEvent(e);
-                if (gridX === null) return;
+            if (!this._isCurrentTurnPlayerControlled()) {
+                return;
+            }
 
+            const [gridX, gridY] = this._getGridCoordsFromEvent(e);
+            if (gridX === null) return;
+
+            if (this.selectedPiece && this.validMoves.length > 0) {
                 const isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
                 if (isValidMove) {
                     this.executeMove(this.selectedPiece.id, [gridX, gridY]);
                     return;
                 }
             }
+
+            const pieces = this.boardState?.pieces || [];
+            const occupied = pieces.some(p => p.is_alive && p.position[0] === gridX && p.position[1] === gridY);
+            if (!occupied) {
+                this.executeMove(null, [gridX, gridY]);
+                return;
+            }
+
             this.clearSelection();
         });
     }

@@ -139,7 +139,7 @@ class RpgState:
     DETECTION_CAP = 95.0
 
     def __init__(self):
-        self.energy = 0
+        self.energy = 20               # 初始能量，让玩家有起步资源
         self.detection = 0.0           # 识破概率 0-95，只增不减
         self.was_detected = False      # 是否曾被发现（影响结局）
         self.cheats_used = 0
@@ -206,7 +206,7 @@ class RpgState:
         self.current_chapter = chapter_id
         self.chess_type = chess_type
         self.player_side = player_side or "red"
-        self.energy = 0
+        self.energy = 20                # 每局开始给予初始能量
         self.turn_count = 0
         self.battle_started = True
 
