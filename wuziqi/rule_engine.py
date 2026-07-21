@@ -398,6 +398,11 @@ class RuleEngine:
                         count += 1
                         nx += dx
                         ny += dy
+                    nx, ny = x - dx, y - dy
+                    while 0 <= nx < width and 0 <= ny < height and board.get((nx, ny)) == side:
+                        count += 1
+                        nx -= dx
+                        ny -= dy
 
                     if count >= 5:
                         return side

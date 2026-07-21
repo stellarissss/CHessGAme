@@ -2653,6 +2653,72 @@ export class WuziqiBoard extends HTMLElement {
         this.aiThinking = false;
     }
 
+    async placeStone(x, y) {
+        if (this.aiThinking) return;
+        if (this.boardState?.game_status?.state === 'ended') return;
+
+        if (!this._isCurrentTurnPlayerControlled()) {
+            this.addMessage('当前不是您的回合', 'error');
+            return;
+        }
+
+        const existingPiece = this._getPieceAt(x, y);
+        if (existingPiece) {
+            return;
+        }
+
+        this.clearSelection();
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
+            el.classList.remove('ai-moved');
+        });
+        this.aiThinking = true;
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: [x, y] })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                this.boardState = data.board_state;
+                this.lastMove = this.boardState.move_history.slice(-1)[0];
+                this.renderPieces();
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateMechanisms();
+                this.loadTokenStats();
+
+                this._dispatchMoveEvent();
+
+                if (this.boardState.game_status.state === 'ended') {
+                    this.showGameOver();
+                    this._dispatchGameEndEvent();
+                    this.aiThinking = false;
+                    return;
+                }
+
+                await this.sleep(800);
+                await this.makeAIMove();
+            } else {
+                this.addMessage(data.message || '落子失败', 'error');
+                if (data.ai_controlled && !this.aiThinking) {
+                    this.aiThinking = true;
+                    await this.sleep(500);
+                    await this.makeAIMove();
+                    this.aiThinking = false;
+                }
+            }
+        } catch (e) {
+            this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('落子失败', e);
+        }
+
+        this.aiThinking = false;
+    }
+
     async makeAIMove(depth = 0) {
         if (depth > 10) return;
 
@@ -3541,7 +3607,13 @@ export class WuziqiBoard extends HTMLElement {
                     return;
                 }
             }
-            this.clearSelection();
+
+            const [gridX, gridY] = this._getGridCoordsFromEvent(e);
+            if (gridX !== null) {
+                this.placeStone(gridX, gridY);
+            } else {
+                this.clearSelection();
+            }
         });
     }
 
