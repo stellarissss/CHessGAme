@@ -14,11 +14,11 @@ class RuleEngine:
         self.rules = rules
 
         self._pieces_by_side = {
-            "white": pieces_red.get("pieces", {}),
+            "red": pieces_red.get("pieces", {}),
             "black": pieces_black.get("pieces", {}),
         }
         self._custom_pieces_by_side = {
-            "white": pieces_red.get("custom_pieces", []),
+            "red": pieces_red.get("custom_pieces", []),
             "black": pieces_black.get("custom_pieces", []),
         }
 
@@ -152,7 +152,7 @@ class RuleEngine:
             return self._jump_region_moves(move_def, piece, board_state)
 
         if to == "$forward":
-            direction = -1 if piece["side"] == "white" else 1
+            direction = -1 if piece["side"] == "red" else 1
             to = [0, direction]
 
         nx, ny = px + to[0], py + to[1]
@@ -398,6 +398,11 @@ class RuleEngine:
                         count += 1
                         nx += dx
                         ny += dy
+                    nx, ny = x - dx, y - dy
+                    while 0 <= nx < width and 0 <= ny < height and board.get((nx, ny)) == side:
+                        count += 1
+                        nx -= dx
+                        ny -= dy
 
                     if count >= 5:
                         return side

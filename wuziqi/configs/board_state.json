@@ -1,10 +1,63 @@
 {
-  "_metadata": {"version": "2.0", "last_modified": "2026-07-13T00:00:00Z", "format": "gomoku_standard"},
+  "_metadata": {
+    "version": "2.0",
+    "last_modified": "2026-07-13T00:00:00Z",
+    "format": "gomoku_standard"
+  },
   "player_side": "black",
-  "pieces": [],
+  "pieces": [
+    {
+      "id": "black_stone_7_7_0",
+      "type": "stone",
+      "name": "●",
+      "side": "black",
+      "position": [
+        7,
+        7
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    },
+    {
+      "id": "white_stone_6_6_1",
+      "type": "stone",
+      "name": "○",
+      "side": "white",
+      "position": [
+        6,
+        6
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    }
+  ],
   "current_turn": "black",
-  "move_history": [],
-  "game_status": {"state": "playing", "winner": null, "win_condition": null, "custom_rules_active": []},
+  "move_history": [
+    {
+      "piece_id": "black_stone_7_7_0",
+      "from": null,
+      "to": [
+        7,
+        7
+      ],
+      "captured": null
+    },
+    {
+      "piece_id": "white_stone_6_6_1",
+      "from": null,
+      "to": [
+        6,
+        6
+      ],
+      "captured": null
+    }
+  ],
+  "game_status": {
+    "state": "playing",
+    "winner": null,
+    "win_condition": null,
+    "custom_rules_active": []
+  },
   "mechanisms": {
     "skip_turns": [],
     "ai_control": [],

@@ -747,25 +747,25 @@ export class WuziqiBoard extends HTMLElement {
     user-select: none;
     transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
     z-index: 10;
+    border: none;
 }
 
 .piece:hover {
     transform: translate(-50%, -50%) scale(1.1);
 }
 
-.piece.red {
-    background: var(--white-stone);
-    border: 2px solid var(--black-stone);
-    box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.4),
-        inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.piece.black {
-    background: var(--black-stone);
+.piece[data-side="black"] {
+    background-color: #1a1a1a;
     box-shadow:
         0 2px 6px rgba(0, 0, 0, 0.5),
         inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.piece[data-side="red"] {
+    background-color: #ffffff;
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.4),
+        inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .piece.selected {
@@ -778,14 +778,16 @@ export class WuziqiBoard extends HTMLElement {
 
 .piece.last-moved {
     box-shadow:
-        0 0 0 3px var(--neon-pink),
+        0 0 0 2px var(--neon-pink),
         0 0 14px rgba(255, 45, 111, 0.7),
         0 0 28px rgba(255, 45, 111, 0.4);
 }
 
 .piece.ai-moved {
-    border: 3px solid var(--neon-gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    box-shadow:
+        0 0 0 3px var(--neon-gold),
+        0 0 15px rgba(255, 215, 0, 0.85),
+        0 0 30px rgba(255, 215, 0, 0.45);
     z-index: 100;
 }
 
@@ -2272,18 +2274,6 @@ export class WuziqiBoard extends HTMLElement {
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
         console.log('[DEBUG] loadConfigs - board.appearance:', this.configs.board?.appearance);
-
-        // RPG 模式下，确保 current_turn 与 player_side 一致（仅在无走棋历史时修正）
-        if (this.hasAttribute('rpg-mode') && this.boardState) {
-            const playerSide = this.getAttribute('player-side');
-            if (playerSide) {
-                const moveHistory = this.boardState.move_history || [];
-                if (moveHistory.length === 0 && this.boardState.current_turn !== playerSide) {
-                    console.log(`[WuziqiBoard] 初始化 current_turn 为 ${playerSide}（原为 ${this.boardState.current_turn}）`);
-                    this.boardState.current_turn = playerSide;
-                }
-            }
-        }
     }
 
     _getBoardLayoutConfig() {
@@ -2376,7 +2366,6 @@ export class WuziqiBoard extends HTMLElement {
         svg.setAttribute('preserveAspectRatio', 'none');
         svg.style.width = '100%';
         svg.style.height = '100%';
-        svg.style.pointerEvents = 'none';
 
         const lineColor = layoutConfig.appearance.line_color;
         const sw = String(layoutConfig.grid.line_thickness);
@@ -2482,8 +2471,9 @@ export class WuziqiBoard extends HTMLElement {
     createPieceElement(piece) {
         const container = this.shadowRoot.getElementById('board-container');
         const el = document.createElement('div');
-        el.className = `piece ${piece.side}`;
+        el.className = 'piece';
         el.dataset.pieceId = piece.id;
+        el.dataset.side = piece.side;
 
         const geometry = this.configs.board?.geometry || {};
         const width = geometry.width || 15;
@@ -2499,7 +2489,7 @@ export class WuziqiBoard extends HTMLElement {
 
         if (piece.custom_properties) {
             const cp = piece.custom_properties;
-            if (cp.color) el.style.background = cp.color;
+            if (cp.color) el.style.backgroundColor = cp.color;
             if (cp.size) {
                 el.style.width = cp.size;
                 el.style.height = cp.size;
@@ -2614,7 +2604,6 @@ export class WuziqiBoard extends HTMLElement {
     }
 
     async executeMove(pieceId, toPosition) {
-        console.log(`[WuziqiBoard] executeMove: pieceId=${pieceId}, to=[${toPosition}]`);
         this.clearSelection();
         this.shadowRoot.querySelectorAll('.piece').forEach(el => {
             el.classList.remove('ai-moved');
@@ -2622,16 +2611,12 @@ export class WuziqiBoard extends HTMLElement {
         this.aiThinking = true;
 
         try {
-            const url = `${this.apiBase}/api/move`;
-            const body = JSON.stringify({ piece_id: pieceId, to: toPosition });
-            console.log(`[WuziqiBoard] POST ${url} body=${body}`);
-            const resp = await fetch(url, {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: body
+                body: JSON.stringify({ piece_id: pieceId, to: toPosition })
             });
             const data = await resp.json();
-            console.log(`[WuziqiBoard] /api/move response: success=${data.success}, message=${data.message || 'none'}`);
 
             if (data.success) {
                 this.boardState = data.board_state;
@@ -2655,16 +2640,7 @@ export class WuziqiBoard extends HTMLElement {
                 await this.sleep(800);
                 await this.makeAIMove();
             } else {
-                console.error('[WuziqiBoard] 移动失败:', data.message);
                 this.addMessage(data.message || '移动失败', 'error');
-                // RPG 模式下，将错误通知给外壳以便显示 toast
-                if (this.rpgMode) {
-                    this.dispatchEvent(new CustomEvent('error', {
-                        detail: { context: '落子失败', message: data.message || '移动失败' },
-                        bubbles: true,
-                        composed: true,
-                    }));
-                }
                 if (data.ai_controlled && !this.aiThinking) {
                     this.aiThinking = true;
                     await this.sleep(500);
@@ -2673,16 +2649,74 @@ export class WuziqiBoard extends HTMLElement {
                 }
             }
         } catch (e) {
-            console.error('[WuziqiBoard] Move error:', e);
             this.addMessage(`网络错误: ${e.message}`, 'error');
-            if (this.rpgMode) {
-                this.dispatchEvent(new CustomEvent('error', {
-                    detail: { context: '落子失败', message: e.message || '网络错误' },
-                    bubbles: true,
-                    composed: true,
-                }));
-            }
             this._dispatchError('移动失败', e);
+        }
+
+        this.aiThinking = false;
+    }
+
+    async placeStone(x, y) {
+        if (this.aiThinking) return;
+        if (this.boardState?.game_status?.state === 'ended') return;
+
+        if (!this._isCurrentTurnPlayerControlled()) {
+            this.addMessage('当前不是您的回合', 'error');
+            return;
+        }
+
+        const existingPiece = this._getPieceAt(x, y);
+        if (existingPiece) {
+            return;
+        }
+
+        this.clearSelection();
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
+            el.classList.remove('ai-moved');
+        });
+        this.aiThinking = true;
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: [x, y] })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                this.boardState = data.board_state;
+                this.lastMove = this.boardState.move_history.slice(-1)[0];
+                this.renderPieces();
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateMechanisms();
+                this.loadTokenStats();
+
+                this._dispatchMoveEvent();
+
+                if (this.boardState.game_status.state === 'ended') {
+                    this.showGameOver();
+                    this._dispatchGameEndEvent();
+                    this.aiThinking = false;
+                    return;
+                }
+
+                await this.sleep(800);
+                await this.makeAIMove();
+            } else {
+                this.addMessage(data.message || '落子失败', 'error');
+                if (data.ai_controlled && !this.aiThinking) {
+                    this.aiThinking = true;
+                    await this.sleep(500);
+                    await this.makeAIMove();
+                    this.aiThinking = false;
+                }
+            }
+        } catch (e) {
+            this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('落子失败', e);
         }
 
         this.aiThinking = false;
@@ -2703,14 +2737,16 @@ export class WuziqiBoard extends HTMLElement {
 
             if (data.success) {
                 this.boardState = data.board_state;
-                this.lastMove = data.ai_move;
+                this.lastMove = this.boardState.move_history.slice(-1)[0];
                 this.renderPieces();
                 this.updateTurnIndicator();
                 this.updateActiveRules();
                 this.updateGameObjectives();
                 this.updateMechanisms();
 
-                this.highlightAIMovedPiece(data.ai_move.piece_id);
+                if (this.lastMove) {
+                    this.highlightAIMovedPiece(this.lastMove.piece_id);
+                }
 
                 const messages = this.shadowRoot.getElementById('ai-messages');
                 const lastMsg = messages.lastElementChild;
@@ -2809,6 +2845,11 @@ export class WuziqiBoard extends HTMLElement {
         }
 
         return false;
+    }
+
+    _getPieceAt(x, y) {
+        const pieces = this.boardState?.pieces || [];
+        return pieces.find(p => p.is_alive && p.position[0] === x && p.position[1] === y);
     }
 
     highlightAIMovedPiece(pieceId) {
@@ -3406,12 +3447,6 @@ export class WuziqiBoard extends HTMLElement {
         const resp = await fetch(`${this.apiBase}/api/apikey/status`);
         const data = await resp.json();
         if (!data.has_key) {
-            // RPG 模式下由 rpg_shell 统一管理 API Key，不弹 shadow DOM 内的设置模态
-            if (this.hasAttribute('rpg-mode')) {
-                console.warn('[WuziqiBoard] API Key 未设置（RPG 模式，由外壳管理）');
-                this.addMessage('⚠️ API Key 未设置，请在 RPG 设置界面输入', 'error');
-                return;
-            }
             this.showSettings();
             this.addMessage('⚠️ 请先设置DeepSeek API Key', 'error');
         }
@@ -3572,17 +3607,10 @@ export class WuziqiBoard extends HTMLElement {
                 return;
             }
 
-            if (!this._isCurrentTurnPlayerControlled()) {
-                console.log('[WuziqiBoard] 点击被忽略：当前不是玩家回合');
-                this._showTurnHint();
-                return;
-            }
-
-            const [gridX, gridY] = this._getGridCoordsFromEvent(e);
-            console.log(`[WuziqiBoard] 棋盘点击: grid=(${gridX},${gridY}), selectedPiece=${this.selectedPiece?.id || 'none'}`);
-            if (gridX === null) return;
-
             if (this.selectedPiece && this.validMoves.length > 0) {
+                const [gridX, gridY] = this._getGridCoordsFromEvent(e);
+                if (gridX === null) return;
+
                 const isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
                 if (isValidMove) {
                     this.executeMove(this.selectedPiece.id, [gridX, gridY]);
@@ -3590,41 +3618,13 @@ export class WuziqiBoard extends HTMLElement {
                 }
             }
 
-            const pieces = this.boardState?.pieces || [];
-            const occupied = pieces.some(p => p.is_alive && p.position[0] === gridX && p.position[1] === gridY);
-            if (!occupied) {
-                console.log(`[WuziqiBoard] 落子: (${gridX},${gridY})`);
-                this.executeMove(null, [gridX, gridY]);
-                return;
+            const [gridX, gridY] = this._getGridCoordsFromEvent(e);
+            if (gridX !== null) {
+                this.placeStone(gridX, gridY);
+            } else {
+                this.clearSelection();
             }
-
-            this.clearSelection();
         });
-    }
-
-    _showTurnHint() {
-        const hint = this.shadowRoot.querySelector('.turn-hint');
-        if (!hint) {
-            // 动态创建提示元素
-            const container = this.shadowRoot.getElementById('board-container');
-            if (!container) return;
-            const div = document.createElement('div');
-            div.className = 'turn-hint';
-            div.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.8);color:#fbbf24;padding:8px 16px;border-radius:4px;font-size:14px;pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:100;';
-            container.appendChild(div);
-            this._showHintOn(div);
-            return;
-        }
-        this._showHintOn(hint);
-    }
-
-    _showHintOn(el) {
-        el.textContent = '当前不是您的回合';
-        el.style.opacity = '1';
-        clearTimeout(this._turnHintTimer);
-        this._turnHintTimer = setTimeout(() => {
-            el.style.opacity = '0';
-        }, 1500);
     }
 
     _getGridCoordsFromEvent(e) {

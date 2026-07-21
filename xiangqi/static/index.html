@@ -10,11 +10,15 @@
 </head>
 <body>
     <div id="app"></div>
-    <script type="module">
-        import { XiangqiBoard } from '/static/app.js';
-        const board = document.createElement('xiangqi-board');
-        document.getElementById('app').appendChild(board);
-        board.init();
+    <script src="/static/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            console.log('XiangqiBoard:', XiangqiBoard);
+            var board = document.createElement('xiangqi-board');
+            document.getElementById('app').appendChild(board);
+            board.init();
+        });
     </script>
 </body>
 </html>

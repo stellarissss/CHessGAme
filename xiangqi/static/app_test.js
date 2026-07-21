@@ -1,4 +1,4 @@
-class XiangqiBoard extends HTMLElement {
+export class XiangqiBoard extends HTMLElement {
     static get observedAttributes() {
         return ['api-base', 'rpg-mode', 'player-side'];
     }
@@ -2299,7 +2299,7 @@ class XiangqiBoard extends HTMLElement {
         } catch (e) {
             console.error('Failed to load token stats:', e);
         }
-    }
+    },
 
     async loadConfigs() {
         const resp = await fetch(`${this.apiBase}/api/config/all`, { cache: 'no-store' });
@@ -2307,7 +2307,8 @@ class XiangqiBoard extends HTMLElement {
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
         console.log('[DEBUG] loadConfigs - board.appearance:', this.configs.board?.appearance);
-    }
+    },
+
     _getBoardLayoutConfig() {
         const defaults = {
             grid: {
