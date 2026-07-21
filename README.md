@@ -4,8 +4,8 @@
 >
 > 三种传统棋类（中国象棋 / 五子棋 / 围棋）被包装为 RPG 关卡，所有「作弊能力」由二级 AI 协作流水线（意图解析 + 代码生成）现场实现——这是项目「灵活编码」最高纲领的体现。
 
-**版本**：v0.4（Web Components 架构）
-**最后更新**：2026-07-20
+**版本**：v0.4.1（Web Components 架构，完整修复版）
+**最后更新**：2026-07-21
 
 ---
 
@@ -63,7 +63,8 @@
 │   └── main.py                     ← 端口 8001
 │
 ├── go/                             ← 子项目③：简化围棋 9×9（端口 8002）
-│   └── main.py                     ← 端口 8002，9×9 简化围棋
+│   ├── main.py                     ← 端口 8002，9×9 简化围棋，含 /api/rpg/* 路由
+│   └── static/index.html           ← 已引入 rpg_adapter.js
 │
 └── story-editor/                   ← 子项目④：剧情 / Galgame 编辑器（端口 8003）
     └── modules/preview.js          ← VN 引擎源头
@@ -123,7 +124,7 @@ JSON Schema 校验 + 业务规则验证
 | 参数 | 值 |
 |---|---|
 | 最大值 | 100 |
-| 起始值 | 0（每局清空） |
+| 起始值 | 20（每局重置） |
 | 使用门槛 | 30（**允许透支**） |
 | 吃子加成 | +10（吃）/ +5（被吃）/ +3（将军）/ +15（五连）/ +8（围棋提子） |
 | 被动回复 | 每 5 回合 +2 |
@@ -283,17 +284,19 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| RPG 后端 | `shared/rpg/rpg_server.py` | 12 条路由，RpgState 状态管理，识破公式，结局判定 |
-| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，Web Components 动态加载 |
+| RPG 后端 | `shared/rpg/rpg_server.py` | 12 条路由，RpgState 状态管理，识破公式，结局判定，config.json 自动读取 |
+| RPG 外壳 | `shared/rpg/rpg_shell.html/js` | 章节/能量/识破 UI，Web Components 动态加载，标题屏守卫 |
+| RPG 适配器 | `shared/rpg/rpg_adapter.js` | iframe postMessage + Web Components 双模式通信兼容层 |
 | 作弊面板 | `shared/rpg/cheat_panel.js` | 评估消耗 → 确认执行 → 对手台词触发 |
 | VN 故事层 | `shared/rpg/story_layer.js` + `vn_player/` | 封装 Preview.playStory，11 种节点类型 |
-| 章节剧情 | `rpg_data/chapters/ch00-ch06` | 7 个章节 JSON（ch00/ch01/ch03/ch06 完整） |
+| 章节剧情 | `rpg_data/chapters/ch00-ch06` | 7 个章节 JSON（ch00/ch01/ch03/ch06 完整，背景图片化） |
 | 对手台词 | `shared/rpg/dialogue_templates.json` | 6 类 × 4 条 = 24 条认知扭曲台词 |
 | 象棋子项目 | `xiangqi/` | Web Component + jump/ray 引擎 + 二级 AI + 机制原语 |
-| 五子棋子项目 | `wuziqi/` | Web Component + 五连检测 + GomokuAI |
-| 围棋子项目 | `go/` | Web Component + 9×9 简化围棋 + 启发式 AI |
+| 五子棋子项目 | `wuziqi/` | Web Component + 五连检测 + GomokuAI，支持直接点击落子 |
+| 围棋子项目 | `go/` | Web Component + 9×9 简化围棋 + 启发式 AI，含 /api/rpg/* 路由 |
 | 统一启动器 | `main.py` | 一键启动所有服务 |
 | 角色立绘 | `shared/assets/characters/{boy,robot}` | 主角 18 张 + 棋圣系统 17 张表情 |
+| 像素资产 | `shared/rpg/assets/` | 15 个 PNG 资产（8 背景 + 5 图标 + 2 UI） |
 
 ### ❌ 未完成（详见 [项目计划书](./项目计划书_RPG大游戏.md)）
 
@@ -323,8 +326,9 @@ DeepSeek API Key 用于棋圣系统作弊（意图解析 + 代码生成）：
 | v1 单一象棋 | 自然语言指令 + 二级 AI + jump/ray 引擎 | ✅ 完成 |
 | v2 多元引擎 | 拆分为象棋 / 五子棋 / 剧情编辑器子项目 | ✅ 完成 |
 | v3 RPG 骨架 | RPG 外壳 + iframe + 7 章节骨架 + 作弊链路 | ✅ 完成 |
-| v4 Web Components | 架构重构为 Web Components + ES Modules | ✅ **当前** |
-| v4.1 内容补全 | ch02-ch06 完整剧情 + 端到端测试 | 📅 计划中 |
+| v4 Web Components | 架构重构为 Web Components + ES Modules | ✅ 完成 |
+| v4.1 完整修复 | 修复序章加载、API Key、能量条、落子等关键 Bug | ✅ **当前** |
+| v4.2 内容补全 | ch02-ch06 完整剧情 + 端到端测试 | 📅 计划中 |
 
 ---
 

@@ -48,9 +48,9 @@ class GomokuAI:
                  token_stats_callback=None):
         self.rule_engine = RuleEngine(board, pieces_red, pieces_black, rules)
         self.difficulty = difficulty
-        self._pieces_by_side = {"red": pieces_red, "black": pieces_black}
+        self._pieces_by_side = {"white": pieces_red, "black": pieces_black}
         self._custom_pieces_by_side = {
-            "red": pieces_red.get("custom_pieces", []),
+            "white": pieces_red.get("custom_pieces", []),
             "black": pieces_black.get("custom_pieces", []),
         }
         self.custom_pieces = pieces_red.get("custom_pieces", []) + pieces_black.get("custom_pieces", [])
@@ -107,7 +107,7 @@ class GomokuAI:
             if not p.get("is_alive", True):
                 continue
             x, y = p["position"][0], p["position"][1]
-            side = 1 if p["side"] == "red" else -1
+            side = 1 if p["side"] == "white" else -1
             if 0 <= x < w and 0 <= y < h:
                 matrix[y][x] = side
         return matrix
@@ -455,10 +455,10 @@ class GomokuAI:
             self._tt_store(zobrist_hash, depth, min_eval, TT_EXACT)
             return min_eval
 
-    def find_best_move(self, board_state: dict, ai_side: str = "red") -> Optional[Tuple[int, int]]:
+    def find_best_move(self, board_state: dict, ai_side: str = "white") -> Optional[Tuple[int, int]]:
         """寻找最佳落子位置"""
         matrix = self._board_to_matrix(board_state)
-        ai_val = 1 if ai_side == "red" else -1
+        ai_val = 1 if ai_side == "white" else -1
         initial_hash = self._compute_zobrist(matrix)
 
         candidates = self._get_candidate_moves(matrix)
@@ -668,14 +668,14 @@ class GomokuAI:
         """更新 API 密钥（无需重建引擎）"""
         self.api_key = api_key
 
-    def get_best_move(self, board_state: dict, ai_side: str = "red") -> Optional[Dict[str, Any]]:
+    def get_best_move(self, board_state: dict, ai_side: str = "white") -> Optional[Dict[str, Any]]:
         """兼容接口：获取最佳走法（返回与象棋AI相同格式）"""
         result = self.get_ai_move(board_state, ai_side)
         if result.get("success"):
             return result
         return None
 
-    def get_ai_move(self, board_state: dict, ai_side: str = "red") -> Dict[str, Any]:
+    def get_ai_move(self, board_state: dict, ai_side: str = "white") -> Dict[str, Any]:
         """生成AI走棋响应"""
         move = self.find_best_move(board_state, ai_side)
         if not move:
@@ -683,7 +683,7 @@ class GomokuAI:
 
         x, y = move
         stone_type = "stone"
-        piece_label = "○" if ai_side == "red" else "●"
+        piece_label = "○" if ai_side == "white" else "●"
         piece_id = f"{ai_side}_stone_{x}_{y}_{len(board_state.get('pieces', []))}"
 
         return {

@@ -597,7 +597,7 @@ class AIOrchestrator:
         active_rules = board.get("game_status", {}).get("custom_rules_active", [])
 
         user_prompt = f"""当前游戏状态：
-- 当前回合：{board.get('current_turn', 'red')}
+- 当前回合：{board.get('current_turn', 'black')}
 - 棋盘概况：{pieces_summary}
 - 已激活的自定义规则：{', '.join(active_rules) if active_rules else '无'}
 
@@ -615,9 +615,9 @@ class AIOrchestrator:
         """生成棋盘摘要"""
         pieces = board.get("pieces", [])
         alive = [p for p in pieces if p.get("is_alive", True)]
-        red_count = len([p for p in alive if p["side"] == "red"])
+        white_count = len([p for p in alive if p["side"] == "white"])
         black_count = len([p for p in alive if p["side"] == "black"])
-        return f"红方{red_count}子, 黑方{black_count}子"
+        return f"白方{white_count}子, 黑方{black_count}子"
 
     async def _handle_action_a(
         self, intent: dict, configs: dict, log_entry: dict = None
@@ -752,7 +752,7 @@ class AIOrchestrator:
                     cap = self._find_piece(board, last["captured"])
                     if cap:
                         cap["is_alive"] = True
-                board["current_turn"] = "red" if board["current_turn"] == "black" else "black"
+                board["current_turn"] = "white" if board["current_turn"] == "black" else "black"
             board["move_history"] = history
             return {
                 "success": True,
@@ -764,7 +764,7 @@ class AIOrchestrator:
             }
 
         elif action_name == "set_winner":
-            winner = params.get("winner", "red")
+            winner = params.get("winner", "black")
             game_status = board.setdefault("game_status", {})
             game_status["state"] = "ended"
             game_status["winner"] = winner
@@ -849,35 +849,35 @@ class AIOrchestrator:
 你可以组合使用以下原语来实现各种游戏机制效果：
 
 ### skip_turns - 跳过回合（冻结）
-格式: {{"side": "red|black", "remaining": 回合数, "reason": "说明"}}
+格式: {{"side": "white|black", "remaining": 回合数, "reason": "说明"}}
 效果：指定方跳过N回合（无法走棋）
 
 ### ai_control - AI接管
-格式: {{"side": "red|black", "remaining": 回合数, "reason": "说明"}}
+格式: {{"side": "white|black", "remaining": 回合数, "reason": "说明"}}
 效果：指定方的N回合由AI代为走棋
 
 ### player_control - 玩家接管AI方
-格式: {{"side": "red|black", "remaining": 回合数, "reason": "说明"}}
+格式: {{"side": "white|black", "remaining": 回合数, "reason": "说明"}}
 效果：指定方（通常是AI方）的N回合由玩家代为走棋（与 ai_control 对称）
 路径: /mechanisms/player_control/-
 
 ### random_moves - 随机走棋
-格式: {{"side": "red|black", "remaining": 步数, "reason": "说明"}}
+格式: {{"side": "white|black", "remaining": 步数, "reason": "说明"}}
 效果：指定方接下来N步棋随机选择合法走法
 
 ### extra_turns - 额外回合
-格式: {{"side": "red|black", "remaining": 回合数, "reason": "说明"}}
+格式: {{"side": "white|black", "remaining": 回合数, "reason": "说明"}}
 效果：指定方获得N次额外回合（连续走棋）
 
 ### move_limits - 每回合步数限制
-格式: {{"side": "red|black", "limit": 步数}}
+格式: {{"side": "white|black", "limit": 步数}}
 效果：指定方每回合可以走N步
 
 ## 玩家阵营字段（board_state.json 顶层）
-- `player_side`: "red" | "black"（默认 "black"），玩家的持久阵营身份
-- **阵营互换**（持久，action=swap_sides）：`{{"op": "replace", "path": "/player_side", "value": "red"}}`
-- **永久接管AI方**（如"让我一直操控红方"）：将 `player_side` 改为 AI 方颜色
-- **临时接管**（action=player_takeover，如"让我接管红方两回合"）：使用 `player_control` 原语，不要修改 `player_side`
+- `player_side`: "white" | "black"（默认 "black"），玩家的持久阵营身份
+- **阵营互换**（持久，action=swap_sides）：`{{"op": "replace", "path": "/player_side", "value": "white"}}`
+- **永久接管AI方**（如"让我一直操控白方"）：将 `player_side` 改为 AI 方颜色
+- **临时接管**（action=player_takeover，如"让我接管白方两回合"）：使用 `player_control` 原语，不要修改 `player_side`
 路径: /player_side
 
 ## AI性格配置说明（用于修改 rules.json 的 ai_difficulty.personality 字段）
@@ -1138,14 +1138,14 @@ class AIOrchestrator:
             action_type_emphasis = """
 ## ⚠️ 操作类型特别提醒（棋子类型变换）
 - **必须同时修改 type 和 name 两个字段，缺一不可！绝对不能只改type不改name**
-- name必须与新type对应：红方棋子用红方名称，黑方棋子用黑方名称
-  - chariot(车) → 红方"車" / 黑方"車"
-  - horse(马) → 红方"馬" / 黑方"馬"
-  - elephant(象) → 红方"相" / 黑方"象"
-  - advisor(士) → 红方"仕" / 黑方"士"
-  - general(将) → 红方"帥" / 黑方"將"
-  - cannon(炮) → 红方"炮" / 黑方"砲"
-  - soldier(兵) → 红方"兵" / 黑方"卒"
+- name必须与新type对应：白方棋子用白方名称，黑方棋子用黑方名称
+  - chariot(车) → 白方"車" / 黑方"車"
+  - horse(马) → 白方"馬" / 黑方"馬"
+  - elephant(象) → 白方"相" / 黑方"象"
+  - advisor(士) → 白方"仕" / 黑方"士"
+  - general(将) → 白方"帥" / 黑方"將"
+  - cannon(炮) → 白方"炮" / 黑方"砲"
+  - soldier(兵) → 白方"兵" / 黑方"卒"
 - id、side、position、is_alive 等核心属性绝对不能修改
 - 棋子数量不能变化（不能新增也不能删除棋子）
 - 使用 replace 操作修改 /pieces/{index}/type 和 /pieces/{index}/name
@@ -1239,7 +1239,7 @@ class AIOrchestrator:
         side = intent.get("side")
         target_files = intent.get("target_files", [])
 
-        if side == "red" or "pieces_red.json" in target_files:
+        if side == "white" or "pieces_red.json" in target_files:
             target_config_name = "pieces_red"
         elif side == "black" or "pieces_black.json" in target_files:
             target_config_name = "pieces_black"
@@ -1266,13 +1266,13 @@ class AIOrchestrator:
         rule_change_emphasis = """
 ## ⚠️ 规则修改强约束
 1. 你必须对规则进行实质性修改，不能输出与输入相同的规则
-2. 如果用户要求修改某方的棋子（如"红方的马"），直接修改当前文件
+2. 如果用户要求修改某方的棋子（如"白方的马"），直接修改当前文件
 3. 如果用户要求"可以移动到任意一格"，可以在moves中添加自由移动
 4. 修改后必须确保规则与修改前不同
 5. 如果规则未变化，校验层会检测到并触发重试
 """
 
-        side_label = "红方" if target_config_name == "pieces_red" else "黑方"
+        side_label = "白方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
         # 构建详细提示词
@@ -1352,7 +1352,7 @@ class AIOrchestrator:
         side = intent.get("side")
         target_files = intent.get("target_files", [])
 
-        if side == "red" or "pieces_red.json" in target_files:
+        if side == "white" or "pieces_red.json" in target_files:
             target_config_name = "pieces_red"
         elif side == "black" or "pieces_black.json" in target_files:
             target_config_name = "pieces_black"
@@ -1380,7 +1380,7 @@ class AIOrchestrator:
 
         predefined_types = {"chariot", "horse", "elephant", "advisor", "general", "cannon", "soldier"}
 
-        side_label = "红方" if target_config_name == "pieces_red" else "黑方"
+        side_label = "白方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
         user_prompt = f"""## 创建任务
@@ -1586,7 +1586,7 @@ class AIOrchestrator:
         """
         确保 piece_rules 中包含完整的 side_overrides 结构。
 
-        如果 side_overrides 缺失或结构不正确，会补全为 {"red": {}, "black": {}}。
+        如果 side_overrides 缺失或结构不正确，会补全为 {"white": {}, "black": {}}。
         原地修改 rules 字典。
 
         Returns:
@@ -1595,10 +1595,10 @@ class AIOrchestrator:
         fixed = False
         so = rules.get("side_overrides")
         if not isinstance(so, dict):
-            rules["side_overrides"] = {"red": {}, "black": {}}
+            rules["side_overrides"] = {"white": {}, "black": {}}
             return True
-        if "red" not in so or not isinstance(so.get("red"), dict):
-            so["red"] = {}
+        if "white" not in so or not isinstance(so.get("white"), dict):
+            so["white"] = {}
             fixed = True
         if "black" not in so or not isinstance(so.get("black"), dict):
             so["black"] = {}
@@ -2089,14 +2089,14 @@ class AIOrchestrator:
         if not isinstance(new_side_overrides, dict):
             return False, "side_overrides 必须是对象类型"
 
-        if "red" not in new_side_overrides:
-            return False, "side_overrides 缺少 red 字段，必须保留 red 和 black 两个子对象"
+        if "white" not in new_side_overrides:
+            return False, "side_overrides 缺少 white 字段，必须保留 white 和 black 两个子对象"
 
         if "black" not in new_side_overrides:
-            return False, "side_overrides 缺少 black 字段，必须保留 red 和 black 两个子对象"
+            return False, "side_overrides 缺少 black 字段，必须保留 white 和 black 两个子对象"
 
-        if not isinstance(new_side_overrides.get("red"), dict):
-            return False, "side_overrides.red 必须是对象类型"
+        if not isinstance(new_side_overrides.get("white"), dict):
+            return False, "side_overrides.white 必须是对象类型"
 
         if not isinstance(new_side_overrides.get("black"), dict):
             return False, "side_overrides.black 必须是对象类型"
@@ -2116,7 +2116,7 @@ class AIOrchestrator:
             if old_movement == new_movement and old_custom == new_custom:
                 old_overrides = old_rules.get("side_overrides", {})
                 new_overrides = new_rules.get("side_overrides", {})
-                for side in ["red", "black"]:
+                for side in ["white", "black"]:
                     old_side_rules = old_overrides.get(side, {}).get(target_type, {})
                     new_side_rules = new_overrides.get(side, {}).get(target_type, {})
                     if old_side_rules != new_side_rules:

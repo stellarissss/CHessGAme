@@ -747,25 +747,25 @@ export class WuziqiBoard extends HTMLElement {
     user-select: none;
     transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
     z-index: 10;
+    border: none;
 }
 
 .piece:hover {
     transform: translate(-50%, -50%) scale(1.1);
 }
 
-.piece.red {
-    background: var(--white-stone);
-    border: 2px solid var(--black-stone);
-    box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.4),
-        inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.piece.black {
-    background: var(--black-stone);
+.piece[data-side="black"] {
+    background-color: #1a1a1a;
     box-shadow:
         0 2px 6px rgba(0, 0, 0, 0.5),
         inset 0 1px 2px rgba(255, 255, 255, 0.1);
+}
+
+.piece[data-side="red"] {
+    background-color: #ffffff;
+    box-shadow:
+        0 2px 6px rgba(0, 0, 0, 0.4),
+        inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .piece.selected {
@@ -778,14 +778,16 @@ export class WuziqiBoard extends HTMLElement {
 
 .piece.last-moved {
     box-shadow:
-        0 0 0 3px var(--neon-pink),
+        0 0 0 2px var(--neon-pink),
         0 0 14px rgba(255, 45, 111, 0.7),
         0 0 28px rgba(255, 45, 111, 0.4);
 }
 
 .piece.ai-moved {
-    border: 3px solid var(--neon-gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    box-shadow:
+        0 0 0 3px var(--neon-gold),
+        0 0 15px rgba(255, 215, 0, 0.85),
+        0 0 30px rgba(255, 215, 0, 0.45);
     z-index: 100;
 }
 
@@ -2469,8 +2471,9 @@ export class WuziqiBoard extends HTMLElement {
     createPieceElement(piece) {
         const container = this.shadowRoot.getElementById('board-container');
         const el = document.createElement('div');
-        el.className = `piece ${piece.side}`;
+        el.className = 'piece';
         el.dataset.pieceId = piece.id;
+        el.dataset.side = piece.side;
 
         const geometry = this.configs.board?.geometry || {};
         const width = geometry.width || 15;
@@ -2486,7 +2489,7 @@ export class WuziqiBoard extends HTMLElement {
 
         if (piece.custom_properties) {
             const cp = piece.custom_properties;
-            if (cp.color) el.style.background = cp.color;
+            if (cp.color) el.style.backgroundColor = cp.color;
             if (cp.size) {
                 el.style.width = cp.size;
                 el.style.height = cp.size;
@@ -2653,6 +2656,72 @@ export class WuziqiBoard extends HTMLElement {
         this.aiThinking = false;
     }
 
+    async placeStone(x, y) {
+        if (this.aiThinking) return;
+        if (this.boardState?.game_status?.state === 'ended') return;
+
+        if (!this._isCurrentTurnPlayerControlled()) {
+            this.addMessage('当前不是您的回合', 'error');
+            return;
+        }
+
+        const existingPiece = this._getPieceAt(x, y);
+        if (existingPiece) {
+            return;
+        }
+
+        this.clearSelection();
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
+            el.classList.remove('ai-moved');
+        });
+        this.aiThinking = true;
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: [x, y] })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                this.boardState = data.board_state;
+                this.lastMove = this.boardState.move_history.slice(-1)[0];
+                this.renderPieces();
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateMechanisms();
+                this.loadTokenStats();
+
+                this._dispatchMoveEvent();
+
+                if (this.boardState.game_status.state === 'ended') {
+                    this.showGameOver();
+                    this._dispatchGameEndEvent();
+                    this.aiThinking = false;
+                    return;
+                }
+
+                await this.sleep(800);
+                await this.makeAIMove();
+            } else {
+                this.addMessage(data.message || '落子失败', 'error');
+                if (data.ai_controlled && !this.aiThinking) {
+                    this.aiThinking = true;
+                    await this.sleep(500);
+                    await this.makeAIMove();
+                    this.aiThinking = false;
+                }
+            }
+        } catch (e) {
+            this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('落子失败', e);
+        }
+
+        this.aiThinking = false;
+    }
+
     async makeAIMove(depth = 0) {
         if (depth > 10) return;
 
@@ -2668,14 +2737,16 @@ export class WuziqiBoard extends HTMLElement {
 
             if (data.success) {
                 this.boardState = data.board_state;
-                this.lastMove = data.ai_move;
+                this.lastMove = this.boardState.move_history.slice(-1)[0];
                 this.renderPieces();
                 this.updateTurnIndicator();
                 this.updateActiveRules();
                 this.updateGameObjectives();
                 this.updateMechanisms();
 
-                this.highlightAIMovedPiece(data.ai_move.piece_id);
+                if (this.lastMove) {
+                    this.highlightAIMovedPiece(this.lastMove.piece_id);
+                }
 
                 const messages = this.shadowRoot.getElementById('ai-messages');
                 const lastMsg = messages.lastElementChild;
@@ -2774,6 +2845,11 @@ export class WuziqiBoard extends HTMLElement {
         }
 
         return false;
+    }
+
+    _getPieceAt(x, y) {
+        const pieces = this.boardState?.pieces || [];
+        return pieces.find(p => p.is_alive && p.position[0] === x && p.position[1] === y);
     }
 
     highlightAIMovedPiece(pieceId) {
@@ -3541,7 +3617,13 @@ export class WuziqiBoard extends HTMLElement {
                     return;
                 }
             }
-            this.clearSelection();
+
+            const [gridX, gridY] = this._getGridCoordsFromEvent(e);
+            if (gridX !== null) {
+                this.placeStone(gridX, gridY);
+            } else {
+                this.clearSelection();
+            }
         });
     }
 

@@ -1,9 +1,9 @@
 {
   "_metadata": {
     "version": "3.0",
-    "description": "红方棋子规则（白子）"
+    "description": "白方棋子规则（白子）"
   },
-  "side": "red",
+  "side": "white",
   "pieces": {
     "stone": {
       "label": "○",
