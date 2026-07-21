@@ -34,7 +34,7 @@ PIECE_NAME_MAP = """## 棋子 name 与 type 对应关系
 
 五子棋的棋子名称：
 - 黑方（black）：●
-- 红方（red）：○"""
+- 白方（red）：○"""
 
 PIECE_PRIMITIVE_PRIMER = """## ⚡ 棋子移动原语体系
 
@@ -126,14 +126,14 @@ A类分为两个子类：
 | 子类 | action | 含义 | parameters |
 |-----|--------|------|------------|
 | A1 | `undo_move` | 悔棋 | `{ "steps": 步数 }` |
-| A1 | `set_winner` | 设置赢家 | `{ "winner": "red" | "black" }` |
+| A1 | `set_winner` | 设置赢家 | `{ "winner": "white" | "black" }` |
 | A2 | `set_ai_personality` | 修改AI性格 | `{ "personality_type": "normal|aggressive|defensive|random|custom" }` |
 | A2 | `add_mechanism` | 添加游戏机制 | `{ "mechanism_type": "skip_turns|ai_control|player_control|random_moves|extra_turns|move_limits" }` |
 | A2 | `freeze_ai` | 冻结AI | `{ "turns": 回合数 }` |
-| A2 | `ai_takeover` | AI接管玩家回合 | `{ "turns": 回合数, "side": "red|black" }` |
-| A2 | `random_move` | 随机走棋 | `{ "steps": 步数, "side": "red|black" }` |
+| A2 | `ai_takeover` | AI接管玩家回合 | `{ "turns": 回合数, "side": "white|black" }` |
+| A2 | `random_move` | 随机走棋 | `{ "steps": 步数, "side": "white|black" }` |
 | A2 | `swap_sides` | 阵营互换（持久） | `{ }` |
-| A2 | `player_takeover` | 玩家接管AI方（临时N回合） | `{ "turns": 回合数, "side": "red|black" }` |
+| A2 | `player_takeover` | 玩家接管AI方（临时N回合） | `{ "turns": 回合数, "side": "white|black" }` |
 
 ### B类：棋盘变换
 - 移动棋子位置
@@ -179,7 +179,7 @@ A类分为两个子类：
 | A (A1) | - | 硬代码实现，不需要JSON修改 |
 | A (A2) | ["board_state.json", "rules.json"] | 灵活编码（机制修改/AI性格） |
 | B | ["board_state.json"] | 修改棋子状态 |
-| C (红方) | ["pieces_red.json"] | 修改红方棋子规则 |
+| C (白方) | ["pieces_red.json"] | 修改白方棋子规则 |
 | C (黑方) | ["pieces_black.json"] | 修改黑方棋子规则 |
 | C (双方) | 两个action，各对应一个文件 | 并行修改双方规则 |
 | D1(主题) | ["ui_config.json"] | 修改界面主题 |
@@ -286,7 +286,7 @@ A类分为两个子类：
 ## 坐标系统
 - [x, y] 格式，x: 0-14（左到右），y: 0-14（上到下）
 - 棋盘大小：15×15
-- 红方为玩家方，黑方为AI方
+- 白方为玩家方，黑方为AI方
 
 请只输出JSON，不要输出其他任何内容。"""
 
@@ -408,7 +408,7 @@ BOARD_TRANSFORMER_SYSTEM = """你是"无限制五子棋"的棋盘状态管理AI�
       "id": "r_stone_7_7_1",
       "type": "stone",
       "name": "○",
-      "side": "red",
+      "side": "white",
       "position": [7, 7],
       "is_alive": true,
       "custom_properties": {}
@@ -522,7 +522,7 @@ PIECE_CREATOR_SYSTEM = """你是"无限制五子棋"的自定义棋子创建AI�
 ```json
 {
   "type": "新棋子的英文标识符",
-  "label": {"red": "中文名称", "black": "中文名称"},
+  "label": {"white": "中文名称", "black": "中文名称"},
   "is_king": false,
   "moves": [
     {
@@ -617,15 +617,15 @@ MECHANISM_MODIFIER_SYSTEM = """你是"无限制五子棋"的机制修改AI（A2�
 路径: `/mechanisms/extra_turns/-`
 
 ### move_limits - 每回合步数限制
-格式: `{"side": "red|black", "limit": 步数}`
+格式: `{"side": "white|black", "limit": 步数}`
 效果：指定方每回合可以走N步
 路径: `/mechanisms/move_limits/-`
 
 ## 玩家阵营字段（board_state.json 顶层）
-- `player_side`: "red" | "black"（默认 "black"），玩家的持久阵营身份
-- **阵营互换**（持久）：`{"op": "replace", "path": "/player_side", "value": "red"}`
-- **永久接管AI方**（如"让我一直操控红方"）：将 `player_side` 改为 AI 方颜色
-- 临时接管（如"让我接管红方两回合"）应使用 `player_control` 原语，而非修改 `player_side`
+- `player_side`: "white" | "black"（默认 "black"），玩家的持久阵营身份
+- **阵营互换**（持久）：`{"op": "replace", "path": "/player_side", "value": "white"}`
+- **永久接管AI方**（如"让我一直操控白方"）：将 `player_side` 改为 AI 方颜色
+- 临时接管（如"让我接管白方两回合"）应使用 `player_control` 原语，而非修改 `player_side`
 路径: `/player_side`
 
 ## 胜利条件配置速查（rules.json → win_conditions）

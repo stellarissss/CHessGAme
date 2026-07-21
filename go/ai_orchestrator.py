@@ -1125,14 +1125,14 @@ class AIOrchestrator:
             action_type_emphasis = """
 ## ⚠️ 操作类型特别提醒（棋子类型变换）
 - **必须同时修改 type 和 name 两个字段，缺一不可！绝对不能只改type不改name**
-- name必须与新type对应：红方棋子用红方名称，黑方棋子用黑方名称
-  - chariot(车) → 红方"車" / 黑方"車"
-  - horse(马) → 红方"馬" / 黑方"馬"
-  - elephant(象) → 红方"相" / 黑方"象"
-  - advisor(士) → 红方"仕" / 黑方"士"
-  - general(将) → 红方"帥" / 黑方"將"
-  - cannon(炮) → 红方"炮" / 黑方"砲"
-  - soldier(兵) → 红方"兵" / 黑方"卒"
+- name必须与新type对应：白方棋子用白方名称，黑方棋子用黑方名称
+  - chariot(车) → 白方"車" / 黑方"車"
+  - horse(马) → 白方"馬" / 黑方"馬"
+  - elephant(象) → 白方"相" / 黑方"象"
+  - advisor(士) → 白方"仕" / 黑方"士"
+  - general(将) → 白方"帥" / 黑方"將"
+  - cannon(炮) → 白方"炮" / 黑方"砲"
+  - soldier(兵) → 白方"兵" / 黑方"卒"
 - id、side、position、is_alive 等核心属性绝对不能修改
 - 棋子数量不能变化（不能新增也不能删除棋子）
 - 使用 replace 操作修改 /pieces/{index}/type 和 /pieces/{index}/name
@@ -1226,7 +1226,7 @@ class AIOrchestrator:
         side = intent.get("side")
         target_files = intent.get("target_files", [])
 
-        if side == "red" or "pieces_red.json" in target_files:
+        if side == "white" or "pieces_red.json" in target_files:
             target_config_name = "pieces_red"
         elif side == "black" or "pieces_black.json" in target_files:
             target_config_name = "pieces_black"
@@ -1253,13 +1253,13 @@ class AIOrchestrator:
         rule_change_emphasis = """
 ## ⚠️ 规则修改强约束
 1. 你必须对规则进行实质性修改，不能输出与输入相同的规则
-2. 如果用户要求修改某方的棋子（如"红方的马"），直接修改当前文件
+2. 如果用户要求修改某方的棋子（如"白方的马"），直接修改当前文件
 3. 如果用户要求"可以移动到任意一格"，可以在moves中添加自由移动
 4. 修改后必须确保规则与修改前不同
 5. 如果规则未变化，校验层会检测到并触发重试
 """
 
-        side_label = "红方" if target_config_name == "pieces_red" else "黑方"
+        side_label = "白方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
         # 构建详细提示词
@@ -1339,7 +1339,7 @@ class AIOrchestrator:
         side = intent.get("side")
         target_files = intent.get("target_files", [])
 
-        if side == "red" or "pieces_red.json" in target_files:
+        if side == "white" or "pieces_red.json" in target_files:
             target_config_name = "pieces_red"
         elif side == "black" or "pieces_black.json" in target_files:
             target_config_name = "pieces_black"
@@ -1367,7 +1367,7 @@ class AIOrchestrator:
 
         predefined_types = {"chariot", "horse", "elephant", "advisor", "general", "cannon", "soldier"}
 
-        side_label = "红方" if target_config_name == "pieces_red" else "黑方"
+        side_label = "白方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
         user_prompt = f"""## 创建任务
@@ -1573,7 +1573,7 @@ class AIOrchestrator:
         """
         确保 piece_rules 中包含完整的 side_overrides 结构。
 
-        如果 side_overrides 缺失或结构不正确，会补全为 {"red": {}, "black": {}}。
+        如果 side_overrides 缺失或结构不正确，会补全为 {"white": {}, "black": {}}。
         原地修改 rules 字典。
 
         Returns:
@@ -1582,10 +1582,10 @@ class AIOrchestrator:
         fixed = False
         so = rules.get("side_overrides")
         if not isinstance(so, dict):
-            rules["side_overrides"] = {"red": {}, "black": {}}
+            rules["side_overrides"] = {"white": {}, "black": {}}
             return True
-        if "red" not in so or not isinstance(so.get("red"), dict):
-            so["red"] = {}
+        if "white" not in so or not isinstance(so.get("white"), dict):
+            so["white"] = {}
             fixed = True
         if "black" not in so or not isinstance(so.get("black"), dict):
             so["black"] = {}
@@ -2082,14 +2082,14 @@ class AIOrchestrator:
         if not isinstance(new_side_overrides, dict):
             return False, "side_overrides 必须是对象类型"
 
-        if "red" not in new_side_overrides:
-            return False, "side_overrides 缺少 red 字段，必须保留 red 和 black 两个子对象"
+        if "white" not in new_side_overrides:
+            return False, "side_overrides 缺少 white 字段，必须保留 white 和 black 两个子对象"
 
         if "black" not in new_side_overrides:
-            return False, "side_overrides 缺少 black 字段，必须保留 red 和 black 两个子对象"
+            return False, "side_overrides 缺少 black 字段，必须保留 white 和 black 两个子对象"
 
-        if not isinstance(new_side_overrides.get("red"), dict):
-            return False, "side_overrides.red 必须是对象类型"
+        if not isinstance(new_side_overrides.get("white"), dict):
+            return False, "side_overrides.white 必须是对象类型"
 
         if not isinstance(new_side_overrides.get("black"), dict):
             return False, "side_overrides.black 必须是对象类型"
@@ -2109,7 +2109,7 @@ class AIOrchestrator:
             if old_movement == new_movement and old_custom == new_custom:
                 old_overrides = old_rules.get("side_overrides", {})
                 new_overrides = new_rules.get("side_overrides", {})
-                for side in ["red", "black"]:
+                for side in ["white", "black"]:
                     old_side_rules = old_overrides.get(side, {}).get(target_type, {})
                     new_side_rules = new_overrides.get(side, {}).get(target_type, {})
                     if old_side_rules != new_side_rules:

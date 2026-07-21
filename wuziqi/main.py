@@ -153,6 +153,7 @@ class SetApiKey(BaseModel):
 
 
 class MoveRequest(BaseModel):
+    piece_id: Optional[str] = None
     to: list  # [x, y]
 
 
@@ -301,7 +302,7 @@ async def make_move(req: MoveRequest):
                         pc_list.pop(i)
                     break
 
-        board["current_turn"] = "red" if current_turn == "black" else "black"
+        board["current_turn"] = "white" if current_turn == "black" else "black"
 
         geometry = state.configs.get("board", {}).get("geometry", {})
         width = geometry.get("width", 15)
@@ -382,12 +383,12 @@ async def ai_move():
     if not move:
         board["game_status"] = {
             "state": "ended",
-            "winner": "red" if current_turn == "black" else "black",
+            "winner": "white" if current_turn == "black" else "black",
             "win_condition": "stalemate",
             "custom_rules_active": board.get("game_status", {}).get("custom_rules_active", []),
         }
         state.save_config("board_state")
-        winner_side = "红方" if current_turn == "black" else "黑方"
+        winner_side = "黑方" if current_turn == "black" else "白方"
         return {"success": True, "board_state": board, "message": f"AI无棋可走，{winner_side}获胜"}
 
     to_x, to_y = move["to"][0], move["to"][1]
@@ -423,7 +424,7 @@ async def ai_move():
             "custom_rules_active": board.get("game_status", {}).get("custom_rules_active", []),
         }
     else:
-        board["current_turn"] = "red" if current_turn == "black" else "black"
+        board["current_turn"] = "white" if current_turn == "black" else "black"
 
         geometry = state.configs.get("board", {}).get("geometry", {})
         width = geometry.get("width", 15)
@@ -512,7 +513,7 @@ async def undo_move():
                 board["pieces"].remove(p)
                 break
 
-    board["current_turn"] = "black" if (len(board["move_history"]) % 2) == 0 else "red"
+    board["current_turn"] = "black" if (len(board["move_history"]) % 2) == 0 else "white"
     board["game_status"] = {
         "state": "playing",
         "winner": None,

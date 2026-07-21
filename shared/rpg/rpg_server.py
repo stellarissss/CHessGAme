@@ -139,7 +139,7 @@ class RpgState:
     DETECTION_CAP = 95.0
 
     def __init__(self):
-        self.energy = 0
+        self.energy = 20               # 初始能量，让玩家有起步资源
         self.detection = 0.0           # 识破概率 0-95，只增不减
         self.was_detected = False      # 是否曾被发现（影响结局）
         self.cheats_used = 0
@@ -206,7 +206,7 @@ class RpgState:
         self.current_chapter = chapter_id
         self.chess_type = chess_type
         self.player_side = player_side or "red"
-        self.energy = 0
+        self.energy = 20                # 每局开始给予初始能量
         self.turn_count = 0
         self.battle_started = True
 
@@ -485,7 +485,9 @@ async def battle_start(req: BattleStartReq):
         if not health:
             return {"success": False, "message": f"{chess_type} 服务未启动", "service_down": True}
         # 重置棋类棋盘
-        await chess_proxy(chess_type, "/api/reset_configs", method="POST", json_body={})
+        reset_result = await chess_proxy(chess_type, "/api/reset_configs", method="POST", json_body={})
+        if not reset_result.get("success") and not reset_result.get("status") == "success":
+            print(f"[BattleStart] 重置 {chess_type} 棋盘失败: {reset_result.get('message', '未知错误')}")
 
     rpg_state.reset_battle(
         chapter_id=req.chapter_id,
@@ -514,6 +516,15 @@ async def cheat_assess(req: CheatAssessReq):
     if not chess_type:
         return {"success": False, "message": "当前章节无对战，无需作弊"}
 
+    # 检查棋类服务是否实际有 API Key，若没有则自动重新广播
+    try:
+        key_status = await chess_proxy(chess_type, "/api/apikey/status", method="GET")
+        if not key_status.get("has_key"):
+            print(f"[CheatAssess] {chess_type} 服务无 API Key，自动重新广播...")
+            await broadcast_api_key(rpg_state.api_key)
+    except Exception as e:
+        print(f"[CheatAssess] 检查棋类服务 API Key 状态失败: {e}（不阻断评估）")
+
     # dry_run=1：让棋类只解析不应用
     result = await chess_proxy(
         chess_type, "/api/command",
@@ -522,6 +533,18 @@ async def cheat_assess(req: CheatAssessReq):
     )
 
     if not result.get("success"):
+        # 如果AI无法理解（rejected），转为闲聊模式，消耗1点能量
+        if result.get("type") == "rejected":
+            return {
+                "success": True,
+                "command": req.command,
+                "cost_energy": 1,
+                "classification": "chat",
+                "feasible": True,
+                "message": result.get("message", "棋灵歪了歪头，似乎没听懂你在说什么..."),
+                "current_energy": rpg_state.energy,
+                "after_energy": rpg_state.energy - 1,
+            }
         return {
             "success": False,
             "message": result.get("message", "意图解析失败"),
@@ -560,6 +583,25 @@ async def cheat_use(req: CheatUseReq):
     )
 
     if not result.get("success"):
+        # 如果AI无法理解（rejected），转为闲聊作弊，消耗1点能量
+        if result.get("type") == "rejected":
+            cost_energy = 1
+            rpg_state.use_energy(cost_energy)
+            detection_result = rpg_state.apply_cheat_detection(cost_energy)
+            dialogue = result.get("message", "棋灵歪了歪头，似乎没听懂你在说什么...")
+            return {
+                "success": True,
+                "command": req.command,
+                "cost_energy": cost_energy,
+                "classification": "chat",
+                "energy_after": rpg_state.energy,
+                "detection": detection_result["detection_after"],
+                "was_detected": detection_result["was_detected"],
+                "opponent_dialogue": dialogue,
+                "modified_configs": {},
+                "patch_paths": [],
+                "opponent": CHAPTERS.get(rpg_state.current_chapter, {}).get("opponent"),
+            }
         return {
             "success": False,
             "message": result.get("message", "作弊执行失败"),
@@ -582,6 +624,14 @@ async def cheat_use(req: CheatUseReq):
 
     modified_configs = result.get("modified_configs", {})
 
+    patch_paths = []
+    if modified_configs:
+        for key in modified_configs.keys():
+            patch_paths.append(key)
+            if isinstance(modified_configs[key], dict):
+                for subkey in modified_configs[key].keys():
+                    patch_paths.append(f"{key}/{subkey}")
+
     return {
         "success": True,
         "command": req.command,
@@ -592,6 +642,7 @@ async def cheat_use(req: CheatUseReq):
         "was_detected": detection_result["was_detected"],
         "opponent_dialogue": dialogue,
         "modified_configs": modified_configs,
+        "patch_paths": patch_paths,
         "opponent": CHAPTERS.get(rpg_state.current_chapter, {}).get("opponent"),
     }
 
@@ -683,9 +734,11 @@ async def set_api_key(req: ApiKeyReq):
     """设置 API Key 并下发到三个棋类服务"""
     rpg_state.api_key = req.api_key
     results = await broadcast_api_key(req.api_key)
+    all_success = bool(results) and all(results.values())
+    failed = [k for k, ok in results.items() if not ok]
     return {
-        "success": True,
-        "message": "API Key 已设置并下发",
+        "success": all_success,
+        "message": "API Key 已设置并下发" if all_success else f"API Key 已保存，但以下服务下发失败: {', '.join(failed)}",
         "broadcast_results": results,
     }
 
@@ -712,6 +765,21 @@ async def chess_health(chess_type: str):
 # ═══════════════════════════════════════════════════════════════
 # 启动
 # ═══════════════════════════════════════════════════════════════
+
+
+@app.on_event("startup")
+async def _startup_broadcast_api_key():
+    """启动时自动将 API Key 下发到三个棋类服务，确保子服务可用"""
+    if rpg_state.api_key:
+        print("[Startup] 正在广播 API Key 到棋类服务...")
+        results = await broadcast_api_key(rpg_state.api_key)
+        for chess_type, ok in results.items():
+            status = "[OK]" if ok else "[FAIL]"
+            msg = "已下发" if ok else "下发失败（服务可能未启动）"
+            print(f"  {status} {chess_type}: {msg}")
+    else:
+        print("[Startup] 未检测到 API Key，请在设置界面输入")
+
 
 if __name__ == "__main__":
     import uvicorn

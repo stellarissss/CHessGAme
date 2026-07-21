@@ -73,6 +73,11 @@
                     case 'manual':
                         _openManual();
                         break;
+                    case 'achievements':
+                        if (typeof AchievementSystem !== 'undefined' && AchievementSystem.openModal) {
+                            AchievementSystem.openModal();
+                        }
+                        break;
                     case 'settings':
                         if (typeof RpgShell !== 'undefined' && RpgShell.openSettings) {
                             RpgShell.openSettings();

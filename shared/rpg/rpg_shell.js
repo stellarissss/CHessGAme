@@ -43,7 +43,7 @@ const RpgShell = (() => {
     let chapterTitleEl, energyFillEl, energyValueEl, turnCountEl;
     let battleContainer, battlePlaceholder, skipBtn;
     let chapterDrawer, chapterList;
-    let settingsModal, apiKeyInput;
+    let settingsModal, apiKeyInput, settingsStatusEl;
     let toastEl;
 
     // ────────── 初始化 ──────────
@@ -61,6 +61,7 @@ const RpgShell = (() => {
         chapterList = document.getElementById('rpg-chapter-list');
         settingsModal = document.getElementById('rpg-settings-modal');
         apiKeyInput = document.getElementById('rpg-api-key-input');
+        settingsStatusEl = document.getElementById('rpg-settings-status');
         toastEl = document.getElementById('rpg-toast');
 
         // 初始化子模块
@@ -74,6 +75,15 @@ const RpgShell = (() => {
         document.getElementById('rpg-btn-close-settings').addEventListener('click', () => _toggleSettings(false));
         document.getElementById('rpg-btn-save-settings').addEventListener('click', _onSaveSettings);
         skipBtn.addEventListener('click', _onSkipChapter);
+
+        const achBtn = document.getElementById('rpg-btn-open-achievements');
+        if (achBtn) {
+            achBtn.addEventListener('click', () => {
+                if (window.AchievementSystem) {
+                    AchievementSystem.openModal();
+                }
+            });
+        }
 
         // 绑定 data-action 按钮事件
         document.querySelectorAll('[data-action="settings"]').forEach(btn => {
@@ -162,9 +172,12 @@ const RpgShell = (() => {
             if (!chessType) {
                 // 纯 VN 章节：播完 VN 后自动进入下一章
                 _unmountBoard();
+                battlePlaceholder.style.display = 'none';
                 skipBtn.style.display = 'none';
                 await _playChapterStory(chapter, {
                     onEnd: async () => {
+                        StoryLayer.hide();
+                        battlePlaceholder.style.display = 'flex';
                         await _goNextChapter();
                     },
                 });
@@ -274,8 +287,10 @@ const RpgShell = (() => {
     }
 
     async function _mountBoard(chessType, playerSide) {
+        console.log(`[RpgShell] _mountBoard: chessType=${chessType}, playerSide=${playerSide}`);
         _unmountBoard();
         const elementName = await loadChessComponent(chessType);
+        console.log(`[RpgShell] 加载组件: ${elementName}`);
         const boardEl = document.createElement(elementName);
         boardEl.setAttribute('api-base', CHESS_BASE_URLS[chessType]);
         boardEl.setAttribute('player-side', playerSide || 'red');
@@ -287,7 +302,9 @@ const RpgShell = (() => {
         battlePlaceholder.style.display = 'none';
         battleContainer.appendChild(boardEl);
         currentBoardElement = boardEl;
+        console.log(`[RpgShell] 调用 boardEl.init()`);
         await boardEl.init();
+        console.log(`[RpgShell] 棋盘初始化完成`);
         return boardEl;
     }
 
@@ -337,12 +354,40 @@ const RpgShell = (() => {
                     turn_count: data.turn_count,
                 });
                 if (data.reason && data.reason.length > 0) {
-                    // 简短提示能量变化
                     toast(data.reason.join(' / '), 'success');
                 }
                 if (data.game_ended) {
                     _onBoardGameEnd({ detail: { winner: data.winner } });
                 }
+            }
+
+            if (window.AchievementSystem) {
+                let playerPieceCount = 0;
+                let capturedPieceType = null;
+                let hasFiveInRow = false;
+
+                if (currentBoardElement && currentBoardElement.boardState) {
+                    const bs = currentBoardElement.boardState;
+                    const pieces = bs.pieces || [];
+                    playerPieceCount = pieces.filter(p =>
+                        p.is_alive && p.owner === state.player_side
+                    ).length;
+
+                    if (msg.captured && msg.captured.type) {
+                        capturedPieceType = msg.captured.type;
+                    }
+
+                    if (state.chess_type === 'go') {
+                        hasFiveInRow = AchievementSystem.checkGoFiveInRow(bs, state.player_side);
+                    }
+                }
+
+                AchievementSystem.onMove({
+                    chessType: state.chess_type,
+                    playerPieceCount,
+                    capturedPieceType,
+                    hasFiveInRow,
+                });
             }
         } catch (e) {
             console.error('[RpgShell] move_complete failed:', e);
@@ -363,10 +408,38 @@ const RpgShell = (() => {
             const data = await resp.json();
             if (data.success) {
                 updateState(data.state || {});
-                // 显示胜负
-                const winnerText = msg.winner === state.player_side ? '胜利' : '失败';
-                toast(`本局${winnerText}！`, msg.winner === state.player_side ? 'success' : 'error');
-                // 播放胜负 VN
+                const won = msg.winner === state.player_side;
+                const winnerText = won ? '胜利' : '失败';
+                toast(`本局${winnerText}！`, won ? 'success' : 'error');
+
+                if (window.AchievementSystem) {
+                    let playerPieceCount = 0;
+                    let initialPieceCount = 0;
+                    if (currentBoardElement && currentBoardElement.boardState) {
+                        const bs = currentBoardElement.boardState;
+                        if (bs.pieces) {
+                            playerPieceCount = bs.pieces.filter(p =>
+                                p.is_alive && p.owner === state.player_side
+                            ).length;
+                            initialPieceCount = bs.initial_piece_count || 0;
+                        }
+                    }
+                    AchievementSystem.onGameEnd({
+                        won,
+                        chessType: state.chess_type,
+                        playerPieceCount,
+                        initialPieceCount,
+                        ending: data.ending,
+                    });
+
+                    if (data.state?.was_detected) {
+                        AchievementSystem.onDetected();
+                    }
+                    if (data.ending) {
+                        AchievementSystem.onEnding(data.ending);
+                    }
+                }
+
                 setTimeout(() => {
                     _playOutcomeStory(msg.winner, data.ending);
                 }, 1500);
@@ -459,9 +532,29 @@ const RpgShell = (() => {
 
     // ────────── 设置 ──────────
 
-    function openSettings() {
+    async function openSettings() {
         apiKeyInput.value = '';
         _toggleSettings(true);
+        await _refreshSettingsStatus();
+    }
+
+    async function _refreshSettingsStatus() {
+        if (!settingsStatusEl) return;
+        settingsStatusEl.textContent = '检查中…';
+        try {
+            const resp = await fetch('/api/rpg/apikey');
+            const data = await resp.json();
+            if (data.has_api_key) {
+                settingsStatusEl.textContent = `已配置: ${data.masked || '***'}`;
+                settingsStatusEl.style.color = '#52b788';
+            } else {
+                settingsStatusEl.textContent = '未配置，请输入 API Key';
+                settingsStatusEl.style.color = '#ef4444';
+            }
+        } catch (e) {
+            settingsStatusEl.textContent = '检查失败';
+            settingsStatusEl.style.color = '#ef4444';
+        }
     }
 
     function _toggleSettings(show) {
@@ -471,6 +564,7 @@ const RpgShell = (() => {
     async function _onSaveSettings() {
         const apiKey = apiKeyInput.value.trim();
         if (!apiKey) {
+            toast('请输入 API Key', 'error');
             _toggleSettings(false);
             return;
         }
@@ -484,9 +578,12 @@ const RpgShell = (() => {
             if (data.success) {
                 state.has_api_key = true;
                 toast('API Key 已保存并下发到棋类服务', 'success');
-                _toggleSettings(false);
+                await _refreshSettingsStatus();
             } else {
-                toast('保存失败: ' + (data.message || ''), 'error');
+                // 部分下发失败时，仍然保存了 rpg_state.api_key
+                state.has_api_key = true;
+                toast(data.message || '保存失败', 'error');
+                await _refreshSettingsStatus();
             }
         } catch (e) {
             toast(`保存失败: ${e.message}`, 'error');
@@ -528,3 +625,7 @@ const RpgShell = (() => {
     };
 
 })();
+
+// 暴露到全局作用域，供普通脚本（rpg_extras.js / cheat_panel.js）使用
+// 必须显式挂到 window 上，因为本文件以 type="module" 加载，const 是模块作用域
+window.RpgShell = RpgShell;

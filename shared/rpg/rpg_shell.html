@@ -98,6 +98,12 @@
                     <button id="rpg-btn-tutorial" class="rpg-btn rpg-btn-secondary" style="width:100%;">重温教程</button>
                 </div>
 
+                <div class="rpg-panel-section" style="flex: 1; min-height: 120px; display: flex; flex-direction: column;">
+                    <div class="rpg-panel-title">AI 助手</div>
+                    <div id="rpg-ai-chat" class="rpg-ai-chat">
+                        <div class="rpg-ai-chat-empty">输入指令与 AI 对话，AI 的回复将显示在这里...</div>
+                    </div>
+                </div>
                 <div class="rpg-panel-section rpg-panel-skip">
                     <button id="rpg-btn-skip" class="rpg-btn rpg-btn-ghost" style="display:none;width:100%;">跳过本章</button>
                 </div>
@@ -128,6 +134,7 @@
                 <button class="rpg-title-btn" data-action="start">开始游戏</button>
                 <button class="rpg-title-btn" data-action="tutorial">教程</button>
                 <button class="rpg-title-btn" data-action="manual">游玩文档</button>
+                <button class="rpg-title-btn" data-action="achievements">🏆 成就殿堂</button>
                 <button class="rpg-title-btn" data-action="settings">设置</button>
             </div>
             <div class="rpg-title-footer">© 2026 棋圣 RPG · 像素仙侠 · 参赛作品</div>
@@ -156,6 +163,12 @@
                     <div id="rpg-settings-status" style="font-size:12px;color:var(--pix-text-dim);font-family:var(--pix-font-pixel);">
                         检查中…
                     </div>
+                </div>
+                <div class="rpg-form-group">
+                    <label>成就进度</label>
+                    <button id="rpg-btn-open-achievements" class="rpg-btn rpg-btn-secondary" style="width:100%;">
+                        🏆 查看成就殿堂
+                    </button>
                 </div>
                 <div class="rpg-modal-buttons">
                     <button id="rpg-btn-close-settings" class="rpg-btn rpg-btn-ghost">取消</button>
@@ -227,6 +240,18 @@
                 </div>
 
                 <div class="rpg-doc-section">
+                    <h4>◆ 成就系统</h4>
+                    <p>游戏内置 30 个成就，分为四大类。解锁成就会弹出提示，可在标题屏或设置中查看成就殿堂。</p>
+                    <ul>
+                        <li><b>🏆 棋盘竞技</b> — 正常下棋过程中解锁（首胜、十面埋伏、五子棋等）</li>
+                        <li><b>✨ 棋圣作弊</b> — 使用作弊时解锁（调色板、现实宝石、我即是神等）</li>
+                        <li><b>🤖 AI 互动</b> — 与 AI 对话时解锁（你在干嘛、最佳损友、深思熟虑等）</li>
+                        <li><b>🔒 隐藏成就</b> — 需要特殊条件解锁（纯白无瑕、东窗事发、全结局收集者等）</li>
+                    </ul>
+                    <p style="margin-top:8px;"><b>提示</b>：成就保存在浏览器本地存储中，换浏览器或清除缓存会丢失。可在成就页面重置。</p>
+                </div>
+
+                <div class="rpg-doc-section">
                     <h4>◆ 游戏流程（约 65 分钟，6 场对战）</h4>
                     <ul>
                         <li><b>序章·觉醒</b>（4 min）— 纯 VN，少年与棋圣系统初遇</li>
@@ -275,6 +300,7 @@
     <script src="/shared/rpg/vn_player/preview.js"></script>
     <script src="/shared/rpg/story_layer.js"></script>
     <script src="/shared/rpg/cheat_panel.js"></script>
+    <script src="/shared/rpg/achievements.js"></script>
     <script src="/shared/rpg/rpg_extras.js"></script>
     <script type="module" src="/shared/rpg/rpg_shell.js"></script>
 </body>
