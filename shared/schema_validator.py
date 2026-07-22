@@ -1,9 +1,10 @@
 """
 JSON Schema 校验器 - 封装jsonschema校验功能
+支持可选 schema_dir 参数，允许各子项目传入本地 schema 目录（向后兼容）。
 """
 import json
 import os
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 
 try:
     import jsonschema
@@ -25,29 +26,38 @@ CONFIG_SCHEMA_MAP = {
     "ui_config": "ui_config.schema.json",
 }
 
-_schemas_cache: Dict[str, dict] = {}
+# 缓存键改为 (schema_name, schema_dir) 二元组，避免不同目录冲突
+_schemas_cache: Dict[Tuple[str, str], dict] = {}
 
 
-def _load_schema(schema_name: str) -> dict:
-    """加载并缓存Schema文件"""
-    if schema_name in _schemas_cache:
-        return _schemas_cache[schema_name]
+def _load_schema(schema_name: str, schema_dir: Optional[str] = None) -> dict:
+    """加载并缓存Schema文件
 
-    schema_path = os.path.join(SCHEMA_DIR, schema_name)
+    Args:
+        schema_name: Schema 文件名
+        schema_dir: 可选 schema 目录，默认使用模块级 SCHEMA_DIR
+    """
+    effective_dir = schema_dir if schema_dir else SCHEMA_DIR
+    cache_key = (schema_name, effective_dir)
+    if cache_key in _schemas_cache:
+        return _schemas_cache[cache_key]
+
+    schema_path = os.path.join(effective_dir, schema_name)
     with open(schema_path, "r", encoding="utf-8") as f:
         schema = json.load(f)
 
-    _schemas_cache[schema_name] = schema
+    _schemas_cache[cache_key] = schema
     return schema
 
 
-def validate_config(config_name: str, config_data: dict) -> Tuple[bool, str]:
+def validate_config(config_name: str, config_data: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """
     校验配置文件
 
     Args:
         config_name: 配置名称 (board_state, piece_rules, game_rules, ui_config)
         config_data: 配置数据字典
+        schema_dir: 可选 schema 目录，默认使用 shared/schemas/
 
     Returns:
         (是否通过, 错误信息)
@@ -60,7 +70,7 @@ def validate_config(config_name: str, config_data: dict) -> Tuple[bool, str]:
 
     schema_file = CONFIG_SCHEMA_MAP[config_name]
     try:
-        schema = _load_schema(schema_file)
+        schema = _load_schema(schema_file, schema_dir)
     except Exception as e:
         return False, f"加载Schema文件失败: {e}"
 
@@ -83,9 +93,9 @@ def validate_config(config_name: str, config_data: dict) -> Tuple[bool, str]:
     return False, "; ".join(error_messages)
 
 
-def validate_board_state(board_state: dict) -> Tuple[bool, str]:
+def validate_board_state(board_state: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验棋盘状态"""
-    valid, err = validate_config("board_state", board_state)
+    valid, err = validate_config("board_state", board_state, schema_dir)
     if not valid:
         return False, err
 
@@ -110,26 +120,26 @@ def validate_board_state(board_state: dict) -> Tuple[bool, str]:
     return True, ""
 
 
-def validate_piece_rules(piece_rules: dict) -> Tuple[bool, str]:
+def validate_piece_rules(piece_rules: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验棋子规则（兼容旧接口）"""
-    return validate_config("pieces", piece_rules)
+    return validate_config("pieces", piece_rules, schema_dir)
 
 
-def validate_pieces(pieces: dict) -> Tuple[bool, str]:
+def validate_pieces(pieces: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验棋子配置"""
-    return validate_config("pieces", pieces)
+    return validate_config("pieces", pieces, schema_dir)
 
 
-def validate_rules(rules: dict) -> Tuple[bool, str]:
+def validate_rules(rules: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验游戏规则配置"""
-    return validate_config("rules", rules)
+    return validate_config("rules", rules, schema_dir)
 
 
-def validate_board(board: dict) -> Tuple[bool, str]:
+def validate_board(board: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验棋盘配置"""
-    return validate_config("board", board)
+    return validate_config("board", board, schema_dir)
 
 
-def validate_ui_config(ui_config: dict) -> Tuple[bool, str]:
+def validate_ui_config(ui_config: dict, schema_dir: Optional[str] = None) -> Tuple[bool, str]:
     """校验界面配置"""
-    return validate_config("ui_config", ui_config)
+    return validate_config("ui_config", ui_config, schema_dir)

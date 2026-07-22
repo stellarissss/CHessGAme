@@ -100,6 +100,12 @@ def main():
         if proc:
             processes.append(("围棋服务", proc))
 
+    dongwuqi_path = WORKSPACE_ROOT / "dongwuqi" / "main.py"
+    if dongwuqi_path.exists():
+        proc = start_process("动物棋服务", dongwuqi_path, 8003)
+        if proc:
+            processes.append(("动物棋服务", proc))
+
     print("\n" + "=" * 50)
     print("服务启动完成！")
     print("=" * 50)
@@ -107,6 +113,7 @@ def main():
     print("  象棋: http://localhost:8000/")
     print("  五子棋: http://localhost:8001/")
     print("  围棋: http://localhost:8002/")
+    print("  动物棋: http://localhost:8003/")
     print("\n按 Ctrl+C 停止所有服务")
     print("=" * 50)
 
