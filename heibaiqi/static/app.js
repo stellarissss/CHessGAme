@@ -287,8 +287,8 @@ class HeibaiqiBoard extends HTMLElement {
 
     --board-bg: #1a5d3a;
     --board-line: #000000;
+    --red-piece: #cc0000;
     --black-piece: #1a1a1a;
-    --white-piece: #ffffff;
 
     --neon-cyan: #00f0ff;
     --neon-magenta: #ff00aa;
@@ -774,7 +774,15 @@ class HeibaiqiBoard extends HTMLElement {
     filter: brightness(1.1);
 }
 
-/* 黑白棋无 red 棋子，.piece.red 已删除 */
+.piece.red {
+    background: #fff5e6;
+    color: var(--red-piece);
+    border: 2px solid var(--red-piece);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.4),
+        0 0 8px rgba(204, 0, 0, 0.55),
+        0 0 0 1px rgba(255, 80, 80, 0.6);
+}
 
 .piece.black {
     background: #1a1a1a;
@@ -2601,7 +2609,6 @@ class HeibaiqiBoard extends HTMLElement {
 
     async renderValidPlacements() {
         this.clearValidMoves();
-        if (this.aiThinking) return;
         if (this.boardState?.game_status?.state === 'ended') return;
         const side = this.boardState?.current_turn || 'black';
         try {
@@ -2787,11 +2794,13 @@ class HeibaiqiBoard extends HTMLElement {
             bubbles: true,
             composed: true,
             detail: {
-                flipped: lastMove?.flipped || null,
-                to: lastMove?.to || null,
+                captured: lastMove?.flipped || null,
                 mover: mover,
+                is_check: gameStatus.is_check || false,
                 game_ended: gameStatus.state === 'ended',
-                winner: gameStatus.winner || null
+                winner: gameStatus.winner || null,
+                is_five_in_a_row: false,
+                go_captures: 0
             }
         }));
     }

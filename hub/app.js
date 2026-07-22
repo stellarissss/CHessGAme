@@ -126,9 +126,10 @@ async function updateStatuses(games) {
         dot.className = "status-dot loading";
         try {
             const url = game.url || buildUrl(game.port);
-            // 用 no-cors 探测服务是否已监听，避免 CORS 细节阻塞状态
+            // 用 GET + no-cors 探测服务是否已监听；no-cors 下返回 opaque 响应，
+            // 只要服务可达即视为在线，避免 HEAD 触发 405 噪音。
             await fetch(url, {
-                method: "HEAD",
+                method: "GET",
                 mode: "no-cors",
                 signal: AbortSignal.timeout(3000),
             });
