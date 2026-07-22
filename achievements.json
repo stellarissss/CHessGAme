@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "unlocked": {
+    "winner": {
+      "unlocked_at": "2026-07-22T15:02:11.897306",
+      "game": "xiangqi",
+      "context": "测试解锁"
+    }
+  },
+  "stats": {
+    "total_commands": 0,
+    "total_moves": 0,
+    "total_captures": 0,
+    "games_played": {}
+  }
+}

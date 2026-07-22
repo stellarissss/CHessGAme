@@ -39,16 +39,31 @@
     }
   },
   "turn_rules": {
-    "turn_order": ["black", "white"],
+    "turn_order": [
+      "black",
+      "white"
+    ],
     "first_player": "black"
   },
   "ai_difficulty": {
     "current": "normal",
     "levels": {
-      "easy": {"depth": 1, "description": "新手"},
-      "normal": {"depth": 3, "description": "标准"},
-      "hard": {"depth": 5, "description": "挑战"},
-      "master": {"depth": 7, "description": "大师"}
+      "easy": {
+        "depth": 1,
+        "description": "新手"
+      },
+      "normal": {
+        "depth": 3,
+        "description": "标准"
+      },
+      "hard": {
+        "depth": 5,
+        "description": "挑战"
+      },
+      "master": {
+        "depth": 7,
+        "description": "大师"
+      }
     },
     "personality": {
       "type": "normal",

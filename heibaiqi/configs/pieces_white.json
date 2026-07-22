@@ -12,7 +12,10 @@
       "moves": [
         {
           "kind": "flip",
-          "dir": [1, 0],
+          "dir": [
+            1,
+            0
+          ],
           "max": 6,
           "land": "enemy",
           "sym": "rotate4_mirror"

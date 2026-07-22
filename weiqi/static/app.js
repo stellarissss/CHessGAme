@@ -96,6 +96,9 @@ export class GoBoard extends HTMLElement {
                         <option value="hard">困难</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <button id="btn-achievements" class="btn" style="width:100%;padding:12px;font-size:14px;">🏆 查看成就</button>
+                </div>
                 <div class="modal-buttons">
                     <button id="close-settings" class="btn">取消</button>
                     <button id="save-settings" class="btn-primary">保存</button>
@@ -2020,6 +2023,10 @@ export class GoBoard extends HTMLElement {
         this.configs = await resp.json();
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
+
+        if (window.AchievementChecker) {
+            AchievementChecker.checkAfterConfigLoad(this.configs, this.boardState, 'weiqi');
+        }
     }
 
     _getBoardLayoutConfig() {
@@ -2307,6 +2314,10 @@ export class GoBoard extends HTMLElement {
 
                 this._dispatchMoveEvent();
 
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterMove(this.boardState, this.configs, 'weiqi');
+                }
+
                 if (data.game_ended) {
                     this.showGameOver(data.winner, data.win_condition);
                     this._dispatchGameEndEvent();
@@ -2366,6 +2377,10 @@ export class GoBoard extends HTMLElement {
                     const [ax, ay] = data.ai_move.to;
                     const aiSide = this.boardState?.current_turn === 'black' ? '白方' : '黑方';
                     this.addMessage(`${aiSide}AI落子(${ax},${ay})`, 'info');
+                }
+
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterMove(this.boardState, this.configs, 'weiqi');
                 }
 
                 this._dispatchMoveEvent();
@@ -2844,6 +2859,10 @@ export class GoBoard extends HTMLElement {
                 } else if (data.message) {
                     this.addMessage(data.message, 'info');
                 }
+
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterCommand(data, message, this.configs, this.boardState, 'weiqi');
+                }
             } else {
                 if (data.type === 'rejected') {
                     this.addMessage(`❌ ${data.message}`, 'error');
@@ -3140,6 +3159,13 @@ export class GoBoard extends HTMLElement {
         this.shadowRoot.getElementById('close-settings').addEventListener('click', () => {
             this.shadowRoot.getElementById('settings-modal').classList.remove('show');
         });
+
+        const btnAchievements = this.shadowRoot.getElementById('btn-achievements');
+        if (btnAchievements) {
+            btnAchievements.addEventListener('click', () => {
+                window.open('http://localhost:8080/achievements', '_blank');
+            });
+        }
 
         this.shadowRoot.getElementById('save-settings').addEventListener('click', () => this.saveSettings());
 

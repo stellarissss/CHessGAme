@@ -117,6 +117,9 @@ class XiangqiBoard extends HTMLElement {
                         <option value="hard">困难</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <button id="btn-achievements" class="btn" style="width:100%;padding:12px;font-size:14px;">🏆 查看成就</button>
+                </div>
                 <div class="modal-buttons">
                     <button id="close-settings" class="btn">取消</button>
                     <button id="save-settings" class="btn-primary">保存</button>
@@ -2307,6 +2310,9 @@ class XiangqiBoard extends HTMLElement {
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
         console.log('[DEBUG] loadConfigs - board.appearance:', this.configs.board?.appearance);
+        if (window.AchievementChecker) {
+            AchievementChecker.checkAfterConfigLoad(this.configs, this.boardState, 'xiangqi');
+        }
     }
     _getBoardLayoutConfig() {
         const defaults = {
@@ -2815,6 +2821,9 @@ class XiangqiBoard extends HTMLElement {
                 this.updateGameObjectives();
                 this.updateMechanisms();
                 this.loadTokenStats();
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterMove(this.boardState, this.configs, 'xiangqi');
+                }
 
                 this._dispatchMoveEvent();
 
@@ -2865,6 +2874,9 @@ class XiangqiBoard extends HTMLElement {
                 this.updateActiveRules();
                 this.updateGameObjectives();
                 this.updateMechanisms();
+                    if (window.AchievementChecker) {
+                        AchievementChecker.checkAfterMove(this.boardState, this.configs, 'xiangqi');
+                    }
 
                 this.highlightAIMovedPiece(data.ai_move.piece_id);
 
@@ -3035,6 +3047,9 @@ class XiangqiBoard extends HTMLElement {
                 } else if (data.type === 'fun') {
                     this.addMessage(data.message, 'fun');
                     this.loadTokenStats();
+                }
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterCommand(data, command, this.configs, this.boardState, 'xiangqi');
                 }
             } else {
                 if (data.type === 'rejected') {
@@ -3636,6 +3651,13 @@ class XiangqiBoard extends HTMLElement {
         this.shadowRoot.getElementById('close-settings').addEventListener('click', () => {
             this.hideSettings();
         });
+
+        const btnAchievements = this.shadowRoot.getElementById('btn-achievements');
+        if (btnAchievements) {
+            btnAchievements.addEventListener('click', () => {
+                window.open('http://localhost:8080/achievements', '_blank');
+            });
+        }
 
         this.shadowRoot.getElementById('btn-undo').addEventListener('click', async () => {
             const resp = await fetch(`${this.apiBase}/api/undo`, { method: 'POST' });

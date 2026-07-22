@@ -125,6 +125,9 @@ class CheckersBoard extends HTMLElement {
                         <option value="hard">困难</option>
                     </select>
                 </div>
+                <div class="form-group">
+                    <button id="btn-achievements" class="btn" style="width:100%;padding:12px;font-size:14px;">🏆 查看成就</button>
+                </div>
                 <div class="modal-buttons">
                     <button id="close-settings" class="btn">取消</button>
                     <button id="save-settings" class="btn-primary">保存</button>
@@ -2290,6 +2293,9 @@ class CheckersBoard extends HTMLElement {
         this.configs = await resp.json();
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
+        if (window.AchievementChecker) {
+            AchievementChecker.checkAfterConfigLoad(this.configs, this.boardState, 'tiaoqi');
+        }
     }
 
     // 计算六角星棋盘所有位置的像素坐标
@@ -2686,6 +2692,10 @@ class CheckersBoard extends HTMLElement {
 
                 this._dispatchMoveEvent();
 
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterMove(this.boardState, this.configs, 'tiaoqi');
+                }
+
                 if (this.boardState.game_status.state === 'ended') {
                     this.showGameOver();
                     this._dispatchGameEndEvent();
@@ -2747,6 +2757,10 @@ class CheckersBoard extends HTMLElement {
                 }
 
                 this._dispatchMoveEvent();
+
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterMove(this.boardState, this.configs, 'tiaoqi');
+                }
 
                 if (this.boardState.game_status.state === 'ended') {
                     this.showGameOver();
@@ -2904,6 +2918,10 @@ class CheckersBoard extends HTMLElement {
                 } else if (data.type === 'fun') {
                     this.addMessage(data.message, 'fun');
                     this.loadTokenStats();
+                }
+
+                if (window.AchievementChecker) {
+                    AchievementChecker.checkAfterCommand(data, command, this.configs, this.boardState, 'tiaoqi');
                 }
             } else {
                 if (data.type === 'rejected') {
@@ -3505,6 +3523,13 @@ class CheckersBoard extends HTMLElement {
         this.shadowRoot.getElementById('close-settings').addEventListener('click', () => {
             this.hideSettings();
         });
+
+        const btnAchievements = this.shadowRoot.getElementById('btn-achievements');
+        if (btnAchievements) {
+            btnAchievements.addEventListener('click', () => {
+                window.open('http://localhost:8080/achievements', '_blank');
+            });
+        }
 
         this.shadowRoot.getElementById('btn-undo').addEventListener('click', async () => {
             const resp = await fetch(`${this.apiBase}/api/undo`, { method: 'POST' });
