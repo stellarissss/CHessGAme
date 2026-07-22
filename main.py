@@ -100,6 +100,12 @@ def main():
         if proc:
             processes.append(("围棋服务", proc))
 
+    heibaiqi_path = WORKSPACE_ROOT / "heibaiqi" / "main.py"
+    if heibaiqi_path.exists():
+        proc = start_process("黑白棋服务", heibaiqi_path, 8003)
+        if proc:
+            processes.append(("黑白棋服务", proc))
+
     print("\n" + "=" * 50)
     print("服务启动完成！")
     print("=" * 50)
@@ -107,6 +113,7 @@ def main():
     print("  象棋: http://localhost:8000/")
     print("  五子棋: http://localhost:8001/")
     print("  围棋: http://localhost:8002/")
+    print("  黑白棋: http://localhost:8003/")
     print("\n按 Ctrl+C 停止所有服务")
     print("=" * 50)
 

@@ -1,0 +1,39 @@
+{
+  "_metadata": {
+    "version": "1.0",
+    "game": "heibaiqi",
+    "description": "8×8 黑白棋标准棋盘"
+  },
+  "geometry": {
+    "width": 8,
+    "height": 8,
+    "river_line": null,
+    "palace": null,
+    "regions": {
+      "corners": [[0, 0], [7, 0], [0, 7], [7, 7]],
+      "edges": {
+        "top": [0, 0, 7, 0],
+        "bottom": [0, 7, 7, 7],
+        "left": [0, 0, 0, 7],
+        "right": [7, 0, 7, 7]
+      },
+      "top_half": [0, 0, 7, 3],
+      "bottom_half": [0, 4, 7, 7],
+      "center": [[3, 3], [4, 3], [3, 4], [4, 4]]
+    }
+  },
+  "appearance": {
+    "background_color": "#1a5d3a",
+    "line_color": "#000000",
+    "grid": {
+      "show": true,
+      "style": "solid",
+      "width": 1
+    },
+    "layout": {
+      "type": "grid",
+      "cell_size": "auto"
+    },
+    "decorations": []
+  }
+}

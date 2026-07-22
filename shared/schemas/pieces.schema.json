@@ -7,7 +7,7 @@
       "type": "object"
     },
     "side": {
-      "enum": ["red", "black"]
+      "enum": ["red", "black", "white"]
     },
     "pieces": {
       "type": "object",
@@ -21,7 +21,7 @@
             "items": {
               "type": "object",
               "properties": {
-                "kind": { "enum": ["jump", "ray"] },
+                "kind": { "enum": ["jump", "ray", "flip"] },
                 "to": {
                   "anyOf": [
                     { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
@@ -142,7 +142,7 @@
             "items": {
               "type": "object",
               "properties": {
-                "kind": { "enum": ["jump", "ray"] },
+                "kind": { "enum": ["jump", "ray", "flip"] },
                 "to": {
                   "anyOf": [
                     { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },

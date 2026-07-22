@@ -21,6 +21,7 @@ CONFIG_SCHEMA_MAP = {
     "pieces": "pieces.schema.json",
     "pieces_red": "pieces.schema.json",
     "pieces_black": "pieces.schema.json",
+    "pieces_white": "pieces.schema.json",
     "rules": "rules.schema.json",
     "ui_config": "ui_config.schema.json",
 }
