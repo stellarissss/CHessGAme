@@ -29,6 +29,30 @@
       ],
       "is_alive": true,
       "custom_properties": {}
+    },
+    {
+      "id": "black_stone_8_6_2",
+      "type": "stone",
+      "name": "●",
+      "side": "black",
+      "position": [
+        8,
+        6
+      ],
+      "is_alive": true,
+      "custom_properties": {}
+    },
+    {
+      "id": "white_stone_6_8_3",
+      "type": "stone",
+      "name": "○",
+      "side": "white",
+      "position": [
+        6,
+        8
+      ],
+      "is_alive": true,
+      "custom_properties": {}
     }
   ],
   "current_turn": "black",
@@ -48,6 +72,24 @@
       "to": [
         6,
         6
+      ],
+      "captured": null
+    },
+    {
+      "piece_id": "black_stone_8_6_2",
+      "from": null,
+      "to": [
+        8,
+        6
+      ],
+      "captured": null
+    },
+    {
+      "piece_id": "white_stone_6_8_3",
+      "from": null,
+      "to": [
+        6,
+        8
       ],
       "captured": null
     }
