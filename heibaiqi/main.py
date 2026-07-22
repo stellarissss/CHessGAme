@@ -733,8 +733,9 @@ async def rpg_reset_battle():
 if __name__ == "__main__":
     import uvicorn
 
+    port = int(os.environ.get("GAME_PORT", 8005))
     print("=" * 50)
     print("  无限制黑白棋 - 启动中...")
-    print(f"  访问地址: http://localhost:8003")
+    print(f"  访问地址: http://localhost:{port}")
     print("=" * 50)
-    uvicorn.run(app, host="0.0.0.0", port=8003)
+    uvicorn.run(app, host="0.0.0.0", port=port)
