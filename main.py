@@ -126,7 +126,6 @@ ACHIEVEMENT_DEFINITIONS = [
     {"id": "pokedex", "name": "全图鉴", "desc": "解锁所有成就", "icon": "📖", "category": "meta", "rarity": "legendary", "games": ["all"]},
 ]
 
-ALL_GAME_IDS = [g["id"] for g in []]  # filled below
 ALL_GAME_IDS = ["xiangqi", "wuziqi", "weiqi", "dongwuqi", "tiaoqi", "heibaiqi"]
 META_ACHIEVEMENT_IDS = {"samsara", "collector", "completionist", "pokedex"}
 

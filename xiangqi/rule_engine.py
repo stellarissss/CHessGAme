@@ -30,6 +30,9 @@ class RuleEngine:
                     if cp_type:
                         self._king_types.add(cp_type)
 
+        # 棋盘索引（由AI搜索时设置，用于O(1)查找）
+        self._ai_board_index: Optional[dict] = None
+
     def get_valid_moves(
         self, piece: dict, board_state: dict
     ) -> List[List[int]]:
@@ -425,7 +428,11 @@ class RuleEngine:
     def _get_piece_at(
         self, pos: List[int], board_state: dict
     ) -> Optional[dict]:
-        """获取指定位置的棋子"""
+        """获取指定位置的棋子（使用索引加速）"""
+        # 优先使用棋盘索引（如果已由AI设置）
+        if self._ai_board_index is not None:
+            return self._ai_board_index.get((pos[0], pos[1]))
+        # 回退到线性扫描
         for p in board_state.get("pieces", []):
             if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
                 return p

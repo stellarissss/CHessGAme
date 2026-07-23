@@ -13,7 +13,7 @@ class ProgressionSystem:
             if no_cheat:
                 rewards["skill_points"] += 2
                 rewards["bonus_reasons"].append("无AI通关奖励")
-            if not self.state.get("overdraft_count", 0) > 0:
+            if self.state.get("overdraft_count", 0) == 0:
                 rewards["skill_points"] += 1
                 rewards["bonus_reasons"].append("未透支奖励")
             if boss_defeated and "boss_" + self.state.get("current_realm") not in self.state.get("bosses_defeated", []):

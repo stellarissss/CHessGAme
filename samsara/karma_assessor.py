@@ -101,7 +101,7 @@ class KarmaAssessor:
                     "https://api.deepseek.com/v1/chat/completions",
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     json={
-                        "model": "deepseek-v4-flash",
+                        "model": "deepseek-chat",
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.3,
                         "max_tokens": 10,

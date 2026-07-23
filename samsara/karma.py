@@ -111,4 +111,4 @@ class KarmaSystem:
         }
 
     def can_cheat(self) -> bool:
-        return self.state.get("karma", 0) >= 0
+        return self.state.get("karma", 0) > 0

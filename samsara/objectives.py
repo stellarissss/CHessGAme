@@ -104,14 +104,18 @@ class ObjectiveSystem:
 
     def _check_checkmate(self, objective, game_state):
         game_status = game_state.get("game_status", {})
-        if game_status.get("state") == "ended" and game_status.get("winner") == "red":
+        # 不再硬编码 winner == "red"，而是检查玩家方是否获胜
+        player_side = game_state.get("player_side", "red")
+        if game_status.get("state") == "ended" and game_status.get("winner") == player_side:
             return {"completed": True, "progress": 100, "message": "已将死对方"}
         return {"completed": False, "progress": 0, "message": "继续将死对方"}
 
     def _check_capture_count(self, objective, game_state):
         target = objective.get("target", 1)
-        captured = len([p for p in game_state.get("pieces", []) if not p.get("is_alive", True) and p.get("side") == "black"])
-        progress = min(100, int(captured / target * 100))
+        player_side = game_state.get("player_side", "red")
+        enemy_side = "black" if player_side == "red" else "red"
+        captured = len([p for p in game_state.get("pieces", []) if not p.get("is_alive", True) and p.get("side") == enemy_side])
+        progress = min(100, int(captured / target * 100)) if target > 0 else 0
         completed = captured >= target
         return {
             "completed": completed,
@@ -122,12 +126,13 @@ class ObjectiveSystem:
     def _check_turn_limit(self, objective, game_state):
         max_turns = objective.get("max_turns", 20)
         current_turn = self.state.get("current_turn", 0)
+        player_side = game_state.get("player_side", "red")
         game_status = game_state.get("game_status", {})
-        if game_status.get("state") == "ended" and game_status.get("winner") == "red" and current_turn <= max_turns:
+        if game_status.get("state") == "ended" and game_status.get("winner") == player_side and current_turn <= max_turns:
             return {"completed": True, "progress": 100, "message": "在限定回合内获胜"}
         if current_turn >= max_turns:
             return {"completed": False, "progress": 0, "message": "回合已用完"}
-        progress = min(100, int((max_turns - current_turn) / max_turns * 100))
+        progress = min(100, int((max_turns - current_turn) / max_turns * 100)) if max_turns > 0 else 0
         return {"completed": False, "progress": progress, "message": f"还剩{max_turns - current_turn}回合"}
 
     def _check_evacuation(self, objective, game_state):
@@ -150,11 +155,12 @@ class ObjectiveSystem:
 
     def _check_board_coverage(self, objective, game_state):
         target_pct = objective.get("target_percentage", 60)
-        board_width = 9
-        board_height = 10
+        player_side = game_state.get("player_side", "red")
+        board_width = game_state.get("board_width", 9)
+        board_height = game_state.get("board_height", 10)
         total_cells = board_width * board_height
-        occupied = len([p for p in game_state.get("pieces", []) if p.get("is_alive", True) and p.get("side") == "red"])
-        coverage = min(100, int(occupied / total_cells * 100))
+        occupied = len([p for p in game_state.get("pieces", []) if p.get("is_alive", True) and p.get("side") == player_side])
+        coverage = min(100, int(occupied / total_cells * 100)) if total_cells > 0 else 0
         return {
             "completed": coverage >= target_pct,
             "progress": coverage,
@@ -163,8 +169,9 @@ class ObjectiveSystem:
 
     def _check_color_coverage(self, objective, game_state):
         target_pct = objective.get("target_percentage", 75)
-        board_width = 9
-        board_height = 10
+        player_side = game_state.get("player_side", "red")
+        board_width = game_state.get("board_width", 8)
+        board_height = game_state.get("board_height", 8)
         dark_cells = 0
         lit_cells = 0
         for y in range(board_height):
@@ -172,7 +179,7 @@ class ObjectiveSystem:
                 if (x + y) % 2 == 1:
                     dark_cells += 1
                     for p in game_state.get("pieces", []):
-                        if p.get("is_alive", True) and p.get("position") == [x, y]:
+                        if p.get("is_alive", True) and p.get("side") == player_side and p.get("position") == [x, y]:
                             lit_cells += 1
                             break
         coverage = min(100, int(lit_cells / dark_cells * 100)) if dark_cells > 0 else 0
@@ -186,12 +193,13 @@ class ObjectiveSystem:
         min_pieces = objective.get("min_pieces", 3)
         max_turns = objective.get("max_turns", 20)
         current_turn = self.state.get("current_turn", 0)
-        alive_count = len([p for p in game_state.get("pieces", []) if p.get("is_alive", True) and p.get("side") == "red"])
+        player_side = game_state.get("player_side", "red")
+        alive_count = len([p for p in game_state.get("pieces", []) if p.get("is_alive", True) and p.get("side") == player_side])
         if current_turn >= max_turns and alive_count >= min_pieces:
             return {"completed": True, "progress": 100, "message": "生存成功"}
         if alive_count < min_pieces:
             return {"completed": False, "progress": 0, "message": "棋子不足"}
-        progress = min(100, int(current_turn / max_turns * 100))
+        progress = min(100, int(current_turn / max_turns * 100)) if max_turns > 0 else 0
         return {"completed": False, "progress": progress, "message": f"还剩{max_turns - current_turn}回合"}
 
     def _check_assassination(self, objective, game_state):

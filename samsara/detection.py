@@ -26,8 +26,9 @@ class DetectionSystem:
         if overdraft_amount <= 0:
             return {"detected": False, "delta": 0.0, "current": self.state.get("detection", 0)}
         modifiers = self.state.get_skill_modifiers()
-        if modifiers["first_overdraft_skip"]:
-            modifiers["first_overdraft_skip"] = False
+        # 首次透支免判（一次性技能，通过 state 标记追踪）
+        if modifiers["first_overdraft_skip"] and not self.state.get("first_overdraft_skip_used", False):
+            self.state.set("first_overdraft_skip_used", True)
             return {"detected": False, "delta": 0.0, "current": self.state.get("detection", 0), "skip": True}
         delta = self.calculate_delta(overdraft_amount)
         if delta <= 0:
@@ -37,13 +38,15 @@ class DetectionSystem:
         current = self.state.get("detection", 0)
         detected = self.check(current)
         if detected:
-            if modifiers["golden_escape"]:
-                modifiers["golden_escape"] = False
-                self.state.set_detection(current * 0.5)
+            # 金蝉脱壳（一次性技能，通过 state 标记追踪）
+            if modifiers["golden_escape"] and not self.state.get("golden_escape_used", False):
+                self.state.set("golden_escape_used", True)
+                new_detection = current * 0.5
+                self.state.set_detection(new_detection)
                 return {
                     "detected": False,
                     "delta": delta,
-                    "current": current * 0.5,
+                    "current": new_detection,
                     "escaped": True,
                 }
         return {

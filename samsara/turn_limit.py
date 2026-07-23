@@ -24,4 +24,6 @@ class TurnLimitSystem:
     def get_progress(self) -> float:
         limit = self.state.get("turn_limit", 20)
         current = self.state.get("current_turn", 0)
+        if limit <= 0:
+            return 100
         return min(100, int(current / limit * 100))

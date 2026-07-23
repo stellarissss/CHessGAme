@@ -120,7 +120,10 @@ async def get_skill_tree():
 async def unlock_skill(request: Request):
     body = await request.json()
     skill_id = body.get("skill_id", "")
-    tier = body.get("tier", 1)
+    try:
+        tier = int(body.get("tier", 1))
+    except (TypeError, ValueError):
+        tier = 1
     success = skills.unlock_skill(skill_id, tier)
     return {"success": success, "skill_points": state.get("skill_points", 0), "state": state.get_full_state()}
 

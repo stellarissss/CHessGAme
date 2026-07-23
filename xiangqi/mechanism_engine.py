@@ -175,6 +175,9 @@ class MechanismEngine:
             return side == "red"
         
         for item in pc_list:
+            # 检查 remaining（如果存在且为0则视为已过期）
+            if item.get("remaining", -1) == 0:
+                continue
             controlled_side = item.get("side", "red")
             if controlled_side == "both":
                 return True
@@ -198,45 +201,43 @@ class MechanismEngine:
         mech = self._get_mechanisms(board_state)
         summary = []
 
+        side_labels = {"red": "红方", "black": "黑方", "both": "双方"}
+
         for item in mech["skip_turns"]:
-            side_label = "红方" if item["side"] == "red" else "黑方"
+            side_label = side_labels.get(item["side"], "未知")
             reason = item.get("reason", "冻结")
             remaining = item.get("remaining", 0)
             remaining_str = "无限" if remaining < 0 else f"剩{remaining}回合"
             summary.append(f"⏸️ {side_label}{reason}（{remaining_str}）")
 
         for item in mech["ai_control"]:
-            side_label = "红方" if item["side"] == "red" else "黑方"
+            side_label = side_labels.get(item["side"], "未知")
             reason = item.get("reason", "AI接管")
             remaining = item.get("remaining", 0)
             remaining_str = "无限" if remaining < 0 else f"剩{remaining}回合"
             summary.append(f"🤖 {side_label}{reason}（{remaining_str}）")
 
         for item in mech["player_control"]:
-            side_label = {
-                "red": "红方",
-                "black": "黑方",
-                "both": "双方"
-            }.get(item.get("side", "red"), "未知")
+            side_label = side_labels.get(item.get("side", "red"), "未知")
             reason = item.get("reason", "玩家控制")
             summary.append(f"🎮 {side_label}{reason}")
 
         for item in mech["random_moves"]:
-            side_label = "红方" if item["side"] == "red" else "黑方"
+            side_label = side_labels.get(item["side"], "未知")
             reason = item.get("reason", "随机走棋")
             remaining = item.get("remaining", 0)
             remaining_str = "无限" if remaining < 0 else f"剩{remaining}步"
             summary.append(f"🎲 {side_label}{reason}（{remaining_str}）")
 
         for item in mech["extra_turns"]:
-            side_label = "红方" if item["side"] == "red" else "黑方"
+            side_label = side_labels.get(item["side"], "未知")
             reason = item.get("reason", "额外回合")
             remaining = item.get("remaining", 0)
             remaining_str = "无限" if remaining < 0 else f"剩{remaining}回合"
             summary.append(f"⚡ {side_label}{reason}（{remaining_str}）")
 
         for item in mech["move_limits"]:
-            side_label = "红方" if item["side"] == "red" else "黑方"
+            side_label = side_labels.get(item["side"], "未知")
             summary.append(f"🚶 {side_label}每回合{item['limit']}步")
 
         return summary

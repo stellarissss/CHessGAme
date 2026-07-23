@@ -2896,7 +2896,7 @@ class HeibaiqiBoard extends HTMLElement {
                 this._dispatchMoveEvent();
 
                 if (this.boardState.game_status.state === 'ended') {
-                    if (this.boardState.game_status.winner === 'black') {
+                    if (this.boardState.game_status.winner === this.playerSide) {
                         await this.reportKarmaEvent('win');
                     }
                     this.showGameOver();
@@ -3188,13 +3188,13 @@ class HeibaiqiBoard extends HTMLElement {
         this.shadowRoot.getElementById('command-input').disabled = false;
 
         if (this.thinkingPollInterval) {
-            clearInterval(this.thinkingPollInterval);
+            clearTimeout(this.thinkingPollInterval);
             this.thinkingPollInterval = null;
         }
     }
 
     async pollThinkingStatus() {
-        this.thinkingPollInterval = setInterval(async () => {
+        const poll = async () => {
             try {
                 const resp = await fetch(`${this.apiBase}/api/thinking_status`);
                 const data = await resp.json();
@@ -3210,11 +3210,15 @@ class HeibaiqiBoard extends HTMLElement {
                         textEl.textContent = 'CodeAI 正在生成代码...';
                         stageEl.textContent = '阶段: 代码生成';
                     }
+                    // 继续轮询
+                    this.thinkingPollInterval = setTimeout(poll, 500);
                 }
             } catch (e) {
                 console.error('轮询思考状态失败:', e);
+                this.thinkingPollInterval = setTimeout(poll, 500);
             }
-        }, 500);
+        };
+        this.thinkingPollInterval = setTimeout(poll, 500);
     }
 
     async showLogs() {
@@ -3414,8 +3418,8 @@ class HeibaiqiBoard extends HTMLElement {
         const state = this.boardState?.game_status;
 
         if (state?.state === 'ended') {
-            const winner = state.winner === 'black' ? '黑方' : '白方';
-            indicator.textContent = `${winner}获胜!`;
+            const winnerLabel = state.winner === 'black' ? '黑方' : (state.winner === 'white' ? '白方' : (state.winner || '未知'));
+            indicator.textContent = `${winnerLabel}获胜!`;
             indicator.style.background = 'var(--success)';
         } else {
             indicator.textContent = turn === 'black' ? '黑方回合' : '白方回合';
@@ -3630,7 +3634,7 @@ class HeibaiqiBoard extends HTMLElement {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
-        const winner = state.winner === 'black' ? '黑方' : '白方';
+        const winner = state.winner === 'black' ? '黑方' : (state.winner === 'white' ? '白方' : (state.winner || '未知'));
         const container = this.shadowRoot.getElementById('board-container');
 
         const existing = container.querySelector('.game-over-overlay');
@@ -4162,7 +4166,7 @@ class HeibaiqiBoard extends HTMLElement {
             this._gameOverTimer = null;
         }
         if (this.thinkingPollInterval) {
-            clearInterval(this.thinkingPollInterval);
+            clearTimeout(this.thinkingPollInterval);
             this.thinkingPollInterval = null;
         }
         if (this._keydownHandler) {
