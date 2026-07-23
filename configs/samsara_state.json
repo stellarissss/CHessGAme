@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "current_realm": "hell",
+  "current_level": 0,
+  "skill_points": 1,
+  "karma": 0,
+  "karma_max": 150,
+  "karma_single_max": 80,
+  "detection": 0.0,
+  "skills": {
+    "karma_capacity_t1_t1": {
+      "unlocked_at": "2026-07-23T08:04:33.811901",
+      "tier": 1
+    }
+  },
+  "current_turn": 0,
+  "turn_limit": 20,
+  "cheat_count": 0,
+  "overdraft_count": 0,
+  "no_cheat_this_level": true,
+  "total_levels_completed": 1,
+  "bosses_defeated": [],
+  "realm_progress": {
+    "hell": {
+      "completed": false,
+      "levels_passed": 1
+    },
+    "hungry": {
+      "completed": false,
+      "levels_passed": 0
+    },
+    "animal": {
+      "completed": false,
+      "levels_passed": 0
+    },
+    "human": {
+      "completed": false,
+      "levels_passed": 0
+    },
+    "asura": {
+      "completed": false,
+      "levels_passed": 0
+    },
+    "heaven": {
+      "completed": false,
+      "levels_passed": 0
+    }
+  },
+  "last_modified": "2026-07-23T08:04:33.811908"
+}

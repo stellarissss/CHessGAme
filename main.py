@@ -196,6 +196,15 @@ GAMES = [
      "description": "夹吃翻转的 Othello，大模型赋予地狱般的自定义规则。", "port": 8005},
 ]
 
+REALMS = {
+    "hell": {"name": "地狱道", "icon": "☯", "game": "heibaiqi", "description": "黑白棋 · 阴阳翻转"},
+    "hungry": {"name": "饿鬼道", "icon": "👹", "game": "tiaoqi", "description": "跳棋 · 六角星途"},
+    "animal": {"name": "畜生道", "icon": "🐅", "game": "dongwuqi", "description": "动物棋 · 斗兽丛林"},
+    "human": {"name": "人道", "icon": "🧠", "game": "xiangqi", "description": "象棋 · 楚河汉界"},
+    "asura": {"name": "阿修罗道", "icon": "⚔️", "game": "weiqi", "description": "围棋 · 混沌气局"},
+    "heaven": {"name": "天道", "icon": "☸️", "game": "wuziqi", "description": "五子棋 · 五连登仙"},
+}
+
 
 def print_banner():
     print(_c("cyan", "=" * 58))
@@ -308,6 +317,15 @@ def build_hub_app():
     @app.get("/api/health")
     async def health():
         return {"status": "ok", "hub_port": HUB_PORT}
+
+    # ── 六道轮回 API ──
+    sys.path.insert(0, str(WORKSPACE_ROOT))
+    from samsara.api import app as samsara_app
+    app.mount("/samsara", samsara_app)
+
+    @app.get("/api/samsara/realms")
+    async def get_realms_list():
+        return REALMS
 
     # ── 成就 API ──
 

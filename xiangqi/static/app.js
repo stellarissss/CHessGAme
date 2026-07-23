@@ -147,6 +147,46 @@ class XiangqiBoard extends HTMLElement {
             </div>
         </header>
 
+        <div id="samsara-bar" class="samsara-bar">
+            <div class="samsara-item karma-item">
+                <span class="samsara-icon">☯</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">业力</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill karma-fill" id="karma-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="karma-value">0/150</span>
+                </div>
+            </div>
+            <div class="samsara-item detection-item">
+                <span class="samsara-icon">👁️</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">识破</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill detection-fill" id="detection-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="detection-value">0%</span>
+                </div>
+            </div>
+            <div class="samsara-item turn-item">
+                <span class="samsara-icon">⏱️</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">回合</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill turn-fill" id="turn-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="turn-value">0/20</span>
+                </div>
+            </div>
+            <div class="samsara-item objective-item">
+                <span class="samsara-icon">🎯</span>
+                <div class="samsara-info">
+                    <span class="samsara-label" id="objective-label">目标</span>
+                    <span class="samsara-value objective-text" id="objective-text">将死对方</span>
+                </div>
+            </div>
+        </div>
+
         <main class="main">
             <div class="board-section">
                 <div id="board-container"></div>
@@ -414,6 +454,81 @@ class XiangqiBoard extends HTMLElement {
 
 #turn-indicator:hover::before {
     left: 100%;
+}
+
+.samsara-bar {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    padding: 12px 32px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-bottom: 2px solid #e94560;
+    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+}
+
+.samsara-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.samsara-icon {
+    font-size: 1.2rem;
+}
+
+.samsara-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.samsara-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.samsara-bar-container {
+    width: 80px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.samsara-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.karma-fill {
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.detection-fill {
+    background: linear-gradient(90deg, #fbbf24, #f97316, #ef4444);
+}
+
+.turn-fill {
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+}
+
+.samsara-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.objective-text {
+    font-family: inherit;
+    font-weight: 500;
 }
 
 .btn-icon {
@@ -2286,6 +2401,7 @@ class XiangqiBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
+        this.loadSamsaraState();
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
     }
@@ -2301,6 +2417,101 @@ class XiangqiBoard extends HTMLElement {
             this.shadowRoot.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
         } catch (e) {
             console.error('Failed to load token stats:', e);
+        }
+    }
+
+    async loadSamsaraState() {
+        try {
+            const resp = await fetch('/samsara/api/state');
+            const data = await resp.json();
+            this.samsaraState = data;
+            this.updateSamsaraUI();
+        } catch (e) {
+            console.error('Failed to load samsara state:', e);
+            this.samsaraState = {
+                karma: 150,
+                karma_max: 150,
+                detection: 0,
+                current_turn: 0,
+                turn_limit: 20,
+                objective: { type: 'checkmate', description: '将死对方' }
+            };
+            this.updateSamsaraUI();
+        }
+    }
+
+    updateSamsaraUI() {
+        const state = this.samsaraState || {};
+        const karma = state.karma || 0;
+        const maxKarma = state.karma_max || 150;
+        const detection = state.detection || 0;
+        const currentTurn = state.current_turn || 0;
+        const maxTurns = state.turn_limit || 20;
+        const objective = state.objective || { description: '将死对方' };
+
+        const karmaFill = this.shadowRoot.getElementById('karma-fill');
+        const karmaValue = this.shadowRoot.getElementById('karma-value');
+        const detectionFill = this.shadowRoot.getElementById('detection-fill');
+        const detectionValue = this.shadowRoot.getElementById('detection-value');
+        const turnFill = this.shadowRoot.getElementById('turn-fill');
+        const turnValue = this.shadowRoot.getElementById('turn-value');
+        const objectiveText = this.shadowRoot.getElementById('objective-text');
+
+        if (karmaFill) karmaFill.style.width = `${(karma / maxKarma) * 100}%`;
+        if (karmaValue) karmaValue.textContent = `${karma}/${maxKarma}`;
+        if (detectionFill) detectionFill.style.width = `${detection}%`;
+        if (detectionValue) detectionValue.textContent = `${Math.round(detection)}%`;
+        if (turnFill) turnFill.style.width = `${(currentTurn / maxTurns) * 100}%`;
+        if (turnValue) turnValue.textContent = `${currentTurn}/${maxTurns}`;
+        if (objectiveText) objectiveText.textContent = objective.description || '将死对方';
+    }
+
+    async consumeKarma(amount) {
+        try {
+            const resp = await fetch('/samsara/api/karma/consume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to consume karma:', e);
+            return { success: false };
+        }
+    }
+
+    async reportKarmaEvent(eventType, details = {}) {
+        try {
+            const resp = await fetch('/samsara/api/karma/event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_type: eventType, game_type: 'xiangqi', details })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to report karma event:', e);
+        }
+    }
+
+    async incrementTurn() {
+        try {
+            const resp = await fetch('/samsara/api/turn/increment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ game_type: 'xiangqi' })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to increment turn:', e);
         }
     }
 
@@ -2825,9 +3036,24 @@ class XiangqiBoard extends HTMLElement {
                     AchievementChecker.checkAfterMove(this.boardState, this.configs, 'xiangqi');
                 }
 
+                await this.incrementTurn();
+
+                const lastMoveData = this.boardState.move_history.slice(-1)[0];
+                if (lastMoveData && lastMoveData.captured_piece) {
+                    const captured = lastMoveData.captured_piece;
+                    let eventType = 'captured';
+                    if (captured.type === 'pawn') eventType = 'capture_pawn';
+                    else if (['knight', 'bishop', 'cannon'].includes(captured.type)) eventType = 'capture_medium';
+                    else if (captured.type === 'rook') eventType = 'capture_rook';
+                    await this.reportKarmaEvent(eventType, { piece: captured.type });
+                }
+
                 this._dispatchMoveEvent();
 
                 if (this.boardState.game_status.state === 'ended') {
+                    if (this.boardState.game_status.winner === 'red') {
+                        await this.reportKarmaEvent('checkmate');
+                    }
                     this.showGameOver();
                     this._dispatchGameEndEvent();
                     this.aiThinking = false;
@@ -2888,6 +3114,11 @@ class XiangqiBoard extends HTMLElement {
 
                 if (data.ai_move?.captured) {
                     this.addMessage(`AI走了${this.getPieceName(data.ai_move.piece_id)}`, 'info');
+                    await this.reportKarmaEvent('captured', { piece: data.ai_move.captured.type });
+                }
+
+                if (this.boardState.game_status.is_check) {
+                    await this.reportKarmaEvent('check');
                 }
 
                 this._dispatchMoveEvent();
@@ -3013,6 +3244,7 @@ class XiangqiBoard extends HTMLElement {
             if (data.success) {
                 if (data.type === 'applied') {
                     this.addMessage(`✅ ${data.message}`, 'success');
+                    await this.consumeKarma(10);
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
