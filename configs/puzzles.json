@@ -1,0 +1,62 @@
+{
+  "xiangqi_puzzle_1": {
+    "id": "xiangqi_puzzle_1",
+    "game_type": "xiangqi",
+    "description": "红方三步内取胜",
+    "difficulty": "easy",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["先将军", "注意位置"]
+  },
+  "xiangqi_puzzle_2": {
+    "id": "xiangqi_puzzle_2",
+    "game_type": "xiangqi",
+    "description": "红方五步内取胜",
+    "difficulty": "hard",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["利用双将", "寻找杀路"]
+  },
+  "wuziqi_puzzle_1": {
+    "id": "wuziqi_puzzle_1",
+    "game_type": "wuziqi",
+    "description": "找到必胜落子点",
+    "difficulty": "normal",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["活三", "冲四"]
+  },
+  "wuziqi_puzzle_2": {
+    "id": "wuziqi_puzzle_2",
+    "game_type": "wuziqi",
+    "description": "四三杀取胜",
+    "difficulty": "hard",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["同时形成活三与冲四"]
+  },
+  "dongwuqi_puzzle_1": {
+    "id": "dongwuqi_puzzle_1",
+    "game_type": "dongwuqi",
+    "description": "吃掉对方狮子",
+    "difficulty": "normal",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["利用等级克制", "找到路径"]
+  },
+  "weiqi_puzzle_1": {
+    "id": "weiqi_puzzle_1",
+    "game_type": "weiqi",
+    "description": "活棋",
+    "difficulty": "hard",
+    "turn_limit": 5,
+    "initial_state": {},
+    "solution": [],
+    "hints": ["做出两个真眼"]
+  }
+}

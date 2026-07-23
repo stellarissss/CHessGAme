@@ -1,0 +1,206 @@
+{
+  "bosses": [
+    {
+      "id": "boss_hell",
+      "name": "阎罗王",
+      "title": "地狱主宰",
+      "realm": "hell",
+      "description": "地狱道之主，掌管众生轮回。他能看穿一切作弊行为。",
+      "image": "",
+      "initial_detection_probability": 15,
+      "karma_multiplier": 0.8,
+      "skills": [
+        {
+          "id": "skill_hell_1",
+          "name": "业火凝视",
+          "description": "每当你消耗业力，阎罗王都会增加识破概率。",
+          "trigger_type": "on_karma_consume",
+          "trigger_condition": "",
+          "effect_type": "increase_detection_probability",
+          "effect_value": 5,
+          "cooldown": 0
+        },
+        {
+          "id": "skill_hell_2",
+          "name": "因果报应",
+          "description": "降低你获得的业力回复。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "reduce_karma_recovery",
+          "effect_value": 0.3,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "id": "boss_hungry",
+      "name": "饿鬼修罗",
+      "title": "无尽饥渴",
+      "realm": "hungry",
+      "description": "饿鬼道之主，永远处于饥渴状态，会夺取你的业力。",
+      "image": "",
+      "initial_detection_probability": 10,
+      "karma_multiplier": 0.6,
+      "skills": [
+        {
+          "id": "skill_hungry_1",
+          "name": "吞噬业力",
+          "description": "每回合偷取你的业力。",
+          "trigger_type": "on_turn_start",
+          "trigger_condition": "",
+          "effect_type": "steal_karma",
+          "effect_value": 10,
+          "cooldown": 2
+        },
+        {
+          "id": "skill_hungry_2",
+          "name": "贪婪诅咒",
+          "description": "大幅降低你的最大业力值。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "reduce_max_karma",
+          "effect_value": 30,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "id": "boss_animal",
+      "name": "百兽之王",
+      "title": "丛林霸主",
+      "realm": "animal",
+      "description": "畜生道之主，拥有野兽般的直觉，能本能地察觉异常。",
+      "image": "",
+      "initial_detection_probability": 20,
+      "karma_multiplier": 0.9,
+      "skills": [
+        {
+          "id": "skill_animal_1",
+          "name": "野兽直觉",
+          "description": "初始识破概率较高。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "increase_detection_probability",
+          "effect_value": 10,
+          "cooldown": 0
+        },
+        {
+          "id": "skill_animal_2",
+          "name": "狂怒",
+          "description": "当棋子被吃时，野兽会发怒，增加 AI 优势。",
+          "trigger_type": "on_capture",
+          "trigger_condition": "",
+          "effect_type": "force_ai_advantage",
+          "effect_value": 2,
+          "cooldown": 1
+        }
+      ]
+    },
+    {
+      "id": "boss_human",
+      "name": "围棋大师",
+      "title": "人间棋圣",
+      "realm": "human",
+      "description": "人道之主，精通各种棋艺，善于布局和预判。",
+      "image": "",
+      "initial_detection_probability": 5,
+      "karma_multiplier": 1.0,
+      "skills": [
+        {
+          "id": "skill_human_1",
+          "name": "棋艺洞察",
+          "description": "限制你的部分移动选择。",
+          "trigger_type": "on_player_action",
+          "trigger_condition": "",
+          "effect_type": "restrict_player_moves",
+          "effect_value": 0.5,
+          "cooldown": 2
+        },
+        {
+          "id": "skill_human_2",
+          "name": "神机妙算",
+          "description": "AI 获得额外优势。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "force_ai_advantage",
+          "effect_value": 1.5,
+          "cooldown": 0
+        }
+      ]
+    },
+    {
+      "id": "boss_asura",
+      "name": "阿修罗王",
+      "title": "战斗之神",
+      "realm": "asura",
+      "description": "阿修罗道之主，好战且强大，能强力抵抗作弊行为。",
+      "image": "",
+      "initial_detection_probability": 25,
+      "karma_multiplier": 0.7,
+      "skills": [
+        {
+          "id": "skill_asura_1",
+          "name": "修罗天眼",
+          "description": "极高的初始识破概率。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "increase_detection_probability",
+          "effect_value": 15,
+          "cooldown": 0
+        },
+        {
+          "id": "skill_asura_2",
+          "name": "战吼",
+          "description": "有几率直接阻止你的作弊行为。",
+          "trigger_type": "on_karma_consume",
+          "trigger_condition": "",
+          "effect_type": "block_cheat",
+          "effect_value": 0.3,
+          "cooldown": 3
+        }
+      ]
+    },
+    {
+      "id": "boss_heaven",
+      "name": "玉皇大帝",
+      "title": "三界至尊",
+      "realm": "heaven",
+      "description": "天道之主，全知全能，作弊几乎不可能逃脱他的眼睛。",
+      "image": "",
+      "initial_detection_probability": 30,
+      "karma_multiplier": 0.5,
+      "skills": [
+        {
+          "id": "skill_heaven_1",
+          "name": "天眼神通",
+          "description": "极高的识破概率加成。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "increase_detection_probability",
+          "effect_value": 20,
+          "cooldown": 0
+        },
+        {
+          "id": "skill_heaven_2",
+          "name": "天命",
+          "description": "触发随机事件，可能对你不利。",
+          "trigger_type": "on_player_action",
+          "trigger_condition": "",
+          "effect_type": "random_event",
+          "effect_value": 0,
+          "cooldown": 2
+        },
+        {
+          "id": "skill_heaven_3",
+          "name": "天罚",
+          "description": "大幅降低业力回复。",
+          "trigger_type": "passive",
+          "trigger_condition": "",
+          "effect_type": "reduce_karma_recovery",
+          "effect_value": 0.5,
+          "cooldown": 0
+        }
+      ]
+    }
+  ]
+}

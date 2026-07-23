@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "current_realm": "hungry",
+  "current_level": 0,
+  "total_levels_per_realm": {
+    "hell": 5,
+    "hungry": 5,
+    "animal": 6,
+    "human": 6,
+    "asura": 7,
+    "heaven": 7
+  },
+  "karma": 15,
+  "max_karma": 150,
+  "max_single_karma": 80,
+  "detection_probability": 0.0,
+  "skill_points": 1,
+  "unlocked_skills": [],
+  "cheat_count": 0,
+  "no_cheat_levels": [],
+  "overdraft_history": [
+    {
+      "amount": 20,
+      "detection_increase": 109.85605433061178
+    },
+    {
+      "amount": 5,
+      "detection_increase": 9.059745795971194
+    },
+    {
+      "amount": 10,
+      "detection_increase": 31.547867224009664
+    },
+    {
+      "amount": 1,
+      "detection_increase": 0.5
+    },
+    {
+      "amount": 2,
+      "detection_increase": 1.7411011265922482
+    },
+    {
+      "amount": 3,
+      "detection_increase": 3.612337027921038
+    },
+    {
+      "amount": 5,
+      "detection_increase": 9.059745795971194
+    },
+    {
+      "amount": 10,
+      "detection_increase": 31.547867224009664
+    },
+    {
+      "amount": 15,
+      "detection_increase": 65.45371040467741
+    },
+    {
+      "amount": 20,
+      "detection_increase": 100.0
+    },
+    {
+      "amount": 1,
+      "detection_increase": 0.5
+    },
+    {
+      "amount": 3,
+      "detection_increase": 3.612337027921038
+    },
+    {
+      "amount": 5,
+      "detection_increase": 9.059745795971194
+    },
+    {
+      "amount": 10,
+      "detection_increase": 31.547867224009664
+    }
+  ],
+  "realm_progress": {},
+  "new_game_plus": 0
+}

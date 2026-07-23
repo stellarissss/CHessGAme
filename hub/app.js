@@ -1,6 +1,7 @@
 /**
- * 六道众生 · 总坛前端
+ * 六道轮回 · 总坛前端
  * 从 /api/games 获取棋类服务列表并渲染入口卡片
+ * 集成轮回状态、技能树、关卡信息等
  */
 
 const REALM_LABELS = {
@@ -126,8 +127,6 @@ async function updateStatuses(games) {
         dot.className = "status-dot loading";
         try {
             const url = game.url || buildUrl(game.port);
-            // 用 GET + no-cors 探测服务是否已监听；no-cors 下返回 opaque 响应，
-            // 只要服务可达即视为在线，避免 HEAD 触发 405 噪音。
             await fetch(url, {
                 method: "GET",
                 mode: "no-cors",
@@ -138,6 +137,158 @@ async function updateStatuses(games) {
             dot.className = "status-dot offline";
         }
     }
+}
+
+async function fetchSamsaraState() {
+    try {
+        const res = await fetch("http://localhost:8888/api/samsara/state");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.warn("无法获取轮回状态", err);
+        return null;
+    }
+}
+
+async function fetchSkills() {
+    try {
+        const res = await fetch("http://localhost:8888/api/samsara/skills");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.warn("无法获取技能树", err);
+        return null;
+    }
+}
+
+async function upgradeSkill(skillId) {
+    try {
+        const res = await fetch(`http://localhost:8888/api/samsara/skills/${skillId}/upgrade`, {
+            method: "POST",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.warn("升级技能失败", err);
+        return null;
+    }
+}
+
+async function resetProgress() {
+    try {
+        const res = await fetch("http://localhost:8888/api/samsara/reset", {
+            method: "POST",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.warn("重置进度失败", err);
+        return null;
+    }
+}
+
+function updateSamsaraUI(state) {
+    if (!state) return;
+
+    const karma = state.karma || {};
+    const detection = state.detection_probability || 0;
+    const skills = state.skill_points || 0;
+    const level = state.current_level || {};
+    const turn_limit = state.turn_limit || { remaining: 20, max: 20 };
+
+    document.getElementById("karma-value").textContent = karma.current || 100;
+    document.getElementById("karma-max").textContent = karma.max || 100;
+    const karmaPercent = ((karma.current || 100) / (karma.max || 100)) * 100;
+    document.getElementById("karma-bar").style.width = `${karmaPercent}%`;
+
+    document.getElementById("detection-value").textContent = `${Math.round(detection * 100)}%`;
+    document.getElementById("detection-bar").style.width = `${detection * 100}%`;
+
+    document.getElementById("turn-value").textContent = turn_limit.max || 20;
+    document.getElementById("turn-remaining").textContent = turn_limit.remaining || 20;
+    const turnPercent = ((turn_limit.remaining || 20) / (turn_limit.max || 20)) * 100;
+    document.getElementById("turn-bar").style.width = `${turnPercent}%`;
+
+    document.getElementById("skill-value").textContent = skills;
+
+    const realmProgress = state.realm_progress || [];
+    document.querySelectorAll(".realm-badge").forEach(badge => {
+        const realm = badge.dataset.realm;
+        if (realmProgress.includes(realm)) {
+            badge.classList.add("completed");
+        }
+        if (level.realm === realm) {
+            badge.classList.add("current");
+        }
+    });
+
+    if (level.realm && level.name) {
+        document.getElementById("level-realm").textContent = REALM_LABELS[level.realm] || level.realm;
+        document.getElementById("level-name").textContent = level.name;
+
+        const objectivesContainer = document.getElementById("level-objectives");
+        objectivesContainer.innerHTML = "";
+        const objectives = level.objectives || [];
+        objectives.forEach(obj => {
+            const item = document.createElement("div");
+            item.className = "objective-item";
+            item.innerHTML = `
+                <span class="objective-icon">🏆</span>
+                <span class="objective-text">${obj.description || obj.type}</span>
+                <span class="objective-progress">${obj.current || 0}/${obj.target || 1}</span>
+            `;
+            objectivesContainer.appendChild(item);
+        });
+    }
+}
+
+function renderSkillTree(skills) {
+    const container = document.getElementById("skill-tree-content");
+    if (!skills) {
+        container.innerHTML = "<p style='text-align:center;color:var(--text-muted);'>无法加载技能树</p>";
+        return;
+    }
+
+    const skillTree = document.createElement("div");
+    skillTree.className = "skill-tree";
+
+    skills.forEach(skill => {
+        const item = document.createElement("div");
+        item.className = `skill-item ${skill.unlocked ? "unlocked" : "locked"}`;
+
+        let btnClass = "locked-btn";
+        let btnText = "未解锁";
+        if (skill.unlocked) {
+            if (skill.level >= skill.max_level) {
+                btnClass = "max-level";
+                btnText = "已满级";
+            } else {
+                btnClass = "upgrade";
+                btnText = `升级 (${skill.cost} 点)`;
+            }
+        }
+
+        item.innerHTML = `
+            <h4 class="skill-name">${skill.name}</h4>
+            <p class="skill-desc">${skill.description}</p>
+            <div class="skill-cost">等级: ${skill.level}/${skill.max_level}</div>
+            <button class="skill-btn ${btnClass}" data-skill-id="${skill.id}">${btnText}</button>
+        `;
+
+        const btn = item.querySelector(".skill-btn");
+        if (btnClass === "upgrade") {
+            btn.addEventListener("click", async () => {
+                const result = await upgradeSkill(skill.id);
+                if (result && result.success) {
+                    init();
+                }
+            });
+        }
+
+        skillTree.appendChild(item);
+    });
+
+    container.appendChild(skillTree);
 }
 
 async function init() {
@@ -154,19 +305,43 @@ async function init() {
         render(DEFAULT_GAMES);
     }
 
-    // 获取成就进度
-    try {
-        const achRes = await fetch("/api/achievements");
-        if (achRes.ok) {
-            const achData = await achRes.json();
-            const el = document.getElementById("ach-banner-progress");
-            if (el) {
-                el.textContent = `已解锁 ${achData.unlocked_count} / ${achData.total}`;
+    const samsaraState = await fetchSamsaraState();
+    updateSamsaraUI(samsaraState);
+
+    document.getElementById("start-game-btn").addEventListener("click", () => {
+        const level = samsaraState?.current_level;
+        const realm = level?.realm || "human";
+        const game = DEFAULT_GAMES.find(g => g.realm === realm);
+        if (game) {
+            window.open(buildUrl(game.port), "_blank", "noopener,noreferrer");
+        }
+    });
+
+    document.getElementById("skill-tree-btn").addEventListener("click", async () => {
+        const modal = document.getElementById("skill-modal");
+        modal.classList.add("active");
+        const skills = await fetchSkills();
+        renderSkillTree(skills);
+    });
+
+    document.getElementById("close-skill-modal").addEventListener("click", () => {
+        document.getElementById("skill-modal").classList.remove("active");
+    });
+
+    document.getElementById("reset-progress-btn").addEventListener("click", async () => {
+        if (confirm("确定要重置所有轮回进度吗？")) {
+            const result = await resetProgress();
+            if (result && result.success) {
+                location.reload();
             }
         }
-    } catch (err) {
-        console.warn("无法获取成就进度", err);
-    }
+    });
+
+    document.getElementById("skill-modal").addEventListener("click", (e) => {
+        if (e.target.id === "skill-modal") {
+            e.target.classList.remove("active");
+        }
+    });
 }
 
 init();

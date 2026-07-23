@@ -1,0 +1,152 @@
+{
+  "xiangqi": {
+    "formations": [
+      {
+        "id": "fengshi",
+        "name": "屏风马",
+        "description": "双马保护中路",
+        "piece_positions": [
+          {"piece": "horse", "color": "red", "position": [7, 2]},
+          {"piece": "horse", "color": "red", "position": [7, 6]}
+        ],
+        "defense_bonus": 1.2,
+        "attack_bonus": 0.8
+      },
+      {
+        "id": "xiangyuan",
+        "name": "相眼",
+        "description": "双相联防",
+        "piece_positions": [
+          {"piece": "elephant", "color": "red", "position": [6, 3]},
+          {"piece": "elephant", "color": "red", "position": [6, 5]}
+        ],
+        "defense_bonus": 1.3,
+        "attack_bonus": 0.7
+      },
+      {
+        "id": "gongxin",
+        "name": "攻心",
+        "description": "集中攻击中路",
+        "piece_positions": [
+          {"piece": "chariot", "color": "red", "position": [0, 4]},
+          {"piece": "cannon", "color": "red", "position": [2, 4]}
+        ],
+        "defense_bonus": 0.8,
+        "attack_bonus": 1.3
+      }
+    ]
+  },
+  "wuziqi": {
+    "formations": [
+      {
+        "id": "huosan",
+        "name": "活三",
+        "description": "两端开放的三连",
+        "pattern": [[-1, 0], [0, 0], [1, 0]],
+        "priority": 5
+      },
+      {
+        "id": "chongsi",
+        "name": "冲四",
+        "description": "四连",
+        "pattern": [[-2, 0], [-1, 0], [0, 0], [1, 0]],
+        "priority": 6
+      },
+      {
+        "id": "shuangsan",
+        "name": "双三",
+        "description": "同时形成两个活三",
+        "priority": 7
+      },
+      {
+        "id": "sisan",
+        "name": "四三",
+        "description": "同时形成冲四和活三",
+        "priority": 8
+      }
+    ]
+  },
+  "weiqi": {
+    "formations": [
+      {
+        "id": "shouyan",
+        "name": "守眼",
+        "description": "保护眼位",
+        "pattern": [],
+        "defense_bonus": 1.2
+      },
+      {
+        "id": "qiangdi",
+        "name": "抢地",
+        "description": "快速扩张领地",
+        "pattern": [],
+        "attack_bonus": 1.2
+      },
+      {
+        "id": "jietou",
+        "name": "截头",
+        "description": "切断对方连接",
+        "pattern": [],
+        "attack_bonus": 1.1
+      }
+    ]
+  },
+  "dongwuqi": {
+    "formations": [
+      {
+        "id": "linwei",
+        "name": "林位",
+        "description": "狮子占据丛林",
+        "piece_positions": [
+          {"piece": "lion", "color": "red", "position": [3, 2]}
+        ],
+        "bonus": 1.3
+      },
+      {
+        "id": "shuiwei",
+        "name": "水位",
+        "description": "大象占据水边",
+        "piece_positions": [
+          {"piece": "elephant", "color": "red", "position": [3, 6]}
+        ],
+        "bonus": 1.2
+      }
+    ]
+  },
+  "tiaoqi": {
+    "formations": [
+      {
+        "id": "changtiao",
+        "name": "长跳",
+        "description": "连续跳跃",
+        "pattern": [],
+        "jump_bonus": 1.5
+      },
+      {
+        "id": "tuanti",
+        "name": "团体",
+        "description": "棋子聚集",
+        "pattern": [],
+        "defense_bonus": 1.2
+      }
+    ]
+  },
+  "heibaiqi": {
+    "formations": [
+      {
+        "id": "jiaojiao",
+        "name": "角角",
+        "description": "占领四角",
+        "positions": [[0, 0], [0, 7], [7, 0], [7, 7]],
+        "corner_bonus": 1.5
+      },
+      {
+        "id": "bianxian",
+        "name": "边线",
+        "description": "控制边线",
+        "pattern": [],
+        "edge_bonus": 1.2
+      }
+    ]
+  }
+}

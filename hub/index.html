@@ -3,51 +3,139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>棋圣 · 六道众生</title>
+    <title>六道轮回 · 肉鸽棋类大游戏</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
     <div class="ambient">
         <div class="orb orb-1"></div>
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
+        <div class="reincarnation-ring"></div>
     </div>
 
     <main class="container">
         <header class="hero">
             <h1 class="hero-title">
-                <span class="title-main">六道众生</span>
-                <span class="title-sub">AI 作弊棋类总坛</span>
+                <span class="title-main">六道轮回</span>
+                <span class="title-sub">Roguelike · AI 作弊棋类</span>
             </h1>
             <p class="hero-desc">
-                六重棋境，一念改规。大模型为饵，规则为网，<br>
-                点击任一入口，即可坠入对应棋局的“灵活编码”之界。
+                六重棋境，一念改规。业力为引，识破为劫，<br>
+                在20回合内达成目标，穿越六道轮回。
             </p>
-            <div class="hero-meta" id="hub-meta">正在连接总坛服务…</div>
+            <div class="hero-meta" id="hub-meta">正在连接轮回系统…</div>
         </header>
 
-        <a href="/achievements" class="ach-banner" id="ach-banner">
-            <span class="ach-banner-icon">🏆</span>
-            <span class="ach-banner-text">
-                <span class="ach-banner-title">成就殿堂</span>
-                <span class="ach-banner-sub" id="ach-banner-progress">加载中…</span>
-            </span>
-            <span class="ach-banner-arrow">→</span>
-        </a>
+        <section class="samsara-panel" id="samsara-panel">
+            <div class="panel-header">
+                <h2 class="panel-title">轮回状态</h2>
+                <div class="realm-progress">
+                    <span class="realm-badge completed" data-realm="heaven">天界</span>
+                    <span class="realm-badge" data-realm="human">人界</span>
+                    <span class="realm-badge" data-realm="asura">阿修罗</span>
+                    <span class="realm-badge" data-realm="animal">畜生界</span>
+                    <span class="realm-badge" data-realm="hungry">饿鬼界</span>
+                    <span class="realm-badge" data-realm="hell">地狱界</span>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card karma-card">
+                    <div class="stat-header">
+                        <span class="stat-icon">☯</span>
+                        <span class="stat-label">业力</span>
+                    </div>
+                    <div class="stat-value" id="karma-value">100</div>
+                    <div class="stat-bar">
+                        <div class="stat-fill karma-fill" id="karma-bar" style="width: 100%"></div>
+                    </div>
+                    <div class="stat-mini">上限: <span id="karma-max">100</span></div>
+                </div>
+
+                <div class="stat-card detection-card">
+                    <div class="stat-header">
+                        <span class="stat-icon">👁️</span>
+                        <span class="stat-label">识破概率</span>
+                    </div>
+                    <div class="stat-value" id="detection-value">0%</div>
+                    <div class="stat-bar">
+                        <div class="stat-fill detection-fill" id="detection-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="stat-mini">阈值: 100%</div>
+                </div>
+
+                <div class="stat-card turn-card">
+                    <div class="stat-header">
+                        <span class="stat-icon">⏱️</span>
+                        <span class="stat-label">回合限制</span>
+                    </div>
+                    <div class="stat-value" id="turn-value">20</div>
+                    <div class="stat-bar">
+                        <div class="stat-fill turn-fill" id="turn-bar" style="width: 100%"></div>
+                    </div>
+                    <div class="stat-mini">剩余: <span id="turn-remaining">20</span></div>
+                </div>
+
+                <div class="stat-card skill-card">
+                    <div class="stat-header">
+                        <span class="stat-icon">⭐</span>
+                        <span class="stat-label">技能点</span>
+                    </div>
+                    <div class="stat-value" id="skill-value">0</div>
+                    <div class="stat-bar">
+                        <div class="stat-fill skill-fill" id="skill-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="stat-mini">可分配</div>
+                </div>
+            </div>
+
+            <div class="level-info" id="level-info">
+                <div class="level-header">
+                    <span class="level-badge" id="level-realm">人界</span>
+                    <span class="level-title" id="level-name">第1关 · 初入轮回</span>
+                </div>
+                <div class="level-objectives" id="level-objectives">
+                    <div class="objective-item">
+                        <span class="objective-icon">🏆</span>
+                        <span class="objective-text">将死对方</span>
+                        <span class="objective-progress">0/1</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-actions">
+                <button class="action-btn primary" id="start-game-btn">开始轮回</button>
+                <button class="action-btn secondary" id="skill-tree-btn">技能树</button>
+                <button class="action-btn secondary" id="reset-progress-btn">重置进度</button>
+            </div>
+        </section>
 
         <section class="grid" id="game-grid">
             <!-- Cards will be injected by app.js -->
         </section>
 
         <footer class="footer">
-            <p>棋圣 ChessSage · 灵活编码 Flexible Coding</p>
-            <p class="footer-note">所有棋类服务均由 <code>main.py</code> 统一拉起</p>
+            <p>六道轮回 · 业力系统 · 灵活编码</p>
+            <p class="footer-note">所有棋类服务均由 main.py 统一拉起</p>
         </footer>
     </main>
 
-    <script src="/static/app.js"></script>
+    <div class="modal-overlay" id="skill-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>技能树</h3>
+                <button class="modal-close" id="close-skill-modal">✕</button>
+            </div>
+            <div class="modal-content" id="skill-tree-content">
+                <!-- Skill tree content -->
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
 </body>
 </html>

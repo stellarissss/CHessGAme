@@ -24,8 +24,10 @@ from pydantic import BaseModel
 
 from ai_orchestrator import AIOrchestrator
 from rule_engine import RuleEngine
-from chess_ai import ChessAI
+from chess_ai import ReversiAI
 from mechanism_engine import MechanismEngine
+
+from samsara_integration import SamsaraIntegration
 
 # ═══════════════════════════════════════════════════════════════
 # 配置
@@ -136,6 +138,7 @@ class GameState:
 
 
 state = GameState()
+samsara = SamsaraIntegration("heibaiqi")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -397,6 +400,13 @@ async def make_move(req: MoveRequest):
         "placed_disc_id": new_disc_id,
     })
 
+    # 六道众生：记录业力事件
+    karma_events = []
+    if flipped_ids:
+        karma_gained = samsara.record_capture("medium")
+        if karma_gained > 0:
+            karma_events.append(f"翻转 {len(flipped_ids)} 子获得 {karma_gained} 业力")
+
     # 9. 走棋后机制处理
     switch_turn = True
     if state.mechanism_engine:
@@ -411,11 +421,25 @@ async def make_move(req: MoveRequest):
 
     # 11. 检查棋盘是否已满
     _check_board_full(board, state.rule_engine)
+    
+    # 六道众生：检查获胜
+    game_status = board.get("game_status", {})
+    if game_status.get("state") == "ended" and game_status.get("winner") == board.get("player_side", "black"):
+        karma_gained = samsara.record_win()
+        if karma_gained > 0:
+            karma_events.append(f"获胜获得 {karma_gained} 业力")
+        
+        samsara.state_manager.record_level_victory()
 
     # 12. 获取机制摘要
     mechanisms_summary = []
     if state.mechanism_engine:
         mechanisms_summary = state.mechanism_engine.get_active_mechanisms_summary(board)
+
+    # 六道众生：玩家回合结束
+    turn_info = samsara.on_player_turn()
+    
+    objective_result = samsara.update_objectives(board)
 
     # 13. 保存 board_state
     state.save_config("board_state")
@@ -426,6 +450,11 @@ async def make_move(req: MoveRequest):
         "board_state": board,
         "flipped": flipped_ids,
         "mechanisms": mechanisms_summary,
+        "karma_events": karma_events,
+        "turn_info": turn_info,
+        "karma": samsara.get_karma_state(),
+        "detection_probability": samsara.get_detection_probability(),
+        "objective_result": objective_result,
     }
 
 
@@ -680,6 +709,82 @@ async def clear_logs():
     """清空日志"""
     state.ai_orchestrator.logger.clear()
     return {"success": True, "message": "日志已清空"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 六道众生 API 路由
+# ═══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/samsara/state")
+async def get_samsara_state():
+    """获取轮回状态"""
+    return samsara.get_samsara_state()
+
+
+@app.get("/api/samsara/karma")
+async def get_karma():
+    """获取业力状态"""
+    return {
+        "karma": samsara.get_karma_state(),
+        "detection_probability": samsara.get_detection_probability(),
+    }
+
+
+@app.post("/api/samsara/consume_karma")
+async def consume_karma(amount: int = 20):
+    """消耗业力（用于作弊）"""
+    return samsara.consume_karma(amount)
+
+
+@app.post("/api/samsara/refund_karma")
+async def refund_karma(amount: int):
+    """退还业力"""
+    samsara.refund_karma(amount)
+    return {"success": True, "karma": samsara.get_karma_state()}
+
+
+@app.post("/api/samsara/start_level")
+async def start_level(realm: str = None, level_index: int = None):
+    """开始关卡"""
+    return samsara.start_level(realm, level_index)
+
+
+@app.post("/api/samsara/advance_level")
+async def advance_level():
+    """进入下一关卡"""
+    return samsara.advance_to_next_level()
+
+
+@app.get("/api/samsara/level")
+async def get_level_info():
+    """获取当前关卡信息"""
+    return samsara.get_level_summary()
+
+
+@app.get("/api/samsara/turns")
+async def get_turn_info():
+    """获取回合信息"""
+    return samsara.get_turn_info()
+
+
+@app.get("/api/samsara/objectives")
+async def get_objectives():
+    """获取目标进度"""
+    return {"objectives": samsara.get_objective_progress()}
+
+
+@app.post("/api/samsara/reset_level")
+async def reset_level_state():
+    """重置关卡状态"""
+    samsara.reset_level_state()
+    return {"success": True}
+
+
+@app.post("/api/samsara/update_objectives")
+async def update_objectives(game_state: dict):
+    """更新目标进度"""
+    return samsara.update_objectives(game_state)
 
 
 # ═══════════════════════════════════════════════════════════════

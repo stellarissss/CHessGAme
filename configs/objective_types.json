@@ -1,0 +1,84 @@
+{
+  "types": [
+    {
+      "id": "checkmate",
+      "name": "将死",
+      "description": "将死对方王/帅",
+      "target_type": "integer",
+      "default_target": 1,
+      "applicable_games": ["xiangqi"]
+    },
+    {
+      "id": "capture_count",
+      "name": "吃子数",
+      "description": "吃掉指定数量的对方棋子",
+      "target_type": "integer",
+      "default_target": 5,
+      "applicable_games": ["xiangqi", "dongwuqi", "tiaoqi"]
+    },
+    {
+      "id": "piece_count",
+      "name": "棋子数",
+      "description": "保持己方棋子数量",
+      "target_type": "integer",
+      "default_target": 10,
+      "applicable_games": ["xiangqi", "dongwuqi"]
+    },
+    {
+      "id": "board_coverage",
+      "name": "棋盘覆盖",
+      "description": "占领棋盘百分比",
+      "target_type": "percentage",
+      "default_target": 50,
+      "applicable_games": ["heibaiqi"]
+    },
+    {
+      "id": "territory_control",
+      "name": "领地控制",
+      "description": "控制领地百分比",
+      "target_type": "percentage",
+      "default_target": 50,
+      "applicable_games": ["weiqi"]
+    },
+    {
+      "id": "life_count",
+      "name": "活棋数",
+      "description": "做出指定数量的活棋",
+      "target_type": "integer",
+      "default_target": 1,
+      "applicable_games": ["weiqi"]
+    },
+    {
+      "id": "score",
+      "name": "分数",
+      "description": "达到指定分数",
+      "target_type": "integer",
+      "default_target": 100,
+      "applicable_games": ["weiqi", "heibaiqi"]
+    },
+    {
+      "id": "time_limit",
+      "name": "时间限制",
+      "description": "在限定时间内完成",
+      "target_type": "integer",
+      "default_target": 300,
+      "applicable_games": ["xiangqi", "wuziqi", "weiqi"]
+    },
+    {
+      "id": "turn_limit",
+      "name": "回合限制",
+      "description": "在限定回合内完成",
+      "target_type": "integer",
+      "default_target": 20,
+      "applicable_games": ["xiangqi", "wuziqi", "weiqi", "dongwuqi", "tiaoqi", "heibaiqi"]
+    },
+    {
+      "id": "special_condition",
+      "name": "特殊条件",
+      "description": "达成特殊条件",
+      "target_type": "boolean",
+      "default_target": 1,
+      "applicable_games": ["xiangqi", "wuziqi", "weiqi", "dongwuqi", "tiaoqi", "heibaiqi"]
+    }
+  ]
+}

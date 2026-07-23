@@ -26,6 +26,8 @@ from rule_engine import RuleEngine
 from chess_ai import GoAI
 from mechanism_engine import MechanismEngine
 
+from samsara_integration import SamsaraIntegration
+
 CONFIGS_DIR = BASE_DIR / "configs"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -123,6 +125,7 @@ class GameState:
 
 
 state = GameState()
+samsara = SamsaraIntegration("weiqi")
 
 app = FastAPI(title="无限制围棋", version="1.0.0")
 
@@ -305,6 +308,13 @@ async def make_move(req: MoveRequest):
 
     winner = state.rule_engine.check_capture_10(board)
     win_condition = None
+    karma_events = []
+    
+    if captured_ids:
+        karma_gained = samsara.record_capture("medium")
+        if karma_gained > 0:
+            karma_events.append(f"提子获得 {karma_gained} 业力")
+    
     if winner:
         win_condition = "capture_10"
     else:
@@ -322,6 +332,13 @@ async def make_move(req: MoveRequest):
             "win_condition": win_condition,
             "custom_rules_active": board.get("game_status", {}).get("custom_rules_active", []),
         }
+        
+        if winner == player_side:
+            karma_gained = samsara.record_win()
+            if karma_gained > 0:
+                karma_events.append(f"获胜获得 {karma_gained} 业力")
+            
+            samsara.state_manager.record_level_victory()
     else:
         switch_turn = True
         post_info = {}
@@ -347,6 +364,10 @@ async def make_move(req: MoveRequest):
     if state.mechanism_engine:
         mechanisms_summary = state.mechanism_engine.get_active_mechanisms_summary(board)
 
+    turn_info = samsara.on_player_turn()
+    
+    objective_result = samsara.update_objectives(board)
+
     state.save_config("board_state")
 
     game_ended = board.get("game_status", {}).get("state") == "ended"
@@ -363,9 +384,14 @@ async def make_move(req: MoveRequest):
         "board_state": board,
         "mechanisms": mechanisms_summary,
         "ai_move": ai_move_next,
+        "karma_events": karma_events,
+        "turn_info": turn_info,
+        "karma": samsara.get_karma_state(),
+        "detection_probability": samsara.get_detection_probability(),
         "game_ended": game_ended,
         "winner": board.get("game_status", {}).get("winner"),
         "win_condition": board.get("game_status", {}).get("win_condition"),
+        "objective_result": objective_result,
     }
 
 
@@ -686,6 +712,82 @@ async def clear_logs():
     """清空日志"""
     state.ai_orchestrator.logger.clear()
     return {"success": True, "message": "日志已清空"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# 六道众生 API 路由
+# ═══════════════════════════════════════════════════════════════
+
+
+@app.get("/api/samsara/state")
+async def get_samsara_state():
+    """获取轮回状态"""
+    return samsara.get_samsara_state()
+
+
+@app.get("/api/samsara/karma")
+async def get_karma():
+    """获取业力状态"""
+    return {
+        "karma": samsara.get_karma_state(),
+        "detection_probability": samsara.get_detection_probability(),
+    }
+
+
+@app.post("/api/samsara/consume_karma")
+async def consume_karma(amount: int = 20):
+    """消耗业力（用于作弊）"""
+    return samsara.consume_karma(amount)
+
+
+@app.post("/api/samsara/refund_karma")
+async def refund_karma(amount: int):
+    """退还业力"""
+    samsara.refund_karma(amount)
+    return {"success": True, "karma": samsara.get_karma_state()}
+
+
+@app.post("/api/samsara/start_level")
+async def start_level(realm: str = None, level_index: int = None):
+    """开始关卡"""
+    return samsara.start_level(realm, level_index)
+
+
+@app.post("/api/samsara/advance_level")
+async def advance_level():
+    """进入下一关卡"""
+    return samsara.advance_to_next_level()
+
+
+@app.get("/api/samsara/level")
+async def get_level_info():
+    """获取当前关卡信息"""
+    return samsara.get_level_summary()
+
+
+@app.get("/api/samsara/turns")
+async def get_turn_info():
+    """获取回合信息"""
+    return samsara.get_turn_info()
+
+
+@app.get("/api/samsara/objectives")
+async def get_objectives():
+    """获取目标进度"""
+    return {"objectives": samsara.get_objective_progress()}
+
+
+@app.post("/api/samsara/reset_level")
+async def reset_level_state():
+    """重置关卡状态"""
+    samsara.reset_level_state()
+    return {"success": True}
+
+
+@app.post("/api/samsara/update_objectives")
+async def update_objectives(game_state: dict):
+    """更新目标进度"""
+    return samsara.update_objectives(game_state)
 
 
 # ═══════════════════════════════════════════════════════════════

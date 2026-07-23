@@ -149,6 +149,29 @@ class CheckersBoard extends HTMLElement {
 
         <header class="header">
             <h1>无限制跳棋</h1>
+            <div class="samsara-status">
+                <div class="samsara-bar karma-bar">
+                    <span class="bar-label">业力</span>
+                    <div class="bar-track">
+                        <div class="bar-fill karma-fill" id="karma-bar" style="width: 0%"></div>
+                    </div>
+                    <span class="bar-value" id="karma-value">0/150</span>
+                </div>
+                <div class="samsara-bar detection-bar">
+                    <span class="bar-label">识破</span>
+                    <div class="bar-track">
+                        <div class="bar-fill detection-fill" id="detection-bar" style="width: 0%"></div>
+                    </div>
+                    <span class="bar-value" id="detection-value">0%</span>
+                </div>
+                <div class="samsara-bar turn-bar">
+                    <span class="bar-label">回合</span>
+                    <div class="bar-track">
+                        <div class="bar-fill turn-fill" id="turn-bar" style="width: 100%"></div>
+                    </div>
+                    <span class="bar-value" id="turn-value">20/20</span>
+                </div>
+            </div>
             <div class="header-actions">
                 <span id="turn-indicator">红方回合</span>
                 <button id="btn-settings" class="btn-icon" title="设置">⚙</button>
@@ -394,6 +417,62 @@ class CheckersBoard extends HTMLElement {
     display: flex;
     align-items: center;
     gap: 18px;
+}
+
+.samsara-status {
+    display: flex;
+    gap: 24px;
+    flex: 1;
+    max-width: 500px;
+    margin: 0 32px;
+}
+
+.samsara-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.samsara-bar .bar-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--ink-light);
+    text-transform: uppercase;
+}
+
+.samsara-bar .bar-track {
+    height: 8px;
+    background: var(--paper-dark);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.samsara-bar .bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.3s ease;
+}
+
+.samsara-bar .karma-fill {
+    background: linear-gradient(90deg, #2d6a4f, #40916c);
+}
+
+.samsara-bar .detection-fill {
+    background: linear-gradient(90deg, #9b2c2c, #d00000);
+}
+
+.samsara-bar .turn-fill {
+    background: linear-gradient(90deg, #1b4332, #40916c);
+}
+
+.samsara-bar .bar-value {
+    font-size: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--ink-medium);
+    text-align: right;
 }
 
 #turn-indicator {
@@ -2270,6 +2349,7 @@ class CheckersBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
+        this.loadSamsaraState();
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
     }
@@ -2285,6 +2365,50 @@ class CheckersBoard extends HTMLElement {
             this.shadowRoot.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
         } catch (e) {
             console.error('Failed to load token stats:', e);
+        }
+    }
+
+    async loadSamsaraState() {
+        try {
+            const resp = await fetch('http://localhost:8001/samsara/state');
+            const data = await resp.json();
+            this.updateSamsaraStatus(data);
+        } catch (e) {
+            console.error('Failed to load samsara state:', e);
+        }
+    }
+
+    async updateSamsaraStatus(state) {
+        const karma = state.karma || 0;
+        const maxKarma = state.max_karma || 150;
+        const detection = state.detection_probability || 0;
+        const currentTurn = state.current_level_turn || 0;
+        const turnLimit = 20;
+
+        const karmaBar = this.shadowRoot.getElementById('karma-bar');
+        const karmaValue = this.shadowRoot.getElementById('karma-value');
+        const detectionBar = this.shadowRoot.getElementById('detection-bar');
+        const detectionValue = this.shadowRoot.getElementById('detection-value');
+        const turnBar = this.shadowRoot.getElementById('turn-bar');
+        const turnValue = this.shadowRoot.getElementById('turn-value');
+
+        if (karmaBar && karmaValue) {
+            const karmaPercent = Math.min(100, Math.max(0, (karma / maxKarma) * 100));
+            karmaBar.style.width = `${karmaPercent}%`;
+            karmaValue.textContent = `${karma}/${maxKarma}`;
+        }
+
+        if (detectionBar && detectionValue) {
+            const detectionPercent = Math.min(100, Math.max(0, detection));
+            detectionBar.style.width = `${detectionPercent}%`;
+            detectionValue.textContent = `${detectionPercent.toFixed(1)}%`;
+        }
+
+        if (turnBar && turnValue) {
+            const remainingTurns = Math.max(0, turnLimit - currentTurn);
+            const turnPercent = (remainingTurns / turnLimit) * 100;
+            turnBar.style.width = `${turnPercent}%`;
+            turnValue.textContent = `${remainingTurns}/${turnLimit}`;
         }
     }
 
