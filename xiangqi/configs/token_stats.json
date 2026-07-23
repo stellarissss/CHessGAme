@@ -1,0 +1,18 @@
+{
+  "total_prompt_tokens": 53890,
+  "total_completion_tokens": 2836,
+  "total_calls": 10,
+  "daily_stats": {
+    "2026-07-19": {
+      "prompt_tokens": 6582,
+      "completion_tokens": 122,
+      "calls": 1
+    },
+    "2026-07-21": {
+      "prompt_tokens": 47308,
+      "completion_tokens": 2714,
+      "calls": 9
+    }
+  },
+  "token_price_per_1k": 0.0015
+}
