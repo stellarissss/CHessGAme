@@ -1,6 +1,7 @@
 /**
- * 六道众生 · 总坛前端
+ * 六道轮回 · 总坛前端
  * 从 /api/games 获取棋类服务列表并渲染入口卡片
+ * 加载轮回状态和技能树
  */
 
 const REALM_LABELS = {
@@ -12,13 +13,22 @@ const REALM_LABELS = {
     hell: "地狱界",
 };
 
+const REALM_NAMES = {
+    hell: "地狱道",
+    hungry: "饿鬼道",
+    animal: "畜生道",
+    human: "人道",
+    asura: "阿修罗道",
+    heaven: "天道",
+};
+
 const DEFAULT_GAMES = [
     {
         id: "xiangqi",
         name: "无限制象棋",
         realm: "human",
         icon: "♜",
-        sub: "人界 · 楚河汉界",
+        sub: "人道 · 楚河汉界",
         description: "传统象棋骨架，AI 实时改写走法、规则与胜负。马可以飞天，炮可遁地。",
         port: 8000,
     },
@@ -27,7 +37,7 @@ const DEFAULT_GAMES = [
         name: "无限制五子棋",
         realm: "heaven",
         icon: "⚫",
-        sub: "天界 · 五连登仙",
+        sub: "天道 · 五连登仙",
         description: "连珠成线即可登天。让黑子变大、让白子吃子——规则只在你一句话之间。",
         port: 8001,
     },
@@ -45,7 +55,7 @@ const DEFAULT_GAMES = [
         name: "无限制动物棋",
         realm: "animal",
         icon: "🐘",
-        sub: "畜生界 · 斗兽丛林",
+        sub: "畜生道 · 斗兽丛林",
         description: "鼠可吃象，狮可跳河。用 AI 让动物们突破等级与水域的枷锁。",
         port: 8003,
     },
@@ -54,7 +64,7 @@ const DEFAULT_GAMES = [
         name: "无限制跳棋",
         realm: "hungry",
         icon: "⬢",
-        sub: "饿鬼界 · 六角星途",
+        sub: "饿鬼道 · 六角星途",
         description: "六角星盘上连跳奔袭。让棋子斜走、让营区瞬移——AI 让 hunger 无止境。",
         port: 8004,
     },
@@ -63,11 +73,14 @@ const DEFAULT_GAMES = [
         name: "无限制黑白棋",
         realm: "hell",
         icon: "☯",
-        sub: "地狱界 · 阴阳翻转",
+        sub: "地狱道 · 阴阳翻转",
         description: "夹吃翻转的 Othello，却被大模型赋予了地狱般的自定义规则。",
         port: 8005,
     },
 ];
+
+let samsaraState = null;
+let skillTreeData = null;
 
 function buildUrl(port) {
     return `http://localhost:${port}/`;
@@ -126,8 +139,6 @@ async function updateStatuses(games) {
         dot.className = "status-dot loading";
         try {
             const url = game.url || buildUrl(game.port);
-            // 用 GET + no-cors 探测服务是否已监听；no-cors 下返回 opaque 响应，
-            // 只要服务可达即视为在线，避免 HEAD 触发 405 噪音。
             await fetch(url, {
                 method: "GET",
                 mode: "no-cors",
@@ -138,6 +149,160 @@ async function updateStatuses(games) {
             dot.className = "status-dot offline";
         }
     }
+}
+
+async function loadSamsaraState() {
+    try {
+        const resp = await fetch("/samsara/api/state");
+        samsaraState = await resp.json();
+        updateSamsaraUI();
+    } catch (e) {
+        console.error("Failed to load samsara state:", e);
+        samsaraState = {
+            karma: 150,
+            max_karma: 150,
+            detection_probability: 0,
+            current_realm: "hell",
+            skill_points: 0,
+            unlocked_skills: [],
+        };
+        updateSamsaraUI();
+    }
+}
+
+function updateSamsaraUI() {
+    if (!samsaraState) return;
+
+    const karmaFill = document.getElementById("karma-fill");
+    const karmaValue = document.getElementById("karma-value");
+    const detectionFill = document.getElementById("detection-fill");
+    const detectionValue = document.getElementById("detection-value");
+    const currentRealm = document.getElementById("current-realm");
+    const skillPoints = document.getElementById("skill-points");
+
+    const karma = samsaraState.karma || 0;
+    const maxKarma = samsaraState.karma_max || 150;
+    const detection = samsaraState.detection || 0;
+    const realm = samsaraState.current_realm || "hell";
+    const points = samsaraState.skill_points || 0;
+
+    if (karmaFill) karmaFill.style.width = `${(karma / maxKarma) * 100}%`;
+    if (karmaValue) karmaValue.textContent = `${karma}/${maxKarma}`;
+    if (detectionFill) detectionFill.style.width = `${detection}%`;
+    if (detectionValue) detectionValue.textContent = `${Math.round(detection)}%`;
+    if (currentRealm) currentRealm.textContent = REALM_NAMES[realm] || realm;
+    if (skillPoints) skillPoints.textContent = points;
+}
+
+async function loadSkillTree() {
+    try {
+        const resp = await fetch("/samsara/api/skills/tree");
+        skillTreeData = await resp.json();
+    } catch (e) {
+        console.error("Failed to load skill tree:", e);
+        skillTreeData = null;
+    }
+}
+
+function renderSkillTree() {
+    if (!skillTreeData || !samsaraState) return;
+
+    const container = document.getElementById("skill-branches");
+    container.innerHTML = "";
+
+    const skillPoints = samsaraState.skill_points || 0;
+
+    Object.keys(skillTreeData).forEach((branchId) => {
+        const branch = skillTreeData[branchId];
+        const branchEl = document.createElement("div");
+        branchEl.className = "skill-branch";
+
+        branchEl.innerHTML = `<div class="skill-branch-title">${branch.icon} ${branch.name}</div>`;
+
+        const tiers = branch.tiers || {};
+        Object.keys(tiers).sort((a, b) => parseInt(a) - parseInt(b)).forEach((tierNum) => {
+            const tier = tiers[tierNum];
+            if (tier.options) {
+                tier.options.forEach((skill) => {
+                    const skillEl = createSkillElement(skill, tierNum, skillPoints);
+                    branchEl.appendChild(skillEl);
+                });
+            } else {
+                const skillEl = createSkillElement(tier, tierNum, skillPoints);
+                branchEl.appendChild(skillEl);
+            }
+        });
+
+        container.appendChild(branchEl);
+    });
+}
+
+function createSkillElement(skill, tierNum, skillPoints) {
+    const skillEl = document.createElement("div");
+    let statusClass = "locked";
+    let icon = "🔒";
+
+    if (skill.unlocked) {
+        statusClass = "unlocked";
+        icon = "✓";
+    } else if (skillPoints >= skill.cost) {
+        statusClass = "available";
+        icon = `⭐${skill.cost}`;
+    }
+
+    skillEl.className = `skill-item ${statusClass}`;
+    skillEl.innerHTML = `
+        <span class="skill-tier">${tierNum}</span>
+        <span class="skill-name">${skill.name}</span>
+        <span class="skill-desc">${skill.description}</span>
+        <span class="skill-cost">${icon}</span>
+    `;
+
+    if (statusClass === "available") {
+        skillEl.addEventListener("click", () => unlockSkill(skill.id, tierNum));
+    }
+
+    return skillEl;
+}
+
+async function unlockSkill(skillId, tier) {
+    try {
+        const resp = await fetch("/samsara/api/skills/unlock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ skill_id: skillId, tier: tier }),
+        });
+
+        const data = await resp.json();
+        if (data.success) {
+            samsaraState = data.state;
+            updateSamsaraUI();
+            renderSkillTree();
+        }
+    } catch (e) {
+        console.error("Failed to unlock skill:", e);
+    }
+}
+
+function initSkillTreeModal() {
+    const btn = document.getElementById("skill-tree-btn");
+    const modal = document.getElementById("skill-tree-modal");
+    const closeBtn = document.getElementById("close-skill-btn");
+
+    btn.addEventListener("click", () => {
+        renderSkillTree();
+        modal.classList.add("active");
+    });
+
+    closeBtn.addEventListener("click", () => {
+        modal.classList.remove("active");
+    });
+
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+            modal.classList.remove("active");
+        }
+    });
 }
 
 async function init() {
@@ -154,7 +319,6 @@ async function init() {
         render(DEFAULT_GAMES);
     }
 
-    // 获取成就进度
     try {
         const achRes = await fetch("/api/achievements");
         if (achRes.ok) {
@@ -167,6 +331,10 @@ async function init() {
     } catch (err) {
         console.warn("无法获取成就进度", err);
     }
+
+    await loadSamsaraState();
+    await loadSkillTree();
+    initSkillTreeModal();
 }
 
 init();

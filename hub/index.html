@@ -19,15 +19,59 @@
     <main class="container">
         <header class="hero">
             <h1 class="hero-title">
-                <span class="title-main">六道众生</span>
-                <span class="title-sub">AI 作弊棋类总坛</span>
+                <span class="title-main">六道轮回</span>
+                <span class="title-sub">SAMSARA</span>
             </h1>
             <p class="hero-desc">
-                六重棋境，一念改规。大模型为饵，规则为网，<br>
-                点击任一入口，即可坠入对应棋局的“灵活编码”之界。
+                六重棋境，一念改规。业力为媒，规则为网，<br>
+                在轮回中修行，在棋局中悟道。
             </p>
-            <div class="hero-meta" id="hub-meta">正在连接总坛服务…</div>
+            <div class="hero-meta" id="hub-meta">正在连接轮回之门…</div>
         </header>
+
+        <div class="samsara-status" id="samsara-status">
+            <div class="status-item">
+                <span class="status-icon">☯</span>
+                <span class="status-label">业力</span>
+                <div class="status-bar">
+                    <div class="status-fill karma-fill" id="karma-fill"></div>
+                </div>
+                <span class="status-value" id="karma-value">0/150</span>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">👁️</span>
+                <span class="status-label">识破</span>
+                <div class="status-bar">
+                    <div class="status-fill detection-fill" id="detection-fill"></div>
+                </div>
+                <span class="status-value" id="detection-value">0%</span>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🎭</span>
+                <span class="status-label">境界</span>
+                <span class="status-value realm-value" id="current-realm">地狱道</span>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">⭐</span>
+                <span class="status-label">技能点</span>
+                <span class="status-value skill-value" id="skill-points">0</span>
+            </div>
+        </div>
+
+        <button class="skill-tree-btn" id="skill-tree-btn">
+            <span class="skill-icon">🌳</span>
+            <span class="skill-text">技能树</span>
+        </button>
+
+        <div class="skill-tree-modal" id="skill-tree-modal">
+            <div class="skill-tree-content">
+                <div class="skill-tree-header">
+                    <h2>技能树</h2>
+                    <button class="close-skill-btn" id="close-skill-btn">✕</button>
+                </div>
+                <div class="skill-branches" id="skill-branches"></div>
+            </div>
+        </div>
 
         <a href="/achievements" class="ach-banner" id="ach-banner">
             <span class="ach-banner-icon">🏆</span>
@@ -43,7 +87,7 @@
         </section>
 
         <footer class="footer">
-            <p>棋圣 ChessSage · 灵活编码 Flexible Coding</p>
+            <p>棋圣 ChessSage · 六道轮回 Samsara</p>
             <p class="footer-note">所有棋类服务均由 <code>main.py</code> 统一拉起</p>
         </footer>
     </main>

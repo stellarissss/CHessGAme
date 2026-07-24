@@ -147,6 +147,46 @@ class DongwuqiBoard extends HTMLElement {
             </div>
         </header>
 
+        <div id="samsara-bar" class="samsara-bar">
+            <div class="samsara-item karma-item">
+                <span class="samsara-icon">☯</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">业力</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill karma-fill" id="karma-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="karma-value">0/150</span>
+                </div>
+            </div>
+            <div class="samsara-item detection-item">
+                <span class="samsara-icon">👁️</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">识破</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill detection-fill" id="detection-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="detection-value">0%</span>
+                </div>
+            </div>
+            <div class="samsara-item turn-item">
+                <span class="samsara-icon">⏱️</span>
+                <div class="samsara-info">
+                    <span class="samsara-label">回合</span>
+                    <div class="samsara-bar-container">
+                        <div class="samsara-bar-fill turn-fill" id="turn-fill"></div>
+                    </div>
+                    <span class="samsara-value" id="turn-value">0/20</span>
+                </div>
+            </div>
+            <div class="samsara-item objective-item">
+                <span class="samsara-icon">🎯</span>
+                <div class="samsara-info">
+                    <span class="samsara-label" id="objective-label">目标</span>
+                    <span class="samsara-value objective-text" id="objective-text">吃掉对方鼠</span>
+                </div>
+            </div>
+        </div>
+
         <main class="main">
             <div class="board-section">
                 <div id="board-container"></div>
@@ -342,7 +382,7 @@ class DongwuqiBoard extends HTMLElement {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 32px;
+    padding: 8px 24px;
     background: var(--paper);
     border-bottom: 1px solid var(--line);
     position: relative;
@@ -352,7 +392,7 @@ class DongwuqiBoard extends HTMLElement {
 .header::after {
     content: '';
     position: absolute;
-    left: 32px; right: 32px; bottom: -1px;
+    left: 24px; right: 24px; bottom: -1px;
     height: 1px;
     background: var(--ink);
     transform: scaleX(0);
@@ -416,6 +456,81 @@ class DongwuqiBoard extends HTMLElement {
     left: 100%;
 }
 
+.samsara-bar {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 6px 24px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    border-bottom: 2px solid #e94560;
+    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+}
+
+.samsara-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.samsara-icon {
+    font-size: 1.2rem;
+}
+
+.samsara-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.samsara-label {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.samsara-bar-container {
+    width: 80px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.samsara-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.karma-fill {
+    background: linear-gradient(90deg, #4ade80, #22c55e);
+}
+
+.detection-fill {
+    background: linear-gradient(90deg, #fbbf24, #f97316, #ef4444);
+}
+
+.turn-fill {
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+}
+
+.samsara-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.objective-text {
+    font-family: inherit;
+    font-weight: 500;
+}
+
 .btn-icon {
     padding: 8px 12px;
     border: none;
@@ -453,8 +568,8 @@ class DongwuqiBoard extends HTMLElement {
     display: flex;
     flex: 1;
     overflow: hidden;
-    padding: 24px 32px;
-    gap: 32px;
+    padding: 12px 24px;
+    gap: 24px;
 }
 
 .board-section {
@@ -468,8 +583,8 @@ class DongwuqiBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 600px);
-    height: calc(min(90vmin, 600px) * 9 / 7);
+    width: min(90vmin, 560px, calc((100vh - 180px) * 7 / 9));
+    height: calc(min(90vmin, 560px, calc((100vh - 180px) * 7 / 9)) * 9 / 7);
     background: var(--board-bg);
     border-radius: 4px;
     box-shadow:
@@ -499,7 +614,7 @@ class DongwuqiBoard extends HTMLElement {
     position: relative;
     background: var(--paper-warm);
     border: 1px solid var(--line);
-    padding: 20px 22px;
+    padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -830,7 +945,7 @@ class DongwuqiBoard extends HTMLElement {
 
 /* Input section */
 .input-section {
-    padding: 20px 32px 24px;
+    padding: 10px 24px;
     background: var(--paper);
     border-top: 1px solid var(--line);
     position: relative;
@@ -840,7 +955,7 @@ class DongwuqiBoard extends HTMLElement {
 .input-section::before {
     content: '';
     position: absolute;
-    left: 32px; right: 32px; top: -1px;
+    left: 24px; right: 24px; top: -1px;
     height: 1px;
     background: var(--ink);
     transform: scaleX(0);
@@ -856,7 +971,7 @@ class DongwuqiBoard extends HTMLElement {
 
 #command-input {
     flex: 1;
-    padding: 14px 18px;
+    padding: 10px 14px;
     border: 1px solid var(--line-strong);
     background: var(--paper-warm);
     color: var(--ink);
@@ -1103,15 +1218,15 @@ class DongwuqiBoard extends HTMLElement {
 @media (max-width: 900px) {
     .main {
         flex-direction: column;
-        padding: 16px 20px;
-        gap: 20px;
+        padding: 10px 16px;
+        gap: 12px;
     }
 
     .side-panel {
         width: 100%;
         flex-direction: row;
         flex-wrap: wrap;
-        max-height: 200px;
+        max-height: 160px;
     }
 
     .panel-section {
@@ -1120,11 +1235,11 @@ class DongwuqiBoard extends HTMLElement {
     }
 
     .messages {
-        max-height: 120px;
+        max-height: 100px;
     }
 
     .header {
-        padding: 16px 20px;
+        padding: 6px 16px;
     }
 
     .header::after {
@@ -1132,7 +1247,7 @@ class DongwuqiBoard extends HTMLElement {
     }
 
     .input-section {
-        padding: 16px 20px 20px;
+        padding: 8px 16px;
     }
 
     .input-section::before {
@@ -2286,6 +2401,7 @@ class DongwuqiBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
+        this.loadSamsaraState();
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
     }
@@ -2301,6 +2417,101 @@ class DongwuqiBoard extends HTMLElement {
             this.shadowRoot.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
         } catch (e) {
             console.error('Failed to load token stats:', e);
+        }
+    }
+
+    async loadSamsaraState() {
+        try {
+            const resp = await fetch('/samsara/api/state');
+            const data = await resp.json();
+            this.samsaraState = data;
+            this.updateSamsaraUI();
+        } catch (e) {
+            console.error('Failed to load samsara state:', e);
+            this.samsaraState = {
+                karma: 150,
+                karma_max: 150,
+                detection: 0,
+                current_turn: 0,
+                turn_limit: 20,
+                objective: { type: 'capture_rat', description: '吃掉对方鼠' }
+            };
+            this.updateSamsaraUI();
+        }
+    }
+
+    updateSamsaraUI() {
+        const state = this.samsaraState || {};
+        const karma = state.karma || 0;
+        const maxKarma = state.karma_max || 150;
+        const detection = state.detection || 0;
+        const currentTurn = state.current_turn || 0;
+        const maxTurns = state.turn_limit || 20;
+        const objective = state.objective || { description: '吃掉对方鼠' };
+
+        const karmaFill = this.shadowRoot.getElementById('karma-fill');
+        const karmaValue = this.shadowRoot.getElementById('karma-value');
+        const detectionFill = this.shadowRoot.getElementById('detection-fill');
+        const detectionValue = this.shadowRoot.getElementById('detection-value');
+        const turnFill = this.shadowRoot.getElementById('turn-fill');
+        const turnValue = this.shadowRoot.getElementById('turn-value');
+        const objectiveText = this.shadowRoot.getElementById('objective-text');
+
+        if (karmaFill) karmaFill.style.width = `${(karma / maxKarma) * 100}%`;
+        if (karmaValue) karmaValue.textContent = `${karma}/${maxKarma}`;
+        if (detectionFill) detectionFill.style.width = `${detection}%`;
+        if (detectionValue) detectionValue.textContent = `${Math.round(detection)}%`;
+        if (turnFill) turnFill.style.width = `${(currentTurn / maxTurns) * 100}%`;
+        if (turnValue) turnValue.textContent = `${currentTurn}/${maxTurns}`;
+        if (objectiveText) objectiveText.textContent = objective.description || '吃掉对方鼠';
+    }
+
+    async consumeKarma(amount) {
+        try {
+            const resp = await fetch('/samsara/api/karma/consume', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to consume karma:', e);
+            return { success: false };
+        }
+    }
+
+    async reportKarmaEvent(eventType, details = {}) {
+        try {
+            const resp = await fetch('/samsara/api/karma/event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ event_type: eventType, game_type: 'dongwuqi', details })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to report karma event:', e);
+        }
+    }
+
+    async incrementTurn() {
+        try {
+            const resp = await fetch('/samsara/api/turn/increment', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ game_type: 'dongwuqi' })
+            });
+            const data = await resp.json();
+            this.samsaraState = data.state;
+            this.updateSamsaraUI();
+            return data;
+        } catch (e) {
+            console.error('Failed to increment turn:', e);
         }
     }
 
@@ -2796,9 +3007,32 @@ class DongwuqiBoard extends HTMLElement {
                     AchievementChecker.checkAfterMove(this.boardState, this.configs, 'dongwuqi');
                 }
 
+                await this.incrementTurn();
+
+                const lastMoveData = this.boardState.move_history.slice(-1)[0];
+                if (lastMoveData && lastMoveData.captured_piece) {
+                    const captured = lastMoveData.captured_piece;
+                    const movedPiece = this.boardState.pieces.find(p => p.id === lastMoveData.piece_id);
+                    let eventType = 'capture_normal';
+                    if (movedPiece && captured) {
+                        const rankOrder = ['rat', 'cat', 'dog', 'wolf', 'leopard', 'tiger', 'lion', 'elephant'];
+                        const movedRank = rankOrder.indexOf(movedPiece.type);
+                        const capturedRank = rankOrder.indexOf(captured.type);
+                        if (movedRank < capturedRank) {
+                            eventType = 'capture_overrank';
+                        }
+                    }
+                    await this.reportKarmaEvent(eventType, { piece: captured.type });
+                } else {
+                    await this.reportKarmaEvent('approach', {});
+                }
+
                 this._dispatchMoveEvent();
 
                 if (this.boardState.game_status.state === 'ended') {
+                    if (this.boardState.game_status.winner === 'red') {
+                        await this.reportKarmaEvent('win');
+                    }
                     this.showGameOver();
                     this._dispatchGameEndEvent();
                     this.aiThinking = false;
@@ -2983,7 +3217,9 @@ class DongwuqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    this.addMessage(`✅ ${data.message}`, 'success');
+                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
+                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
+                    await this.consumeKarma(10);
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
