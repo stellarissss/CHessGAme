@@ -21,6 +21,7 @@ from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import httpx
 
 from ai_orchestrator import AIOrchestrator
 from rule_engine import RuleEngine
@@ -33,6 +34,8 @@ from mechanism_engine import MechanismEngine
 
 CONFIGS_DIR = BASE_DIR / "configs"
 STATIC_DIR = BASE_DIR / "static"
+
+SAMSARA_API_URL = os.environ.get("SAMSARA_API_URL", "http://localhost:8080/samsara")
 
 CONFIG_FILES = ["board_state", "board", "pieces_black", "pieces_white", "rules", "ui_config"]
 
@@ -349,6 +352,31 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
             modified = result.get("modified_configs", {})
             if modified:
                 state.apply_config_update(modified)
+
+            # 成功执行后消耗业力并记录作弊
+            classification = result.get("classification", "")
+            estimated_karma_cost = result.get("estimated_karma_cost", 0)
+
+            # 只有非E类（搞笑类）才消耗业力
+            if classification != "E" and estimated_karma_cost > 0:
+                try:
+                    async with httpx.AsyncClient(timeout=10.0) as client:
+                        # 消耗业力
+                        consume_resp = await client.post(
+                            f"{SAMSARA_API_URL}/api/karma/consume",
+                            json={"amount": estimated_karma_cost, "allow_overdraft": True}
+                        )
+                        consume_result = consume_resp.json()
+
+                        # 记录作弊
+                        await client.post(f"{SAMSARA_API_URL}/api/cheat/record")
+
+                        # 将消耗结果添加到返回值
+                        result["karma_consumed"] = consume_result.get("actual_consumed", 0)
+                        result["is_overdraft"] = consume_result.get("is_overdraft", False)
+                        result["karma_state"] = consume_result.get("karma", {})
+                except Exception as e:
+                    result["karma_error"] = str(e)
 
         return result
     except Exception as e:
@@ -729,6 +757,70 @@ async def rpg_reset_battle():
 # ═══════════════════════════════════════════════════════════════
 # 启动
 # ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+# 关卡系统接口
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/level/info")
+async def get_level_info():
+    """获取当前关卡信息"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
+            data = resp.json()
+            return data
+    except Exception as e:
+        return {"success": False, "message": str(e), "current_level": None}
+
+
+@app.post("/api/level/apply")
+async def apply_level_config():
+    """根据当前关卡配置设置游戏参数"""
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
+            data = resp.json()
+            level = data.get("current_level")
+            if not level:
+                return {"success": False, "message": "无当前关卡"}
+
+            ai_depth = level.get("ai_depth", 3)
+            ai_personality = level.get("ai_personality", "normal")
+            turn_limit = level.get("turn_limit", 20)
+
+            difficulty_map = {1: "easy", 2: "easy", 3: "medium", 4: "hard", 5: "hard"}
+            difficulty = difficulty_map.get(ai_depth, "medium")
+            state.configs["rules"]["ai_difficulty"]["current"] = difficulty
+            if state.chess_ai:
+                state.chess_ai.set_difficulty(difficulty)
+            state.save_config("rules")
+
+            async with httpx.AsyncClient(timeout=5.0) as client2:
+                await client2.post(f"{SAMSARA_API_URL}/api/turn/reset")
+                await client2.post(f"{SAMSARA_API_URL}/api/turn/increment", json={"game_type": "heibaiqi"})
+
+            return {"success": True, "level": level, "difficulty": difficulty}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@app.post("/api/level/complete")
+async def complete_level(won: bool = True, no_cheat: bool = False, boss_defeated: bool = False):
+    """通关/失败时调用 samsara progression"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{SAMSARA_API_URL}/api/progression/resolve",
+                json={"won": won, "no_cheat": no_cheat, "boss_defeated": boss_defeated}
+            )
+            data = resp.json()
+            if won:
+                await client.post(f"{SAMSARA_API_URL}/api/levels/advance")
+            return data
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 
 if __name__ == "__main__":
     import uvicorn

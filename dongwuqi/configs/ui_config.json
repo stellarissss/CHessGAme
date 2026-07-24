@@ -13,10 +13,7 @@
       "black_color": "#1a1a1a",
       "red_bg": "#fff5e6",
       "black_bg": "#e6e6e6",
-      "font_family": "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Twemoji Mozilla',sans-serif",
-      "width_pct": 10,
-      "height_pct": 8,
-      "font_size": "1.2rem"
+      "font_family": "'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Twemoji Mozilla',sans-serif"
     },
     "highlight": {
       "selected": "#ffd700",

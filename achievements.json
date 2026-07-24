@@ -5,11 +5,31 @@
       "unlocked_at": "2026-07-22T15:02:11.897306",
       "game": "xiangqi",
       "context": "测试解锁"
+    },
+    "ambush": {
+      "unlocked_at": "2026-07-24T22:52:51.144896",
+      "game": "xiangqi",
+      "context": "你方棋子数量: 36"
+    },
+    "sea_of_pieces": {
+      "unlocked_at": "2026-07-24T22:52:51.157531",
+      "game": "xiangqi",
+      "context": "总棋子数: 51"
+    },
+    "suffering": {
+      "unlocked_at": "2026-07-24T22:54:13.976478",
+      "game": "xiangqi",
+      "context": "连续被吃5子"
+    },
+    "got_cketched": {
+      "unlocked_at": "2026-07-24T23:00:39.883960",
+      "game": "dongwuqi",
+      "context": "被black方击败"
     }
   },
   "stats": {
-    "total_commands": 0,
-    "total_moves": 0,
+    "total_commands": 1,
+    "total_moves": 141,
     "total_captures": 0,
     "games_played": {}
   }

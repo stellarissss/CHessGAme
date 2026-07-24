@@ -156,6 +156,7 @@ class CheckersBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -324,38 +325,43 @@ class CheckersBoard extends HTMLElement {
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --paper: #0d0515;
+    --paper-warm: #12081f;
+    --paper-dark: #1a0a2e;
+    --ink: #4ade80;
+    --ink-soft: #2d4a1f;
+    --ink-medium: #1a3210;
+    --ink-light: #6b7280;
+    --ink-faint: #374151;
+    --line: #1a3210;
+    --line-strong: #2d4a1f;
 
-    --board-bg: #f5e6c8;
-    --board-line: #5c3a1e;
-    --red-piece: #cc0000;
-    --black-piece: #1a1a1a;
+    --board-bg: #0d0515;
+    --board-line: #2d4a1f;
+    --red-piece: #ef4444;
+    --black-piece: #4ade80;
 
-    --neon-cyan: #00f0ff;
-    --neon-magenta: #ff00aa;
-    --neon-pink: #ff2d6f;
-    --neon-green: #39ff14;
-    --neon-gold: #ffd700;
+    --neon-cyan: #4ade80;
+    --neon-magenta: #a855f7;
+    --neon-pink: #ef4444;
+    --neon-green: #4ade80;
+    --neon-gold: #fbbf24;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
-    --last-move: #8b5a2b;
-    --danger: #9b2c2c;
-    --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --ghost-green: #4ade80;
+    --ghost-green-dark: #2d4a1f;
+    --ghost-purple: #1a0a2e;
+    --ghost-gray: #6b7280;
 
-    --muted-ink: #7a7a7a;
-    --accent-green: #2d6a4f;
+    --highlight: #4ade80;
+    --valid-move: #4ade80;
+    --last-move: #a855f7;
+    --danger: #ef4444;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --text-light: #6b7280;
+
+    --muted-ink: #6b7280;
+    --accent-green: #4ade80;
 
     display: block;
     width: 100%;
@@ -378,11 +384,15 @@ class CheckersBoard extends HTMLElement {
     color: var(--ink);
     background-color: var(--paper);
     background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        radial-gradient(ellipse at 20% 20%, rgba(26, 10, 46, 0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(45, 74, 31, 0.3) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(74, 222, 128, 0.05) 0%, transparent 70%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
     background-repeat: repeat;
-    background-size: 200px 200px;
-    background-blend-mode: multiply;
+    background-size: cover, cover, cover, 200px 200px;
+    background-blend-mode: normal, normal, normal, multiply;
     overflow: hidden;
+    animation: ambientGlow 8s ease-in-out infinite;
 }
 
 /* Header */
@@ -391,10 +401,12 @@ class CheckersBoard extends HTMLElement {
     justify-content: space-between;
     align-items: center;
     padding: 8px 24px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(13, 5, 21, 0.95) 0%, rgba(26, 10, 46, 0.8) 100%);
+    border-bottom: 1px solid var(--line-strong);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .header::after {
@@ -402,10 +414,11 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     left: 24px; right: 24px; bottom: -1px;
     height: 1px;
-    background: var(--ink);
+    background: linear-gradient(90deg, transparent, var(--ghost-green), transparent);
     transform: scaleX(0);
     transform-origin: left;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
+    box-shadow: 0 0 8px var(--ghost-green);
 }
 
 .header h1 {
@@ -413,21 +426,23 @@ class CheckersBoard extends HTMLElement {
     font-weight: 500;
     font-size: 1.5rem;
     letter-spacing: 0.02em;
-    color: var(--ink);
+    color: var(--ghost-green);
     font-style: italic;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
 }
 
 .header h1::before {
-    content: '跳 棋';
+    content: '饿 鬼 道';
     display: block;
     font-family: 'Playfair Display', serif;
     font-size: 0.65rem;
     font-weight: 400;
     letter-spacing: 0.3em;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     text-transform: uppercase;
     margin-bottom: 2px;
     font-style: normal;
+    text-shadow: none;
 }
 
 .header-actions {
@@ -438,17 +453,18 @@ class CheckersBoard extends HTMLElement {
 
 #turn-indicator {
     padding: 8px 20px;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, var(--ghost-purple) 0%, var(--ghost-green-dark) 100%);
+    color: var(--ghost-green);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.75rem;
     font-weight: 500;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    border: none;
+    border: 1px solid var(--ghost-green);
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 0 15px rgba(74, 222, 128, 0.2);
 }
 
 #turn-indicator::before {
@@ -456,7 +472,7 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     top: 0; left: -100%;
     width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(74, 222, 128, 0.2), transparent);
     transition: left 0.5s ease;
 }
 
@@ -464,14 +480,57 @@ class CheckersBoard extends HTMLElement {
     left: 100%;
 }
 
+#turn-indicator::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 50% 50%, rgba(74, 222, 128, 0.1) 0%, transparent 70%);
+    animation: ghostPulse 3s ease-in-out infinite;
+}
+
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     border-bottom: 2px solid #e94560;
     box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+}
+
+.level-info-bar {
+    flex: 0 0 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 2px 0;
+    margin-bottom: 2px;
+    font-size: 0.8rem;
+    color: #fff;
+    border-bottom: 1px solid rgba(233, 69, 96, 0.2);
+}
+
+.level-info-bar .level-realm {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.75rem;
+}
+
+.level-info-bar .level-name {
+    font-weight: 600;
+}
+
+.level-info-bar .level-type-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 0.65rem;
+    background: rgba(233, 69, 96, 0.15);
+    border: 1px solid rgba(233, 69, 96, 0.4);
+    border-radius: 10px;
+    color: #e94560;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .samsara-item {
@@ -594,12 +653,37 @@ class CheckersBoard extends HTMLElement {
     position: relative;
     width: min(85vmin, 560px, calc(100vh - 180px));
     height: min(85vmin, 560px, calc(100vh - 180px));
-    background: var(--board-bg);
-    border-radius: 4px;
+    background: linear-gradient(145deg, #0d0515 0%, #1a0a2e 50%, #0d0515 100%);
+    border-radius: 8px;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 1px rgba(74, 222, 128, 0.1),
+        0 0 30px rgba(74, 222, 128, 0.05),
+        0 4px 20px rgba(0, 0, 0, 0.4),
+        0 20px 60px rgba(0, 0, 0, 0.6),
+        inset 0 1px 0 rgba(74, 222, 128, 0.05);
+    border: 2px solid var(--ghost-green-dark);
+}
+
+#board-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(ellipse at 30% 20%, rgba(45, 74, 31, 0.08) 0%, transparent 40%),
+        radial-gradient(ellipse at 70% 80%, rgba(26, 10, 46, 0.12) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 50%, rgba(74, 222, 128, 0.03) 0%, transparent 50%);
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+#board-container::after {
+    content: '';
+    position: absolute;
+    inset: 4px;
+    border: 1px solid rgba(74, 222, 128, 0.08);
+    border-radius: 6px;
+    pointer-events: none;
+    animation: boardGlow 6s ease-in-out infinite;
 }
 
 /* SVG棋盘 */
@@ -613,26 +697,28 @@ class CheckersBoard extends HTMLElement {
 
 /* 营区背景 */
 .camp {
-    opacity: 0.25;
+    opacity: 0.15;
 }
 .camp.red-camp {
-    fill: #cc0000;
+    fill: #ef4444;
 }
 .camp.black-camp {
-    fill: #333333;
+    fill: #4ade80;
 }
 
 /* 棋盘连接线 */
 .board-line {
     stroke: var(--board-line);
     stroke-width: 0.025;
-    opacity: 0.5;
+    opacity: 0.6;
+    filter: drop-shadow(0 0 0.5px rgba(74, 222, 128, 0.3));
 }
 
 /* 位置圆点 */
 .position-dot {
     fill: var(--board-line);
-    opacity: 0.45;
+    opacity: 0.5;
+    filter: drop-shadow(0 0 1px rgba(74, 222, 128, 0.2));
 }
 
 /* Side Panel */
@@ -646,18 +732,20 @@ class CheckersBoard extends HTMLElement {
 }
 
 .side-panel::-webkit-scrollbar { width: 4px; }
-.side-panel::-webkit-scrollbar-track { background: transparent; }
+.side-panel::-webkit-scrollbar-track { background: rgba(26, 10, 46, 0.3); }
 .side-panel::-webkit-scrollbar-thumb {
-    background: var(--line-strong);
+    background: var(--ghost-green-dark);
     border-radius: 2px;
 }
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: linear-gradient(145deg, rgba(26, 10, 46, 0.6) 0%, rgba(13, 5, 21, 0.8) 100%);
+    border: 1px solid var(--line-strong);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .panel-section::before {
@@ -665,9 +753,10 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    border-top: 1px solid var(--ghost-green);
+    border-left: 1px solid var(--ghost-green);
     pointer-events: none;
+    opacity: 0.5;
 }
 
 .panel-section::after {
@@ -675,9 +764,10 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     bottom: 0; right: 0;
     width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    border-bottom: 1px solid var(--ghost-green);
+    border-right: 1px solid var(--ghost-green);
     pointer-events: none;
+    opacity: 0.5;
 }
 
 .panel-section:nth-child(1) { animation-delay: 0.25s; }
@@ -693,12 +783,13 @@ class CheckersBoard extends HTMLElement {
     font-weight: 500;
     font-size: 1rem;
     margin-bottom: 14px;
-    color: var(--ink);
+    color: var(--ghost-green);
     letter-spacing: 0.02em;
     padding-bottom: 10px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-strong);
     position: relative;
     font-style: italic;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
 .panel-section h3::before {
@@ -707,7 +798,7 @@ class CheckersBoard extends HTMLElement {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.7rem;
     font-weight: 400;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     margin-right: 10px;
     font-style: normal;
     vertical-align: middle;
@@ -724,51 +815,51 @@ class CheckersBoard extends HTMLElement {
 }
 
 .messages::-webkit-scrollbar { width: 4px; }
-.messages::-webkit-scrollbar-track { background: transparent; }
-.messages::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+.messages::-webkit-scrollbar-track { background: rgba(26, 10, 46, 0.3); }
+.messages::-webkit-scrollbar-thumb { background: var(--ghost-green-dark); border-radius: 2px; }
 
 .message {
     padding: 10px 0 10px 16px;
     margin-bottom: 4px;
-    border-left: 2px solid var(--ink-faint);
-    color: var(--ink-soft);
+    border-left: 2px solid var(--ghost-gray);
+    color: var(--ghost-gray);
     position: relative;
     animation: slideInLeft 0.4s cubic-bezier(0.22, 1, 0.36, 1);
     transition: all 0.2s ease;
 }
 
 .message:hover {
-    border-left-color: var(--ink);
-    background: rgba(26, 26, 26, 0.02);
+    border-left-color: var(--ghost-green);
+    background: rgba(74, 222, 128, 0.05);
     padding-left: 20px;
 }
 
 .message.success {
     border-left-color: var(--success);
-    color: var(--ink-soft);
+    color: var(--ghost-green);
 }
 
 .message.success:hover {
-    background: rgba(45, 106, 79, 0.04);
+    background: rgba(74, 222, 128, 0.1);
 }
 
 .message.error {
     border-left-color: var(--danger);
-    color: var(--ink-soft);
+    color: #ef4444;
 }
 
 .message.error:hover {
-    background: rgba(155, 44, 44, 0.04);
+    background: rgba(239, 68, 68, 0.1);
 }
 
 .message.fun {
-    border-left-color: var(--ink);
-    color: var(--ink);
+    border-left-color: var(--ghost-green);
+    color: var(--ghost-green);
     font-style: italic;
 }
 
 .message.fun:hover {
-    background: rgba(26, 26, 26, 0.03);
+    background: rgba(74, 222, 128, 0.08);
 }
 
 /* Rules list */
@@ -824,8 +915,8 @@ class CheckersBoard extends HTMLElement {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1px;
-    background: var(--line);
-    border: 1px solid var(--line);
+    background: var(--line-strong);
+    border: 1px solid var(--line-strong);
 }
 
 .token-stat {
@@ -833,12 +924,12 @@ class CheckersBoard extends HTMLElement {
     flex-direction: column;
     align-items: flex-start;
     padding: 12px 14px;
-    background: var(--paper);
+    background: rgba(13, 5, 21, 0.8);
     transition: background 0.2s ease;
 }
 
 .token-stat:hover {
-    background: var(--paper-warm);
+    background: rgba(45, 74, 31, 0.2);
 }
 
 .token-stat .stat-label {
@@ -846,7 +937,7 @@ class CheckersBoard extends HTMLElement {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     margin-bottom: 4px;
     font-weight: 500;
 }
@@ -855,26 +946,27 @@ class CheckersBoard extends HTMLElement {
     font-family: 'Playfair Display', Georgia, serif;
     font-size: 1.3rem;
     font-weight: 500;
-    color: var(--ink);
+    color: var(--ghost-green);
     font-style: italic;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
 .token-stat.cost {
     grid-column: span 2;
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--ghost-purple);
+    color: var(--ghost-green);
 }
 
 .token-stat.cost:hover {
-    background: var(--ink-soft);
+    background: rgba(45, 74, 31, 0.3);
 }
 
 .token-stat.cost .stat-label {
-    color: rgba(250, 250, 248, 0.6);
+    color: rgba(107, 114, 128, 0.6);
 }
 
 .token-stat.cost .stat-value {
-    color: var(--paper);
+    color: var(--ghost-green);
     font-size: 1.5rem;
 }
 
@@ -885,75 +977,83 @@ class CheckersBoard extends HTMLElement {
     gap: 8px;
 }
 
-/* 棋子 — SVG圆形纯色棋子 */
+/* 棋子 — SVG圆形幽灵发光棋子 */
 .piece {
     cursor: pointer;
-    transition: all 0.2s ease;
-    filter: drop-shadow(0 0.05px 0.05px rgba(0, 0, 0, 0.3));
+    transition: all 0.3s ease;
+    animation: ghostFloat 4s ease-in-out infinite;
 }
 
 .piece.red {
-    fill: #cc0000;
-    stroke: #660000;
+    fill: url(#redGhostGradient);
+    stroke: rgba(239, 68, 68, 0.6);
     stroke-width: 0.04;
+    filter: drop-shadow(0 0 0.1px rgba(239, 68, 68, 0.6)) drop-shadow(0 0 0.3px rgba(239, 68, 68, 0.3));
 }
 
 .piece.black {
-    fill: #1a1a1a;
-    stroke: #000000;
+    fill: url(#greenGhostGradient);
+    stroke: rgba(74, 222, 128, 0.6);
     stroke-width: 0.04;
+    filter: drop-shadow(0 0 0.1px rgba(74, 222, 128, 0.6)) drop-shadow(0 0 0.3px rgba(74, 222, 128, 0.3));
 }
 
 .piece:hover {
-    filter: drop-shadow(0 0.1px 0.1px rgba(0, 0, 0, 0.5)) brightness(1.12);
+    filter: drop-shadow(0 0 0.2px rgba(74, 222, 128, 0.8)) drop-shadow(0 0 0.5px rgba(74, 222, 128, 0.4)) brightness(1.15);
+    animation: ghostFloat 2s ease-in-out infinite, ghostGlow 1.5s ease-in-out infinite;
 }
 
 .piece.selected {
-    stroke: var(--neon-cyan);
+    stroke: var(--ghost-green);
     stroke-width: 0.12;
-    filter: drop-shadow(0 0 0.4px var(--neon-cyan)) drop-shadow(0 0 0.2px var(--neon-cyan));
+    filter: drop-shadow(0 0 0.4px var(--ghost-green)) drop-shadow(0 0 0.8px rgba(74, 222, 128, 0.5));
+    animation: ghostFloat 2s ease-in-out infinite, ghostPulse 1s ease-in-out infinite;
 }
 
 .piece.last-moved {
-    stroke: var(--neon-pink);
+    stroke: var(--neon-magenta);
     stroke-width: 0.1;
-    filter: drop-shadow(0 0 0.3px var(--neon-pink));
+    filter: drop-shadow(0 0 0.3px var(--neon-magenta)) drop-shadow(0 0 0.6px rgba(168, 85, 247, 0.4));
 }
 
 .piece.ai-moved {
     stroke: var(--neon-gold);
     stroke-width: 0.12;
-    filter: drop-shadow(0 0 0.4px var(--neon-gold));
+    filter: drop-shadow(0 0 0.4px var(--neon-gold)) drop-shadow(0 0 0.8px rgba(251, 191, 36, 0.4));
 }
 
 /* 合法移动标记 — SVG圆形 */
 .valid-move-indicator {
-    fill: rgba(57, 255, 20, 0.55);
-    stroke: var(--neon-green);
+    fill: rgba(74, 222, 128, 0.4);
+    stroke: var(--ghost-green);
     stroke-width: 0.04;
     cursor: pointer;
     pointer-events: auto;
     transition: all 0.2s ease;
     animation: validMovePulse 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 0.2px rgba(74, 222, 128, 0.6));
 }
 
 .valid-move-indicator:hover {
-    fill: rgba(57, 255, 20, 0.85);
+    fill: rgba(74, 222, 128, 0.7);
     stroke-width: 0.06;
+    filter: drop-shadow(0 0 0.4px rgba(74, 222, 128, 0.8));
 }
 
 @keyframes validMovePulse {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
+    0%, 100% { opacity: 0.5; transform: scale(0.95); }
+    50% { opacity: 1; transform: scale(1.05); }
 }
 
 /* Input section */
 .input-section {
     padding: 10px 24px;
-    background: var(--paper);
-    border-top: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(26, 10, 46, 0.8) 0%, rgba(13, 5, 21, 0.95) 100%);
+    border-top: 1px solid var(--line-strong);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
 }
 
 .input-section::before {
@@ -961,10 +1061,11 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     left: 24px; right: 24px; top: -1px;
     height: 1px;
-    background: var(--ink);
+    background: linear-gradient(90deg, transparent, var(--ghost-green), transparent);
     transform: scaleX(0);
     transform-origin: right;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
+    box-shadow: 0 0 8px var(--ghost-green);
 }
 
 .input-wrapper {
@@ -977,8 +1078,8 @@ class CheckersBoard extends HTMLElement {
     flex: 1;
     padding: 10px 14px;
     border: 1px solid var(--line-strong);
-    background: var(--paper-warm);
-    color: var(--ink);
+    background: rgba(13, 5, 21, 0.8);
+    color: var(--ghost-green);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.88rem;
     letter-spacing: 0.01em;
@@ -987,39 +1088,39 @@ class CheckersBoard extends HTMLElement {
 }
 
 #command-input::placeholder {
-    color: var(--ink-faint);
+    color: var(--ghost-gray);
     font-style: italic;
     font-family: 'DM Sans', sans-serif;
 }
 
 #command-input:focus {
     outline: none;
-    border-color: var(--ink);
-    background: var(--paper);
-    box-shadow: 0 2px 0 var(--ink);
+    border-color: var(--ghost-green);
+    background: rgba(26, 10, 46, 0.8);
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
 .hints {
     margin-top: 10px;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.72rem;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     letter-spacing: 0.03em;
     font-style: italic;
 }
 
 .hints::before {
-    content: '—  ';
-    color: var(--ink-faint);
+    content: '☠  ';
+    color: var(--ghost-gray);
     font-style: normal;
 }
 
 /* Buttons */
 .btn {
     padding: 12px 20px;
-    border: 1px solid var(--ink);
+    border: 1px solid var(--ghost-green);
     background: transparent;
-    color: var(--ink);
+    color: var(--ghost-green);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.8rem;
@@ -1038,13 +1139,14 @@ class CheckersBoard extends HTMLElement {
     bottom: 0; left: 0;
     width: 100%;
     height: 0;
-    background: var(--ink);
+    background: var(--ghost-green);
     transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: -1;
 }
 
 .btn:hover {
     color: var(--paper);
+    box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
 }
 
 .btn:hover::before {
@@ -1054,7 +1156,7 @@ class CheckersBoard extends HTMLElement {
 .btn-primary {
     padding: 12px 24px;
     border: none;
-    background: var(--ink);
+    background: var(--ghost-green);
     color: var(--paper);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
@@ -1066,6 +1168,7 @@ class CheckersBoard extends HTMLElement {
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
 }
 
 .btn-primary::after {
@@ -1076,9 +1179,9 @@ class CheckersBoard extends HTMLElement {
 }
 
 .btn-primary:hover {
-    background: var(--ink-soft);
+    background: rgba(74, 222, 128, 0.8);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
 }
 
 .btn-primary:hover::after {
@@ -1096,6 +1199,7 @@ class CheckersBoard extends HTMLElement {
 
 .btn.danger:hover {
     color: var(--paper);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
 }
 
 /* Modal */
@@ -1104,9 +1208,9 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(26, 26, 26, 0.5);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(13, 5, 21, 0.8);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 100;
     justify-content: center;
     align-items: center;
@@ -1119,14 +1223,14 @@ class CheckersBoard extends HTMLElement {
 
 .modal-content {
     position: relative;
-    background: var(--paper);
+    background: linear-gradient(145deg, rgba(26, 10, 46, 0.95) 0%, rgba(13, 5, 21, 0.98) 100%);
     padding: 36px 32px;
     width: 90%;
     max-width: 440px;
-    border: 1px solid var(--line-strong);
+    border: 1px solid var(--ghost-green-dark);
     box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.15),
-        0 2px 0 var(--ink);
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(74, 222, 128, 0.1);
     animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1134,7 +1238,7 @@ class CheckersBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 12px; left: 12px; right: 12px; bottom: 12px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(74, 222, 128, 0.2);
     pointer-events: none;
 }
 
@@ -1143,13 +1247,14 @@ class CheckersBoard extends HTMLElement {
     font-weight: 500;
     font-size: 1.6rem;
     margin-bottom: 24px;
-    color: var(--ink);
+    color: var(--ghost-green);
     letter-spacing: 0.01em;
     font-style: italic;
     text-align: center;
     padding-bottom: 16px;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-strong);
     position: relative;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
 }
 
 .modal-content h3::after {
@@ -1159,7 +1264,8 @@ class CheckersBoard extends HTMLElement {
     transform: translateX(-50%);
     width: 40px;
     height: 1px;
-    background: var(--ink);
+    background: var(--ghost-green);
+    box-shadow: 0 0 8px var(--ghost-green);
 }
 
 .form-group {
@@ -1173,7 +1279,7 @@ class CheckersBoard extends HTMLElement {
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: var(--ink-medium);
+    color: var(--ghost-gray);
     font-weight: 500;
 }
 
@@ -1183,8 +1289,8 @@ class CheckersBoard extends HTMLElement {
     padding: 12px 14px;
     border: 1px solid var(--line-strong);
     border-radius: 0;
-    background: var(--paper-warm);
-    color: var(--ink);
+    background: rgba(13, 5, 21, 0.8);
+    color: var(--ghost-green);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.88rem;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1193,15 +1299,15 @@ class CheckersBoard extends HTMLElement {
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: var(--ink);
-    background: var(--paper);
-    box-shadow: 0 2px 0 var(--ink);
+    border-color: var(--ghost-green);
+    background: rgba(26, 10, 46, 0.8);
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.2);
 }
 
 .form-group small {
     display: block;
     margin-top: 6px;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.72rem;
     font-style: italic;
@@ -1350,20 +1456,71 @@ class CheckersBoard extends HTMLElement {
     50% { opacity: 0.5; }
 }
 
+@keyframes ambientGlow {
+    0%, 100% { 
+        filter: brightness(1);
+    }
+    50% { 
+        filter: brightness(1.05);
+    }
+}
+
+@keyframes ghostFloat {
+    0%, 100% { 
+        transform: translateY(0);
+        filter: drop-shadow(0 0 0.1px rgba(74, 222, 128, 0.4));
+    }
+    50% { 
+        transform: translateY(-2px);
+        filter: drop-shadow(0 0 0.2px rgba(74, 222, 128, 0.6));
+    }
+}
+
+@keyframes ghostPulse {
+    0%, 100% { 
+        opacity: 0.8;
+        filter: drop-shadow(0 0 0.3px var(--ghost-green));
+    }
+    50% { 
+        opacity: 1;
+        filter: drop-shadow(0 0 0.6px var(--ghost-green)) drop-shadow(0 0 1px rgba(74, 222, 128, 0.5));
+    }
+}
+
+@keyframes ghostGlow {
+    0%, 100% { 
+        filter: brightness(1) drop-shadow(0 0 0.2px rgba(74, 222, 128, 0.6));
+    }
+    50% { 
+        filter: brightness(1.2) drop-shadow(0 0 0.4px rgba(74, 222, 128, 0.9));
+    }
+}
+
+@keyframes boardGlow {
+    0%, 100% { 
+        opacity: 0.3;
+        border-color: rgba(74, 222, 128, 0.08);
+    }
+    50% { 
+        opacity: 0.6;
+        border-color: rgba(74, 222, 128, 0.15);
+    }
+}
+
 /* Game Over Overlay */
 .game-over-overlay {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.95);
+    background: rgba(13, 5, 21, 0.95);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 50;
-    border-radius: 4px;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: fadeIn 0.4s ease;
 }
 
@@ -1371,15 +1528,16 @@ class CheckersBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 24px; left: 24px; right: 24px; bottom: 24px;
-    border: 1px solid var(--line-strong);
+    border: 1px solid var(--ghost-green);
     pointer-events: none;
+    opacity: 0.3;
 }
 
 .game-over-overlay::after {
     content: '';
     position: absolute;
     top: 32px; left: 32px; right: 32px; bottom: 32px;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-strong);
     pointer-events: none;
 }
 
@@ -1387,21 +1545,22 @@ class CheckersBoard extends HTMLElement {
     font-family: 'Playfair Display', Georgia, serif;
     font-weight: 500;
     font-size: 2.8rem;
-    color: var(--ink);
+    color: var(--ghost-green);
     margin-bottom: 12px;
     letter-spacing: 0.02em;
     font-style: italic;
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+    text-shadow: 0 0 20px rgba(74, 222, 128, 0.5);
 }
 
 .game-over-overlay h2::before,
 .game-over-overlay h2::after {
-    content: '—';
+    content: '☠';
     display: inline-block;
     margin: 0 16px;
     font-weight: 300;
-    color: var(--ink-faint);
+    color: var(--ghost-gray);
     font-style: normal;
     vertical-align: middle;
     font-size: 0.5em;
@@ -1409,7 +1568,7 @@ class CheckersBoard extends HTMLElement {
 
 .game-over-overlay p {
     font-family: 'DM Sans', sans-serif;
-    color: var(--ink-medium);
+    color: var(--ghost-gray);
     margin-bottom: 32px;
     font-size: 0.95rem;
     letter-spacing: 0.05em;
@@ -1421,8 +1580,8 @@ class CheckersBoard extends HTMLElement {
 
 .game-over-overlay button {
     padding: 14px 32px;
-    border: 1px solid var(--ink);
-    background: var(--ink);
+    border: 1px solid var(--ghost-green);
+    background: var(--ghost-green);
     color: var(--paper);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
@@ -1432,6 +1591,7 @@ class CheckersBoard extends HTMLElement {
     text-transform: uppercase;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+    box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
 }
 
 .game-over-overlay button::after {
@@ -1442,13 +1602,165 @@ class CheckersBoard extends HTMLElement {
 }
 
 .game-over-overlay button:hover {
-    background: var(--ink-soft);
+    background: rgba(74, 222, 128, 0.8);
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(26, 26, 26, 0.25);
+    box-shadow: 0 0 25px rgba(74, 222, 128, 0.5);
 }
 
 .game-over-overlay button:hover::after {
     transform: rotate(-180deg);
+}
+
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
 }
 
 /* AI Thinking Overlay */
@@ -1457,9 +1769,9 @@ class CheckersBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.9);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(13, 5, 21, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 200;
     justify-content: center;
     align-items: center;
@@ -1473,7 +1785,7 @@ class CheckersBoard extends HTMLElement {
 .thinking-content {
     position: relative;
     text-align: center;
-    color: var(--ink);
+    color: var(--ghost-green);
     z-index: 1;
 }
 
@@ -1495,15 +1807,16 @@ class CheckersBoard extends HTMLElement {
 
 .thinking-spinner::before {
     inset: 0;
-    border-top-color: var(--ink);
-    border-right-color: var(--ink);
+    border-top-color: var(--ghost-green);
+    border-right-color: var(--ghost-green);
     animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
 }
 
 .thinking-spinner::after {
     inset: 12px;
-    border-bottom-color: var(--ink-faint);
-    border-left-color: var(--ink-faint);
+    border-bottom-color: var(--ghost-gray);
+    border-left-color: var(--ghost-gray);
     animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite reverse;
 }
 
@@ -1512,15 +1825,16 @@ class CheckersBoard extends HTMLElement {
     font-weight: 500;
     font-size: 1.4rem;
     margin-bottom: 8px;
-    color: var(--ink);
+    color: var(--ghost-green);
     letter-spacing: 0.02em;
     font-style: italic;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
 }
 
 .thinking-stage {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.8rem;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
@@ -1548,12 +1862,12 @@ class CheckersBoard extends HTMLElement {
     max-height: 85vh;
     display: flex;
     flex-direction: column;
-    background: var(--paper);
-    border: 1px solid var(--line-strong);
+    background: linear-gradient(145deg, rgba(26, 10, 46, 0.95) 0%, rgba(13, 5, 21, 0.98) 100%);
+    border: 1px solid var(--ghost-green-dark);
     padding: 28px;
     box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.15),
-        0 2px 0 var(--ink);
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(74, 222, 128, 0.1);
     position: relative;
     animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -1562,18 +1876,18 @@ class CheckersBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 10px; left: 10px; right: 10px; bottom: 10px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(74, 222, 128, 0.2);
     pointer-events: none;
 }
 
 .logs-container {
     flex: 1;
     overflow-y: auto;
-    background: var(--paper-warm);
+    background: rgba(13, 5, 21, 0.8);
     padding: 20px 24px;
     margin: 16px 0;
     max-height: 65vh;
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-strong);
     position: relative;
 }
 
@@ -1583,13 +1897,13 @@ class CheckersBoard extends HTMLElement {
     top: 0; left: 50px;
     width: 1px;
     height: 100%;
-    background: var(--line-strong);
+    background: var(--ghost-green-dark);
     opacity: 0.5;
 }
 
 .logs-container::-webkit-scrollbar { width: 5px; }
-.logs-container::-webkit-scrollbar-track { background: transparent; }
-.logs-container::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+.logs-container::-webkit-scrollbar-track { background: rgba(26, 10, 46, 0.3); }
+.logs-container::-webkit-scrollbar-thumb { background: var(--ghost-green-dark); border-radius: 2px; }
 
 .log-entry {
     margin-bottom: 20px;
@@ -1620,7 +1934,7 @@ class CheckersBoard extends HTMLElement {
     margin-bottom: 10px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     letter-spacing: 0.03em;
 }
 
@@ -1628,18 +1942,18 @@ class CheckersBoard extends HTMLElement {
     font-family: 'Playfair Display', Georgia, serif;
     font-weight: 500;
     font-style: italic;
-    color: var(--ink);
+    color: var(--ghost-green);
     margin-bottom: 12px;
     padding: 8px 0;
     font-size: 0.95rem;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 1px solid var(--line-strong);
 }
 
 .log-user-input::before {
     content: '"';
     font-family: 'Playfair Display', serif;
     font-size: 1.2em;
-    color: var(--ink-faint);
+    color: var(--ghost-gray);
     line-height: 0;
     vertical-align: -0.2em;
     margin-right: 2px;
@@ -1649,7 +1963,7 @@ class CheckersBoard extends HTMLElement {
     content: '"';
     font-family: 'Playfair Display', serif;
     font-size: 1.2em;
-    color: var(--ink-faint);
+    color: var(--ghost-gray);
     line-height: 0;
     vertical-align: -0.2em;
     margin-left: 2px;
@@ -1658,14 +1972,14 @@ class CheckersBoard extends HTMLElement {
 .log-section {
     margin-top: 12px;
     padding: 12px 14px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: rgba(26, 10, 46, 0.6);
+    border: 1px solid var(--line-strong);
 }
 
 .log-section-title {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.72rem;
-    color: var(--ink-medium);
+    color: var(--ghost-gray);
     margin-bottom: 8px;
     font-weight: 500;
     text-transform: uppercase;
@@ -1679,17 +1993,17 @@ class CheckersBoard extends HTMLElement {
     word-break: break-all;
     max-height: 180px;
     overflow-y: auto;
-    background: var(--paper-warm);
+    background: rgba(13, 5, 21, 0.9);
     padding: 10px 12px;
-    color: var(--ink-soft);
-    border: 1px solid var(--line);
+    color: var(--ghost-green);
+    border: 1px solid var(--line-strong);
     line-height: 1.6;
 }
 
 .log-json {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.72rem;
-    color: var(--ink-medium);
+    color: var(--ghost-gray);
 }
 
 /* Locked states */
@@ -1718,23 +2032,26 @@ class CheckersBoard extends HTMLElement {
 
 .toast {
     padding: 14px 20px;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, var(--ghost-purple) 0%, rgba(13, 5, 21, 0.95) 100%);
+    color: var(--ghost-green);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.85rem;
-    border-left: 3px solid var(--paper);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border-left: 3px solid var(--ghost-green);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 10px rgba(74, 222, 128, 0.1);
     animation: toastIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
     max-width: 320px;
     position: relative;
+    border: 1px solid var(--ghost-green-dark);
 }
 
 .toast.success {
     border-left-color: var(--success);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(74, 222, 128, 0.2);
 }
 
 .toast.error {
     border-left-color: var(--danger);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(239, 68, 68, 0.2);
 }
 
 .toast.fade-out {
@@ -1849,16 +2166,18 @@ class CheckersBoard extends HTMLElement {
 .personality-card {
     position: relative;
     padding: 14px 12px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: rgba(26, 10, 46, 0.6);
+    border: 1px solid var(--line-strong);
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .personality-card::before {
     content: '';
     position: absolute;
     top: 6px; left: 6px; right: 6px; bottom: 6px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(74, 222, 128, 0.2);
     pointer-events: none;
     opacity: 0.6;
 }
@@ -1869,7 +2188,7 @@ class CheckersBoard extends HTMLElement {
     gap: 12px;
     margin-bottom: 10px;
     padding-bottom: 10px;
-    border-bottom: 1px dashed var(--line);
+    border-bottom: 1px dashed var(--line-strong);
 }
 
 .personality-icon {
@@ -1879,9 +2198,10 @@ class CheckersBoard extends HTMLElement {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
-    animation: float 3s ease-in-out infinite;
+    background: rgba(45, 74, 31, 0.2);
+    border: 1px solid var(--ghost-green-dark);
+    animation: ghostFloat 3s ease-in-out infinite;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.1);
 }
 
 .personality-title {
@@ -1894,14 +2214,15 @@ class CheckersBoard extends HTMLElement {
     font-size: 1rem;
     font-weight: 500;
     font-style: italic;
-    color: var(--ink);
+    color: var(--ghost-green);
     letter-spacing: 0.02em;
+    text-shadow: 0 0 8px rgba(74, 222, 128, 0.3);
 }
 
 .personality-subtitle {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.65rem;
-    color: var(--ink-light);
+    color: var(--ghost-gray);
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
@@ -1909,7 +2230,7 @@ class CheckersBoard extends HTMLElement {
 .personality-desc {
     font-family: 'DM Sans', sans-serif;
     font-size: 0.78rem;
-    color: var(--ink-medium);
+    color: var(--ghost-gray);
     line-height: 1.5;
     margin-bottom: 12px;
     font-style: italic;
@@ -1948,13 +2269,13 @@ class CheckersBoard extends HTMLElement {
 }
 
 .bar-chars.aggressive {
-    color: var(--neon-pink);
-    text-shadow: 0 0 6px rgba(255, 45, 111, 0.4);
+    color: var(--danger);
+    text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
 }
 
 .bar-chars.defensive {
-    color: var(--neon-cyan);
-    text-shadow: 0 0 6px rgba(0, 240, 255, 0.4);
+    color: var(--ghost-green);
+    text-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
 }
 
 .bar-percent {
@@ -2410,6 +2731,7 @@ class CheckersBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2422,6 +2744,29 @@ class CheckersBoard extends HTMLElement {
             };
             this.updateSamsaraUI();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2460,11 +2805,38 @@ class CheckersBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -3142,8 +3514,28 @@ class CheckersBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -3158,7 +3550,6 @@ class CheckersBoard extends HTMLElement {
                     this.updateAIPersonality();
                     this.updateMechanisms();
                     this.loadTokenStats();
-                    await this.consumeKarma(10);
 
                     if (data.classification === 'A') {
                         this.triggerPersonalityChangeAnimation();
@@ -3659,7 +4050,7 @@ class CheckersBoard extends HTMLElement {
         }
     }
 
-    showGameOver() {
+    async showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
@@ -3678,6 +4069,49 @@ class CheckersBoard extends HTMLElement {
         `;
         const restartBtn = overlay.querySelector('button');
         restartBtn.addEventListener('click', () => this.restart());
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = state.winner === this.playerSide;
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 

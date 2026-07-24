@@ -140,13 +140,18 @@ async def start_level(request: Request):
     body = await request.json()
     realm = body.get("realm", None)
     level_index = body.get("level_index", None)
+    mode = body.get("mode", "level")
     if realm:
         state.set_realm(realm)
     if level_index is not None:
         state.set("current_level", level_index)
     state.reset_level_state()
-    level = levels.load_level()
-    turn_limit.reset(40 if level.get("game_type") == "weiqi" else 20)
+    state.set_sandbox_mode(mode == "sandbox")
+    if mode == "sandbox":
+        level = levels.load_sandbox()
+    else:
+        level = levels.load_level()
+    turn_limit.reset(level.get("turn_limit", 40 if level.get("game_type") == "weiqi" else 20))
     bosses.reset_boss_skills()
     return {"success": True, "level": level, "state": state.get_full_state()}
 
@@ -278,3 +283,34 @@ async def get_realms():
     return [
         {"id": k, "name": v} for k, v in REALM_NAMES.items()
     ]
+
+
+@app.get("/api/levels/realm/{realm}")
+async def get_realm_levels(realm: str):
+    result = levels.get_realm_levels(realm)
+    if not result:
+        return {"success": False, "message": f"未知道: {realm}"}
+    result["state"] = state.get_full_state()
+    return {"success": True, **result}
+
+
+@app.post("/api/levels/sandbox")
+async def start_sandbox(request: Request):
+    body = await request.json()
+    realm = body.get("realm", None)
+    if realm:
+        state.set_realm(realm)
+    if not state.is_sandbox_unlocked(state.get("current_realm")):
+        return {"success": False, "message": "沙盒模式未解锁，请先通关该道所有关卡"}
+    state.reset_level_state()
+    state.set_sandbox_mode(True)
+    level = levels.load_sandbox()
+    turn_limit.reset(level.get("turn_limit", 20))
+    bosses.reset_boss_skills()
+    return {"success": True, "level": level, "state": state.get_full_state()}
+
+
+@app.post("/api/detection/reset")
+async def reset_on_detection():
+    state.reset_on_detection()
+    return {"success": True, "message": "天道识破 · 妄改天规者，罚入轮回", "state": state.get_full_state()}

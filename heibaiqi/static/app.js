@@ -146,6 +146,7 @@ class HeibaiqiBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -314,38 +315,45 @@ class HeibaiqiBoard extends HTMLElement {
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --paper: #0a0a0f;
+    --paper-warm: #12121a;
+    --paper-dark: #1a1a24;
+    --ink: #e8e8e8;
+    --ink-soft: #b8b8b8;
+    --ink-medium: #8a8a8a;
+    --ink-light: #5a5a6a;
+    --ink-faint: #3a3a4a;
+    --line: #2a2a3a;
+    --line-strong: #3a3a4a;
 
-    --board-bg: #1a5d3a;
-    --board-line: #000000;
-    --red-piece: #cc0000;
+    --board-bg: #1a0a0a;
+    --board-line: #4a0e0e;
+    --red-piece: #e94560;
     --black-piece: #1a1a1a;
 
     --neon-cyan: #00f0ff;
     --neon-magenta: #ff00aa;
     --neon-pink: #ff2d6f;
     --neon-green: #39ff14;
-    --neon-gold: #ffd700;
+    --neon-gold: #ff6b35;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
-    --last-move: #8b5a2b;
-    --danger: #9b2c2c;
+    --highlight: #ff6b35;
+    --valid-move: #e94560;
+    --last-move: #ff6b35;
+    --danger: #e94560;
     --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --warning: #ff6b35;
+    --text-light: #8a8a8a;
 
-    --muted-ink: #7a7a7a;
+    --muted-ink: #5a5a6a;
     --accent-green: #2d6a4f;
+
+    --hell-dark: #0a0a0f;
+    --hell-red: #4a0e0e;
+    --magma-orange: #ff6b35;
+    --hell-crimson: #e94560;
+    --ash-white: #c8c8c8;
+    --bone-white: #e0d8d0;
 
     display: block;
     width: 100%;
@@ -368,11 +376,30 @@ class HeibaiqiBoard extends HTMLElement {
     color: var(--ink);
     background-color: var(--paper);
     background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        linear-gradient(180deg, rgba(74, 14, 14, 0.15) 0%, rgba(10, 10, 15, 0.8) 50%, rgba(74, 14, 14, 0.1) 100%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
     background-repeat: repeat;
     background-size: 200px 200px;
     background-blend-mode: multiply;
     overflow: hidden;
+}
+
+#app::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+        radial-gradient(ellipse at 20% 80%, rgba(233, 69, 96, 0.1) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(255, 107, 53, 0.08) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 50%, rgba(74, 14, 14, 0.1) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+    animation: hellGlow 8s ease-in-out infinite;
+}
+
+@keyframes hellGlow {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
 }
 
 /* Header */
@@ -381,8 +408,8 @@ class HeibaiqiBoard extends HTMLElement {
     justify-content: space-between;
     align-items: center;
     padding: 8px 24px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(10, 10, 15, 0.95) 0%, rgba(10, 10, 15, 0.8) 100%);
+    border-bottom: 1px solid rgba(74, 14, 14, 0.5);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
 }
@@ -392,7 +419,7 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     left: 24px; right: 24px; bottom: -1px;
     height: 1px;
-    background: var(--ink);
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.6), transparent);
     transform: scaleX(0);
     transform-origin: left;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
@@ -405,16 +432,17 @@ class HeibaiqiBoard extends HTMLElement {
     letter-spacing: 0.02em;
     color: var(--ink);
     font-style: italic;
+    text-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
 }
 
 .header h1::before {
-    content: '黑 白 棋';
+    content: '地 狱 道';
     display: block;
     font-family: 'Playfair Display', serif;
     font-size: 0.65rem;
     font-weight: 400;
     letter-spacing: 0.3em;
-    color: var(--ink-light);
+    color: rgba(233, 69, 96, 0.7);
     text-transform: uppercase;
     margin-bottom: 2px;
     font-style: normal;
@@ -428,17 +456,20 @@ class HeibaiqiBoard extends HTMLElement {
 
 #turn-indicator {
     padding: 8px 20px;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, #1a0a0a 0%, #0a0505 100%);
+    color: var(--bone-white);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.75rem;
     font-weight: 500;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    border: none;
+    border: 1px solid rgba(233, 69, 96, 0.3);
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 
+        0 0 10px rgba(233, 69, 96, 0.2),
+        inset 0 0 20px rgba(74, 14, 14, 0.5);
 }
 
 #turn-indicator::before {
@@ -446,7 +477,7 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: -100%;
     width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.2), transparent);
     transition: left 0.5s ease;
 }
 
@@ -454,14 +485,52 @@ class HeibaiqiBoard extends HTMLElement {
     left: 100%;
 }
 
+#turn-indicator:hover {
+    border-color: rgba(255, 107, 53, 0.6);
+    box-shadow: 
+        0 0 15px rgba(255, 107, 53, 0.3),
+        inset 0 0 20px rgba(74, 14, 14, 0.5);
+}
+
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
     border-bottom: 2px solid #e94560;
     box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+}
+
+.level-info-bar {
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #fff;
+    padding: 2px 0;
+    letter-spacing: 0.05em;
+}
+
+.level-realm {
+    color: var(--neon-cyan);
+    font-weight: 600;
+}
+
+.level-name {
+    color: #fff;
+    font-weight: 500;
+}
+
+.level-type-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 8px;
+    font-size: 0.65rem;
+    border-radius: 8px;
+    background: rgba(255, 107, 53, 0.25);
+    border: 1px solid var(--neon-gold);
+    color: var(--neon-gold);
 }
 
 .samsara-item {
@@ -583,12 +652,57 @@ class HeibaiqiBoard extends HTMLElement {
     position: relative;
     width: min(90vmin, 560px, calc(100vh - 180px));
     height: min(90vmin, 560px, calc(100vh - 180px));
-    background: var(--board-bg);
+    background: 
+        linear-gradient(135deg, #0a0505 0%, #1a0a0a 50%, #0a0505 100%),
+        repeating-linear-gradient(
+            45deg,
+            rgba(74, 14, 14, 0.3) 0px,
+            rgba(74, 14, 14, 0.3) 2px,
+            transparent 2px,
+            transparent 8px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            rgba(255, 107, 53, 0.1) 0px,
+            rgba(255, 107, 53, 0.1) 3px,
+            transparent 3px,
+            transparent 10px
+        );
     border-radius: 4px;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 2px rgba(74, 14, 14, 0.5),
+        0 4px 30px rgba(0, 0, 0, 0.5),
+        0 20px 80px rgba(233, 69, 96, 0.15),
+        inset 0 0 60px rgba(74, 14, 14, 0.3);
+    animation: boardGlow 6s ease-in-out infinite;
+}
+
+#board-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: 
+        radial-gradient(circle at 30% 30%, rgba(255, 107, 53, 0.05) 0%, transparent 30%),
+        radial-gradient(circle at 70% 70%, rgba(233, 69, 96, 0.04) 0%, transparent 25%);
+    border-radius: 4px;
+    pointer-events: none;
+}
+
+@keyframes boardGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 0 2px rgba(74, 14, 14, 0.5),
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            0 20px 80px rgba(233, 69, 96, 0.15),
+            inset 0 0 60px rgba(74, 14, 14, 0.3);
+    }
+    50% { 
+        box-shadow:
+            0 0 0 2px rgba(74, 14, 14, 0.7),
+            0 4px 30px rgba(0, 0, 0, 0.5),
+            0 20px 80px rgba(233, 69, 96, 0.25),
+            inset 0 0 60px rgba(74, 14, 14, 0.4);
+    }
 }
 
 /* Side Panel */
@@ -610,8 +724,8 @@ class HeibaiqiBoard extends HTMLElement {
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(18, 18, 26, 0.8) 0%, rgba(10, 10, 15, 0.9) 100%);
+    border: 1px solid rgba(74, 14, 14, 0.3);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -621,8 +735,8 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    border-top: 1px solid rgba(233, 69, 96, 0.3);
+    border-left: 1px solid rgba(233, 69, 96, 0.3);
     pointer-events: none;
 }
 
@@ -631,8 +745,8 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     bottom: 0; right: 0;
     width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    border-bottom: 1px solid rgba(233, 69, 96, 0.3);
+    border-right: 1px solid rgba(233, 69, 96, 0.3);
     pointer-events: none;
 }
 
@@ -880,62 +994,134 @@ class HeibaiqiBoard extends HTMLElement {
     user-select: none;
     transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.3);
     transform-style: preserve-3d;
 }
 
 .piece:hover {
     transform: translate(-50%, -50%) scale(1.05);
-    filter: brightness(1.1);
+    filter: brightness(1.15);
 }
 
 .piece.red {
-    background: #fff5e6;
+    background: linear-gradient(135deg, #e0d8d0 0%, #c8c8c8 50%, #a8a0a0 100%);
     color: var(--red-piece);
-    border: 2px solid var(--red-piece);
+    border: 2px solid rgba(233, 69, 96, 0.6);
     box-shadow:
         0 2px 8px rgba(0, 0, 0, 0.4),
-        0 0 8px rgba(204, 0, 0, 0.55),
-        0 0 0 1px rgba(255, 80, 80, 0.6);
+        0 0 8px rgba(233, 69, 96, 0.4),
+        0 0 0 1px rgba(233, 69, 96, 0.3);
 }
 
 .piece.black {
-    background: #1a1a1a;
+    background: 
+        radial-gradient(circle at 30% 30%, #2a2a2a 0%, #1a1a1a 50%, #0a0a0a 100%),
+        repeating-radial-gradient(
+            circle at 50% 50%,
+            rgba(255, 107, 53, 0.03) 0px,
+            rgba(255, 107, 53, 0.03) 2px,
+            transparent 2px,
+            transparent 6px
+        );
     color: #1a1a1a;
-    border: 2px solid #000000;
+    border: 2px solid #0a0a0a;
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.55),
-        0 0 0 1px rgba(0, 0, 0, 0.4);
+        0 2px 10px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(0, 0, 0, 0.5),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.5),
+        inset 0 2px 4px rgba(255, 107, 53, 0.05);
 }
 
 .piece.white {
-    background: #fafaf8;
-    color: #fafaf8;
-    border: 2px solid #1a1a1a;
+    background: linear-gradient(135deg, #e0d8d0 0%, #c8c8c8 60%, #a8a0a0 100%);
+    color: #a8a0a0;
+    border: 2px solid rgba(180, 170, 160, 0.8);
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.35),
-        0 0 0 1px rgba(0, 0, 0, 0.25);
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(180, 170, 160, 0.5),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1);
 }
 
 .piece.selected {
     box-shadow:
-        0 0 0 3px var(--neon-cyan),
-        0 0 16px rgba(0, 240, 255, 0.8),
-        0 0 32px rgba(0, 240, 255, 0.5);
+        0 0 0 3px var(--magma-orange),
+        0 0 20px rgba(255, 107, 53, 0.8),
+        0 0 40px rgba(255, 107, 53, 0.5),
+        0 0 60px rgba(233, 69, 96, 0.3);
     z-index: 20;
+    animation: selectedGlow 1.5s ease-in-out infinite;
 }
 
 .piece.last-moved {
     box-shadow:
-        0 0 0 3px var(--neon-pink),
-        0 0 14px rgba(255, 45, 111, 0.7),
-        0 0 28px rgba(255, 45, 111, 0.4);
+        0 0 0 3px var(--hell-crimson),
+        0 0 16px rgba(233, 69, 96, 0.8),
+        0 0 32px rgba(233, 69, 96, 0.5),
+        0 0 48px rgba(255, 107, 53, 0.3);
+    animation: lastMoveGlow 2s ease-in-out infinite;
 }
 
 .piece.ai-moved {
-    border: 3px solid var(--neon-gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    border: 3px solid var(--magma-orange);
+    box-shadow: 
+        0 0 15px rgba(255, 107, 53, 0.9), 
+        0 0 30px rgba(255, 107, 53, 0.5),
+        0 0 50px rgba(233, 69, 96, 0.3);
     z-index: 100;
+    animation: aiMoveGlow 0.8s ease-out;
+}
+
+@keyframes selectedGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 0 3px var(--magma-orange),
+            0 0 20px rgba(255, 107, 53, 0.8),
+            0 0 40px rgba(255, 107, 53, 0.5),
+            0 0 60px rgba(233, 69, 96, 0.3);
+    }
+    50% { 
+        box-shadow:
+            0 0 0 3px var(--magma-orange),
+            0 0 25px rgba(255, 107, 53, 1),
+            0 0 50px rgba(255, 107, 53, 0.7),
+            0 0 70px rgba(233, 69, 96, 0.4);
+    }
+}
+
+@keyframes lastMoveGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 0 3px var(--hell-crimson),
+            0 0 16px rgba(233, 69, 96, 0.8),
+            0 0 32px rgba(233, 69, 96, 0.5),
+            0 0 48px rgba(255, 107, 53, 0.3);
+    }
+    50% { 
+        box-shadow:
+            0 0 0 3px var(--hell-crimson),
+            0 0 20px rgba(233, 69, 96, 1),
+            0 0 40px rgba(233, 69, 96, 0.7),
+            0 0 56px rgba(255, 107, 53, 0.4);
+    }
+}
+
+@keyframes aiMoveGlow {
+    0% { 
+        box-shadow: 
+            0 0 5px rgba(255, 107, 53, 0.5), 
+            0 0 10px rgba(255, 107, 53, 0.3);
+    }
+    50% { 
+        box-shadow: 
+            0 0 30px rgba(255, 107, 53, 1), 
+            0 0 60px rgba(255, 107, 53, 0.7),
+            0 0 100px rgba(233, 69, 96, 0.5);
+    }
+    100% { 
+        box-shadow: 
+            0 0 15px rgba(255, 107, 53, 0.9), 
+            0 0 30px rgba(255, 107, 53, 0.5),
+            0 0 50px rgba(233, 69, 96, 0.3);
+    }
 }
 
 .valid-move-indicator {
@@ -943,19 +1129,57 @@ class HeibaiqiBoard extends HTMLElement {
     width: 7%;
     height: 7%;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(255, 215, 0, 0.85) 0%, rgba(255, 215, 0, 0.35) 60%, transparent 100%);
-    box-shadow: 0 0 10px rgba(255, 215, 0, 0.7), 0 0 20px rgba(255, 215, 0, 0.4);
+    background: radial-gradient(circle, rgba(255, 107, 53, 0.9) 0%, rgba(233, 69, 96, 0.5) 50%, transparent 100%);
+    box-shadow: 
+        0 0 12px rgba(255, 107, 53, 0.8), 
+        0 0 24px rgba(233, 69, 96, 0.5),
+        0 0 36px rgba(255, 107, 53, 0.3);
     opacity: 0.9;
     pointer-events: auto;
     cursor: pointer;
     z-index: 5;
     transform: translate(-50%, -50%);
     transition: transform 0.15s ease, opacity 0.15s ease;
+    animation: flamePulse 1.2s ease-in-out infinite;
+}
+
+.valid-move-indicator::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 60%; height: 60%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 200, 100, 0.8) 0%, transparent 70%);
+    animation: innerFlame 0.8s ease-in-out infinite;
 }
 
 .valid-move-indicator:hover {
     transform: translate(-50%, -50%) scale(1.35);
     opacity: 1;
+    animation: flamePulse 0.6s ease-in-out infinite;
+}
+
+@keyframes flamePulse {
+    0%, 100% { 
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.9;
+    }
+    50% { 
+        transform: translate(-50%, -50%) scale(1.1);
+        opacity: 1;
+    }
+}
+
+@keyframes innerFlame {
+    0%, 100% { 
+        opacity: 0.6;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% { 
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
 }
 
 @keyframes pieceFlip {
@@ -1049,9 +1273,9 @@ class HeibaiqiBoard extends HTMLElement {
 /* Buttons */
 .btn {
     padding: 12px 20px;
-    border: 1px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
+    border: 1px solid rgba(233, 69, 96, 0.4);
+    background: rgba(10, 10, 15, 0.6);
+    color: var(--ash-white);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.8rem;
@@ -1070,13 +1294,15 @@ class HeibaiqiBoard extends HTMLElement {
     bottom: 0; left: 0;
     width: 100%;
     height: 0;
-    background: var(--ink);
+    background: linear-gradient(135deg, rgba(233, 69, 96, 0.8) 0%, rgba(255, 107, 53, 0.6) 100%);
     transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: -1;
 }
 
 .btn:hover {
-    color: var(--paper);
+    color: #fff;
+    border-color: rgba(255, 107, 53, 0.8);
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.3);
 }
 
 .btn:hover::before {
@@ -1086,8 +1312,8 @@ class HeibaiqiBoard extends HTMLElement {
 .btn-primary {
     padding: 12px 24px;
     border: none;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, rgba(233, 69, 96, 0.9) 0%, rgba(255, 107, 53, 0.7) 100%);
+    color: #fff;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.82rem;
@@ -1098,6 +1324,7 @@ class HeibaiqiBoard extends HTMLElement {
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
+    box-shadow: 0 0 15px rgba(233, 69, 96, 0.4);
 }
 
 .btn-primary::after {
@@ -1108,9 +1335,9 @@ class HeibaiqiBoard extends HTMLElement {
 }
 
 .btn-primary:hover {
-    background: var(--ink-soft);
+    background: linear-gradient(135deg, rgba(233, 69, 96, 1) 0%, rgba(255, 107, 53, 0.9) 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+    box-shadow: 0 0 25px rgba(255, 107, 53, 0.5);
 }
 
 .btn-primary:hover::after {
@@ -1118,16 +1345,18 @@ class HeibaiqiBoard extends HTMLElement {
 }
 
 .btn.danger {
-    border-color: var(--danger);
-    color: var(--danger);
+    border-color: rgba(233, 69, 96, 0.6);
+    color: rgba(233, 69, 96, 0.9);
 }
 
 .btn.danger::before {
-    background: var(--danger);
+    background: linear-gradient(135deg, rgba(233, 69, 96, 0.9) 0%, rgba(200, 40, 60, 0.7) 100%);
 }
 
 .btn.danger:hover {
-    color: var(--paper);
+    color: #fff;
+    border-color: rgba(233, 69, 96, 1);
+    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
 }
 
 /* Modal */
@@ -1136,9 +1365,9 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(26, 26, 26, 0.5);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(10, 10, 15, 0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: 100;
     justify-content: center;
     align-items: center;
@@ -1151,14 +1380,14 @@ class HeibaiqiBoard extends HTMLElement {
 
 .modal-content {
     position: relative;
-    background: var(--paper);
+    background: linear-gradient(135deg, rgba(18, 18, 26, 0.98) 0%, rgba(10, 10, 15, 0.98) 100%);
     padding: 36px 32px;
     width: 90%;
     max-width: 440px;
-    border: 1px solid var(--line-strong);
+    border: 1px solid rgba(74, 14, 14, 0.5);
     box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.15),
-        0 2px 0 var(--ink);
+        0 20px 60px rgba(0, 0, 0, 0.5),
+        0 0 30px rgba(233, 69, 96, 0.1);
     animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1166,7 +1395,7 @@ class HeibaiqiBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 12px; left: 12px; right: 12px; bottom: 12px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(233, 69, 96, 0.2);
     pointer-events: none;
 }
 
@@ -1387,7 +1616,7 @@ class HeibaiqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.95);
+    background: linear-gradient(135deg, rgba(10, 10, 15, 0.98) 0%, rgba(74, 14, 14, 0.9) 50%, rgba(10, 10, 15, 0.98) 100%);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1397,13 +1626,14 @@ class HeibaiqiBoard extends HTMLElement {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     animation: fadeIn 0.4s ease;
+    box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.8);
 }
 
 .game-over-overlay::before {
     content: '';
     position: absolute;
     top: 24px; left: 24px; right: 24px; bottom: 24px;
-    border: 1px solid var(--line-strong);
+    border: 1px solid rgba(233, 69, 96, 0.4);
     pointer-events: none;
 }
 
@@ -1411,7 +1641,7 @@ class HeibaiqiBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 32px; left: 32px; right: 32px; bottom: 32px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(255, 107, 53, 0.2);
     pointer-events: none;
 }
 
@@ -1483,13 +1713,165 @@ class HeibaiqiBoard extends HTMLElement {
     transform: rotate(-180deg);
 }
 
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
+}
+
 /* AI Thinking Overlay */
 .thinking-overlay {
     display: none;
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.9);
+    background: linear-gradient(135deg, rgba(10, 10, 15, 0.95) 0%, rgba(74, 14, 14, 0.8) 50%, rgba(10, 10, 15, 0.95) 100%);
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     z-index: 200;
@@ -2463,6 +2845,7 @@ class HeibaiqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2475,6 +2858,29 @@ class HeibaiqiBoard extends HTMLElement {
             };
             this.updateSamsaraUI();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2513,11 +2919,38 @@ class HeibaiqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -3111,9 +3544,28 @@ class HeibaiqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
-                    await this.consumeKarma(10);
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -3627,7 +4079,7 @@ class HeibaiqiBoard extends HTMLElement {
         }
     }
 
-    showGameOver() {
+    async showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
@@ -3646,6 +4098,49 @@ class HeibaiqiBoard extends HTMLElement {
         `;
         const restartBtn = overlay.querySelector('button');
         restartBtn.addEventListener('click', () => this.restart());
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = state.winner === 'black';
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 

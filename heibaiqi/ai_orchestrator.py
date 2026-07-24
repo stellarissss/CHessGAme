@@ -141,7 +141,7 @@ class AIOrchestrator:
         }
 
     async def _call_deepseek(
-        self, system_prompt: str, user_prompt: str, temperature: float = 0.3, model: str = "deepseek-chat"
+        self, system_prompt: str, user_prompt: str, temperature: float = 0.3, model: str = "deepseek-v4-flash"
     ) -> Tuple[str, float]:
         """调用DeepSeek API，返回(响应内容, 耗时秒数)"""
         headers = self._get_headers()
@@ -365,7 +365,7 @@ class AIOrchestrator:
         cost_energy = max(0, min(10, int(intent.get("cost_energy", 0) or 0)))
 
         game_type = "heibaiqi"
-        board_summary = self._generate_board_summary(configs)
+        board_summary = self._get_board_summary(configs.get("board_state", {}))
 
         estimated_karma_cost = 0
         try:

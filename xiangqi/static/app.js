@@ -148,6 +148,7 @@ class XiangqiBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -302,52 +303,60 @@ class XiangqiBoard extends HTMLElement {
     _getStyles() {
         return `
 @font-face {
-    font-family: 'Resource Han Rounded CN';
-    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot');
-    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot?#iefix') format('embedded-opentype'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff2') format('woff2'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff') format('woff'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.ttf') format('truetype'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.svg#Resource Han Rounded CN') format('svg');
+    font-family: 'KaiTi';
+    src: local('KaiTi'), local('STKaiti'), local('AR PL UKai CN'), local('AR PL UKai HK');
     font-weight: normal;
     font-style: normal;
     font-display: swap;
-    unicode-range: U+3000-303F, U+3040-309F, U+30A0-30FF, U+3400-4DBF, U+4E00-9FFF, U+F900-FAFF, U+FF00-FFEF;
+}
+
+@font-face {
+    font-family: 'KaiTi';
+    src: local('KaiTi Bold'), local('STKaiti');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --paper: #f5f0e6;
+    --paper-warm: #ebe3d4;
+    --paper-dark: #dcd2b8;
+    --ink: #3d2914;
+    --ink-soft: #5a4025;
+    --ink-medium: #7a5a3a;
+    --ink-light: #9a7a5a;
+    --ink-faint: #c9b898;
+    --line: #d4c8a8;
+    --line-strong: #c4b490;
 
-    --board-bg: #f0d9b5;
-    --board-line: #5c3a1e;
-    --red-piece: #cc0000;
-    --black-piece: #1a1a1a;
+    --board-bg: #8b5a2b;
+    --board-line: #2d1a08;
+    --board-border: #5c3a1e;
+    --red-piece: #8b2500;
+    --black-piece: #1a0f05;
+    --gold: #c9a227;
+    --gold-light: #e6c84a;
+    --gold-dark: #a68522;
+    --red-lacquer: #8b2500;
+    --red-lacquer-light: #a53010;
 
-    --neon-cyan: #00f0ff;
-    --neon-magenta: #ff00aa;
-    --neon-pink: #ff2d6f;
-    --neon-green: #39ff14;
-    --neon-gold: #ffd700;
+    --neon-cyan: #4a90a4;
+    --neon-magenta: #8b4a6b;
+    --neon-pink: #a54a5a;
+    --neon-green: #5a7a4a;
+    --neon-gold: #c9a227;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
-    --last-move: #8b5a2b;
-    --danger: #9b2c2c;
-    --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --highlight: #3d2914;
+    --valid-move: #5a7a3a;
+    --last-move: #c9a227;
+    --danger: #8b2500;
+    --success: #5a7a4a;
+    --warning: #c9a227;
+    --text-light: #5a4025;
 
-    --muted-ink: #7a7a7a;
-    --accent-green: #2d6a4f;
+    --muted-ink: #7a5a3a;
+    --accent-green: #5a7a4a;
 
     display: block;
     width: 100%;
@@ -366,14 +375,15 @@ class XiangqiBoard extends HTMLElement {
     height: 100%;
     width: 100%;
     position: relative;
-    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Resource Han Rounded CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-family: 'KaiTi', 'STKaiti', 'SimSun', 'Songti SC', serif;
     color: var(--ink);
     background-color: var(--paper);
     background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='inkFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5' stitchTiles='stitch'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%233d2914' surfaceScale='2'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23inkFilter)' opacity='0.03'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paperFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23paperFilter)'/%3E%3C/svg%3E");
     background-repeat: repeat;
-    background-size: 200px 200px;
-    background-blend-mode: multiply;
+    background-size: 600px 600px, 200px 200px;
+    background-blend-mode: overlay, multiply;
     overflow: hidden;
 }
 
@@ -401,25 +411,35 @@ class XiangqiBoard extends HTMLElement {
 }
 
 .header h1 {
-    font-family: 'Playfair Display', Georgia, 'Resource Han Rounded CN', 'PingFang SC', serif;
-    font-weight: 500;
-    font-size: 1.5rem;
-    letter-spacing: 0.02em;
+    font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
+    font-weight: bold;
+    font-size: 2rem;
+    letter-spacing: 0.2em;
     color: var(--ink);
-    font-style: italic;
+    font-style: normal;
+    position: relative;
 }
 
 .header h1::before {
     content: '象 棋';
     display: block;
-    font-family: 'Playfair Display', serif;
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: 0.3em;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-size: 0.8rem;
+    font-weight: normal;
+    letter-spacing: 0.5em;
     color: var(--ink-light);
-    text-transform: uppercase;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     font-style: normal;
+}
+
+.header h1::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
 }
 
 .header-actions {
@@ -430,14 +450,13 @@ class XiangqiBoard extends HTMLElement {
 
 #turn-indicator {
     padding: 8px 20px;
-    background: var(--ink);
+    background: linear-gradient(145deg, var(--ink) 0%, var(--ink-soft) 100%);
     color: var(--paper);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    border: none;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.2em;
+    border: 2px solid var(--gold);
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
@@ -448,7 +467,7 @@ class XiangqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: -100%;
     width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(201, 162, 39, 0.3), transparent);
     transition: left 0.5s ease;
 }
 
@@ -456,14 +475,50 @@ class XiangqiBoard extends HTMLElement {
     left: 100%;
 }
 
+#turn-indicator:hover {
+    border-color: var(--gold-light);
+    box-shadow: 0 0 12px rgba(201, 162, 39, 0.4);
+}
+
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    border-bottom: 2px solid #e94560;
-    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+    background: linear-gradient(135deg, #3d2914 0%, #5a4025 50%, #3d2914 100%);
+    border-bottom: 3px solid var(--gold);
+    box-shadow: 0 4px 20px rgba(61, 41, 20, 0.3);
+}
+
+.level-info-bar {
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #fff;
+    padding: 2px 0;
+    letter-spacing: 0.05em;
+}
+
+.level-realm {
+    color: var(--gold-light);
+    font-weight: 600;
+}
+
+.level-name {
+    color: #fff;
+    font-weight: 500;
+}
+
+.level-type-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 8px;
+    font-size: 0.65rem;
+    border-radius: 8px;
+    background: rgba(201, 162, 39, 0.25);
+    border: 1px solid var(--gold);
+    color: var(--gold-light);
 }
 
 .samsara-item {
@@ -585,12 +640,30 @@ class XiangqiBoard extends HTMLElement {
     position: relative;
     width: min(90vmin, 560px, calc((100vh - 180px) * 0.9));
     height: calc(min(90vmin, 560px, calc((100vh - 180px) * 0.9)) * 10 / 9);
-    background: var(--board-bg);
-    border-radius: 4px;
+    background: linear-gradient(135deg, #9b6a3a 0%, #8b5a2b 25%, #7a4a25 50%, #8b5a2b 75%, #9b6a3a 100%);
+    background-image:
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 30px,
+            rgba(139, 90, 43, 0.3) 30px,
+            rgba(139, 90, 43, 0.3) 31px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 30px,
+            rgba(139, 90, 43, 0.2) 30px,
+            rgba(139, 90, 43, 0.2) 31px
+        ),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='woodFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='3'/%3E%3CfeDisplacementMap in='SourceGraphic' scale='5'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23woodFilter)'/%3E%3C/svg%3E");
+    border-radius: 8px;
+    border: 4px solid #5c3a1e;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 2px #3d2914,
+        0 8px 32px rgba(61, 41, 20, 0.4),
+        0 24px 80px rgba(61, 41, 20, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 /* Side Panel */
@@ -612,29 +685,32 @@ class XiangqiBoard extends HTMLElement {
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: linear-gradient(145deg, var(--paper-warm) 0%, var(--paper) 100%);
+    border: 2px solid var(--ink);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    box-shadow:
+        2px 2px 0 var(--ink),
+        inset 0 0 20px rgba(61, 41, 20, 0.05);
 }
 
 .panel-section::before {
     content: '';
     position: absolute;
-    top: 0; left: 0;
-    width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    top: 4px; left: 4px;
+    width: 20px; height: 20px;
+    border-top: 2px solid var(--gold);
+    border-left: 2px solid var(--gold);
     pointer-events: none;
 }
 
 .panel-section::after {
     content: '';
     position: absolute;
-    bottom: 0; right: 0;
-    width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    bottom: 4px; right: 4px;
+    width: 20px; height: 20px;
+    border-bottom: 2px solid var(--gold);
+    border-right: 2px solid var(--gold);
     pointer-events: none;
 }
 
@@ -877,57 +953,70 @@ class XiangqiBoard extends HTMLElement {
     justify-content: center;
     font-size: 1.4rem;
     font-weight: bold;
-    font-family: 'KaiTi', 'SimSun', serif;
+    font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
     cursor: pointer;
     user-select: none;
     transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.3);
+    border: 3px solid var(--gold);
+    box-shadow:
+        0 3px 12px rgba(61, 41, 20, 0.5),
+        0 0 0 1px rgba(61, 41, 20, 0.3),
+        inset 0 -2px 4px rgba(61, 41, 20, 0.2),
+        inset 0 2px 4px rgba(255, 255, 255, 0.1);
 }
 
 .piece:hover {
-    transform: translate(-50%, -50%) scale(1.05);
-    filter: brightness(1.1);
+    transform: translate(-50%, -50%) scale(1.08);
+    filter: brightness(1.15);
 }
 
 .piece.red {
-    background: #fff5e6;
-    color: var(--red-piece);
-    border: 2px solid var(--red-piece);
+    background: linear-gradient(145deg, #a53010 0%, #8b2500 50%, #6b1a00 100%);
+    color: #fff5e6;
+    border: 3px solid var(--gold);
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.4),
-        0 0 8px rgba(204, 0, 0, 0.55),
-        0 0 0 1px rgba(255, 80, 80, 0.6);
+        0 4px 14px rgba(61, 41, 20, 0.6),
+        0 0 0 1px rgba(139, 37, 0, 0.5),
+        inset 0 -3px 6px rgba(61, 41, 20, 0.3),
+        inset 0 3px 6px rgba(255, 200, 180, 0.2);
 }
 
 .piece.black {
-    background: #e6e6e6;
-    color: var(--black-piece);
-    border: 2px solid var(--black-piece);
+    background: linear-gradient(145deg, #3a2510 0%, #1a0f05 50%, #0d0803 100%);
+    color: #f5f0e6;
+    border: 3px solid var(--gold);
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.5),
-        0 0 8px rgba(0, 240, 255, 0.35),
-        0 0 0 1px rgba(0, 240, 255, 0.5);
+        0 4px 14px rgba(61, 41, 20, 0.7),
+        0 0 0 1px rgba(26, 15, 5, 0.5),
+        inset 0 -3px 6px rgba(0, 0, 0, 0.4),
+        inset 0 3px 6px rgba(200, 180, 160, 0.1);
 }
 
 .piece.selected {
+    border-color: var(--gold-light);
     box-shadow:
-        0 0 0 3px var(--neon-cyan),
-        0 0 16px rgba(0, 240, 255, 0.8),
-        0 0 32px rgba(0, 240, 255, 0.5);
+        0 0 0 4px var(--gold),
+        0 0 20px rgba(201, 162, 39, 0.7),
+        0 0 40px rgba(201, 162, 39, 0.4),
+        inset 0 0 10px rgba(201, 162, 39, 0.3);
     z-index: 20;
 }
 
 .piece.last-moved {
+    border-color: var(--red-lacquer-light);
     box-shadow:
-        0 0 0 3px var(--neon-pink),
-        0 0 14px rgba(255, 45, 111, 0.7),
-        0 0 28px rgba(255, 45, 111, 0.4);
+        0 0 0 4px var(--red-lacquer),
+        0 0 16px rgba(139, 37, 0, 0.6),
+        0 0 32px rgba(139, 37, 0, 0.3);
 }
 
 .piece.ai-moved {
-    border: 3px solid var(--neon-gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    border: 4px solid var(--gold-light);
+    box-shadow:
+        0 0 20px rgba(201, 162, 39, 0.8),
+        0 0 40px rgba(201, 162, 39, 0.5),
+        inset 0 0 15px rgba(201, 162, 39, 0.4);
     z-index: 100;
 }
 
@@ -1012,56 +1101,47 @@ class XiangqiBoard extends HTMLElement {
 
 /* Buttons */
 .btn {
-    padding: 12px 20px;
-    border: 1px solid var(--ink);
-    background: transparent;
+    padding: 10px 18px;
+    border: 2px solid var(--ink);
+    background: linear-gradient(145deg, var(--paper) 0%, var(--paper-warm) 100%);
     color: var(--ink);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.15em;
     border-radius: 0;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
-    overflow: hidden;
-}
-
-.btn::before {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0;
-    width: 100%;
-    height: 0;
-    background: var(--ink);
-    transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
-    z-index: -1;
+    box-shadow: 2px 2px 0 var(--ink);
 }
 
 .btn:hover {
+    background: var(--ink);
     color: var(--paper);
+    box-shadow: 1px 1px 0 var(--ink);
+    transform: translate(1px, 1px);
 }
 
-.btn:hover::before {
-    height: 100%;
+.btn:active {
+    box-shadow: none;
+    transform: translate(2px, 2px);
 }
 
 .btn-primary {
-    padding: 12px 24px;
-    border: none;
-    background: var(--ink);
+    padding: 10px 22px;
+    border: 2px solid var(--gold);
+    background: linear-gradient(145deg, var(--ink) 0%, var(--ink-soft) 100%);
     color: var(--paper);
     cursor: pointer;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-size: 0.85rem;
+    font-weight: bold;
+    letter-spacing: 0.15em;
     border-radius: 0;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
-    overflow: hidden;
+    box-shadow: 2px 2px 0 var(--gold);
 }
 
 .btn-primary::after {
@@ -1069,12 +1149,19 @@ class XiangqiBoard extends HTMLElement {
     display: inline-block;
     margin-left: 8px;
     transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+    color: var(--gold);
 }
 
 .btn-primary:hover {
     background: var(--ink-soft);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+    box-shadow: 1px 1px 0 var(--gold);
+    transform: translate(1px, 1px);
+    border-color: var(--gold-light);
+}
+
+.btn-primary:active {
+    box-shadow: none;
+    transform: translate(2px, 2px);
 }
 
 .btn-primary:hover::after {
@@ -1445,6 +1532,158 @@ class XiangqiBoard extends HTMLElement {
 
 .game-over-overlay button:hover::after {
     transform: rotate(-180deg);
+}
+
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
 }
 
 /* AI Thinking Overlay */
@@ -2385,6 +2624,94 @@ class XiangqiBoard extends HTMLElement {
 .objective-item.achieved {
     animation: objectiveAchieved 0.6s ease;
 }
+
+/* Seal Stamp Decoration */
+.seal-stamp {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--red-lacquer);
+    background: rgba(139, 37, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: var(--red-lacquer);
+    letter-spacing: 0.1em;
+    transform: rotate(-15deg);
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.seal-stamp::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border: 1px solid var(--red-lacquer);
+}
+
+.header::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    right: 100px;
+    width: 36px;
+    height: 36px;
+    border: 2px solid var(--red-lacquer);
+    background: rgba(139, 37, 0, 0.03);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'KaiTi', 'STKaiti', serif;
+    font-weight: bold;
+    font-size: 0.8rem;
+    color: var(--red-lacquer);
+    letter-spacing: 0.1em;
+    transform: rotate(-10deg);
+}
+
+.header::before {
+    content: '象';
+}
+
+/* Ink Wash Effect */
+.ink-wash {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(40px);
+    opacity: 0.03;
+    pointer-events: none;
+}
+
+#app::before {
+    content: '';
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 400px;
+    height: 400px;
+    background: var(--ink);
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.05;
+    pointer-events: none;
+}
+
+#app::after {
+    content: '';
+    position: absolute;
+    bottom: -100px;
+    left: -100px;
+    width: 300px;
+    height: 300px;
+    background: var(--ink);
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.04;
+    pointer-events: none;
+}
 `;
     }
 
@@ -2426,6 +2753,7 @@ class XiangqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2438,6 +2766,29 @@ class XiangqiBoard extends HTMLElement {
             };
             this.updateSamsaraUI();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2476,11 +2827,38 @@ class XiangqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -3243,9 +3621,29 @@ class XiangqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
-                    await this.consumeKarma(10);
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        // 刷新状态
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -3760,7 +4158,7 @@ class XiangqiBoard extends HTMLElement {
         }
     }
 
-    showGameOver() {
+    async showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
@@ -3779,6 +4177,49 @@ class XiangqiBoard extends HTMLElement {
         `;
         const restartBtn = overlay.querySelector('button');
         restartBtn.addEventListener('click', () => this.restart());
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = state.winner === 'red';
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 

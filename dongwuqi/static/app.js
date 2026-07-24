@@ -148,6 +148,7 @@ class DongwuqiBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -316,38 +317,43 @@ class DongwuqiBoard extends HTMLElement {
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --paper: #0d2818;
+    --paper-warm: #16402a;
+    --paper-dark: #0a1f12;
+    --ink: #d4a83a;
+    --ink-soft: #c99a32;
+    --ink-medium: #a6822a;
+    --ink-light: #8b6914;
+    --ink-faint: #5c4a15;
+    --line: #1f5a38;
+    --line-strong: #2d7a4a;
 
-    --board-bg: #f0d9b5;
-    --board-line: #5c3a1e;
-    --red-piece: #cc0000;
+    --board-bg: #5c3d2e;
+    --board-line: #d4a83a;
+    --red-piece: #c41e3a;
     --black-piece: #1a1a1a;
 
-    --neon-cyan: #00f0ff;
-    --neon-magenta: #ff00aa;
-    --neon-pink: #ff2d6f;
+    --neon-cyan: #00ff88;
+    --neon-magenta: #ff44aa;
+    --neon-pink: #ff6b8a;
     --neon-green: #39ff14;
     --neon-gold: #ffd700;
+    --jungle-glow: #22ff66;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
+    --highlight: #d4a83a;
+    --valid-move: #2d6a4f;
     --last-move: #8b5a2b;
-    --danger: #9b2c2c;
-    --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --danger: #c41e3a;
+    --success: #228b45;
+    --warning: #d4a83a;
+    --text-light: #8b7355;
 
-    --muted-ink: #7a7a7a;
+    --muted-ink: #5c4a3a;
     --accent-green: #2d6a4f;
+
+    --bark-dark: #3d2817;
+    --bark-light: #6b4423;
+    --leather: #5c3d2e;
 
     display: block;
     width: 100%;
@@ -370,11 +376,24 @@ class DongwuqiBoard extends HTMLElement {
     color: var(--ink);
     background-color: var(--paper);
     background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E"),
+        radial-gradient(ellipse at 50% 0%, rgba(22, 64, 42, 0.6) 0%, transparent 50%),
+        radial-gradient(ellipse at 0% 50%, rgba(13, 40, 24, 0.8) 0%, transparent 50%);
     background-repeat: repeat;
-    background-size: 200px 200px;
-    background-blend-mode: multiply;
+    background-size: 150px 150px, 100% 50%, 50% 100%;
+    background-blend-mode: multiply, normal, normal;
     overflow: hidden;
+}
+
+#app::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0L35 20L55 25L40 40L45 60L30 50L15 60L20 40L5 25L25 20Z' fill='%2316402a' fill-opacity='0.1'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
 }
 
 /* Header */
@@ -383,18 +402,19 @@ class DongwuqiBoard extends HTMLElement {
     justify-content: space-between;
     align-items: center;
     padding: 8px 24px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #16402a 0%, #0d2818 100%);
+    border-bottom: 2px solid #d4a83a;
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .header::after {
     content: '';
     position: absolute;
-    left: 24px; right: 24px; bottom: -1px;
-    height: 1px;
-    background: var(--ink);
+    left: 24px; right: 24px; bottom: -2px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #d4a83a, transparent);
     transform: scaleX(0);
     transform-origin: left;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
@@ -404,19 +424,20 @@ class DongwuqiBoard extends HTMLElement {
     font-family: 'Playfair Display', Georgia, 'Resource Han Rounded CN', 'PingFang SC', serif;
     font-weight: 500;
     font-size: 1.5rem;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.05em;
     color: var(--ink);
     font-style: italic;
+    text-shadow: 0 0 10px rgba(212, 168, 58, 0.3);
 }
 
 .header h1::before {
-    content: '象 棋';
+    content: '畜生道';
     display: block;
     font-family: 'Playfair Display', serif;
     font-size: 0.65rem;
     font-weight: 400;
-    letter-spacing: 0.3em;
-    color: var(--ink-light);
+    letter-spacing: 0.4em;
+    color: #8b6914;
     text-transform: uppercase;
     margin-bottom: 2px;
     font-style: normal;
@@ -430,17 +451,19 @@ class DongwuqiBoard extends HTMLElement {
 
 #turn-indicator {
     padding: 8px 20px;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, #3d2817 0%, #2a1a10 100%);
+    color: #d4a83a;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.75rem;
     font-weight: 500;
     letter-spacing: 0.15em;
     text-transform: uppercase;
-    border: none;
+    border: 2px solid #d4a83a;
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 #turn-indicator::before {
@@ -448,7 +471,7 @@ class DongwuqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: -100%;
     width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(212, 168, 58, 0.2), transparent);
     transition: left 0.5s ease;
 }
 
@@ -456,14 +479,54 @@ class DongwuqiBoard extends HTMLElement {
     left: 100%;
 }
 
+#turn-indicator:hover {
+    box-shadow: 0 0 15px rgba(212, 168, 58, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    border-bottom: 2px solid #e94560;
-    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+    background: linear-gradient(135deg, #0d2818 0%, #16402a 50%, #0d2818 100%);
+    border-bottom: 2px solid #d4a83a;
+    box-shadow: 0 4px 20px rgba(212, 168, 58, 0.2);
+}
+
+.level-info-bar {
+    flex: 0 0 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 2px 0;
+    margin-bottom: 2px;
+    font-size: 0.8rem;
+    color: #d4a83a;
+    border-bottom: 1px solid rgba(212, 168, 58, 0.2);
+}
+
+.level-info-bar .level-realm {
+    color: rgba(212, 168, 58, 0.7);
+    font-size: 0.75rem;
+}
+
+.level-info-bar .level-name {
+    font-weight: 600;
+    text-shadow: 0 0 6px rgba(212, 168, 58, 0.4);
+}
+
+.level-info-bar .level-type-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    font-size: 0.65rem;
+    background: rgba(212, 168, 58, 0.15);
+    border: 1px solid rgba(212, 168, 58, 0.4);
+    border-radius: 10px;
+    color: #d4a83a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .samsara-item {
@@ -471,13 +534,21 @@ class DongwuqiBoard extends HTMLElement {
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(61, 40, 23, 0.6);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(212, 168, 58, 0.3);
+    transition: all 0.3s ease;
+}
+
+.samsara-item:hover {
+    background: rgba(61, 40, 23, 0.8);
+    border-color: rgba(212, 168, 58, 0.5);
+    box-shadow: 0 0 10px rgba(212, 168, 58, 0.2);
 }
 
 .samsara-icon {
     font-size: 1.2rem;
+    filter: drop-shadow(0 0 4px rgba(212, 168, 58, 0.3));
 }
 
 .samsara-info {
@@ -488,7 +559,7 @@ class DongwuqiBoard extends HTMLElement {
 
 .samsara-label {
     font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(212, 168, 58, 0.7);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -496,9 +567,10 @@ class DongwuqiBoard extends HTMLElement {
 .samsara-bar-container {
     width: 80px;
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(61, 40, 23, 0.8);
     border-radius: 3px;
     overflow: hidden;
+    border: 1px solid rgba(212, 168, 58, 0.3);
 }
 
 .samsara-bar-fill {
@@ -508,22 +580,26 @@ class DongwuqiBoard extends HTMLElement {
 }
 
 .karma-fill {
-    background: linear-gradient(90deg, #4ade80, #22c55e);
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
 }
 
 .detection-fill {
-    background: linear-gradient(90deg, #fbbf24, #f97316, #ef4444);
+    background: linear-gradient(90deg, #d4a83a, #f97316, #c41e3a);
+    box-shadow: 0 0 8px rgba(212, 168, 58, 0.5);
 }
 
 .turn-fill {
-    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    background: linear-gradient(90deg, #00ff88, #00cc6a);
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
 }
 
 .samsara-value {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #fff;
+    color: #d4a83a;
     font-family: 'JetBrains Mono', monospace;
+    text-shadow: 0 0 6px rgba(212, 168, 58, 0.4);
 }
 
 .objective-text {
@@ -585,12 +661,41 @@ class DongwuqiBoard extends HTMLElement {
     position: relative;
     width: min(90vmin, 560px, calc((100vh - 180px) * 7 / 9));
     height: calc(min(90vmin, 560px, calc((100vh - 180px) * 7 / 9)) * 9 / 7);
-    background: var(--board-bg);
-    border-radius: 4px;
+    background: linear-gradient(135deg, #5c3d2e 0%, #4a3022 50%, #5c3d2e 100%);
+    border-radius: 8px;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 3px #d4a83a,
+        0 0 0 6px #3d2817,
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 40px rgba(212, 168, 58, 0.1);
+    background-image:
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='bark'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5'/%3E%3CfeDiffuseLighting in='noise' lighting-color='%236b4423' surfaceScale='2'%3E%3CfeDistantLight azimuth='45' elevation='60'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bark)'/%3E%3C/svg%3E"),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 30px,
+            rgba(212, 168, 58, 0.03) 30px,
+            rgba(212, 168, 58, 0.03) 31px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 30px,
+            rgba(212, 168, 58, 0.02) 30px,
+            rgba(212, 168, 58, 0.02) 31px
+        );
+    background-blend-mode: overlay, normal, normal;
+}
+
+#board-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: radial-gradient(ellipse at 30% 30%, rgba(255, 255, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 70%, rgba(0, 0, 0, 0.3) 0%, transparent 50%);
+    border-radius: 8px;
+    pointer-events: none;
 }
 
 /* Side Panel */
@@ -612,10 +717,12 @@ class DongwuqiBoard extends HTMLElement {
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: linear-gradient(135deg, rgba(22, 64, 42, 0.8) 0%, rgba(13, 40, 24, 0.9) 100%);
+    border: 1px solid rgba(212, 168, 58, 0.3);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .panel-section::before {
@@ -623,8 +730,8 @@ class DongwuqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    border-top: 2px solid #d4a83a;
+    border-left: 2px solid #d4a83a;
     pointer-events: none;
 }
 
@@ -633,8 +740,8 @@ class DongwuqiBoard extends HTMLElement {
     position: absolute;
     bottom: 0; right: 0;
     width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    border-bottom: 2px solid #d4a83a;
+    border-right: 2px solid #d4a83a;
     pointer-events: none;
 }
 
@@ -882,53 +989,81 @@ class DongwuqiBoard extends HTMLElement {
     user-select: none;
     transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
     z-index: 10;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.3);
+    box-shadow: 
+        0 3px 12px rgba(0, 0, 0, 0.5), 
+        0 0 0 2px #d4a83a,
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+    background: linear-gradient(135deg, #3d2817 0%, #2a1a10 100%);
 }
 
 .piece:hover {
-    transform: translate(-50%, -50%) scale(1.05);
-    filter: brightness(1.1);
+    transform: translate(-50%, -50%) scale(1.08);
+    filter: brightness(1.2);
+    box-shadow: 
+        0 4px 16px rgba(0, 0, 0, 0.6), 
+        0 0 0 2px #d4a83a,
+        0 0 20px rgba(212, 168, 58, 0.4),
+        inset 0 1px 2px rgba(255, 255, 255, 0.1);
 }
 
 .piece.red {
-    background: #fff5e6;
-    color: var(--red-piece);
-    border: 2px solid var(--red-piece);
+    background: linear-gradient(135deg, #5c2a2a 0%, #3d1a1a 50%, #2a1010 100%);
+    color: #ff6b6b;
+    border: 3px solid #d4a83a;
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.4),
-        0 0 8px rgba(204, 0, 0, 0.55),
-        0 0 0 1px rgba(255, 80, 80, 0.6);
+        0 3px 12px rgba(0, 0, 0, 0.6),
+        0 0 0 3px #d4a83a,
+        0 0 12px rgba(212, 168, 58, 0.3),
+        inset 0 1px 3px rgba(255, 107, 107, 0.3);
 }
 
 .piece.black {
-    background: #e6e6e6;
-    color: var(--black-piece);
-    border: 2px solid var(--black-piece);
+    background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #0a0a0a 100%);
+    color: #a8a8a8;
+    border: 3px solid #d4a83a;
     box-shadow:
-        0 2px 8px rgba(0, 0, 0, 0.5),
-        0 0 8px rgba(0, 240, 255, 0.35),
-        0 0 0 1px rgba(0, 240, 255, 0.5);
+        0 3px 12px rgba(0, 0, 0, 0.7),
+        0 0 0 3px #d4a83a,
+        0 0 12px rgba(212, 168, 58, 0.2),
+        inset 0 1px 3px rgba(168, 168, 168, 0.2);
 }
 
 .piece.selected {
     box-shadow:
-        0 0 0 3px var(--neon-cyan),
-        0 0 16px rgba(0, 240, 255, 0.8),
-        0 0 32px rgba(0, 240, 255, 0.5);
+        0 0 0 4px #00ff88,
+        0 0 20px rgba(0, 255, 136, 0.7),
+        0 0 40px rgba(0, 255, 136, 0.4),
+        0 4px 16px rgba(0, 0, 0, 0.7);
     z-index: 20;
+    animation: eyeGlow 1.5s ease-in-out infinite;
 }
 
 .piece.last-moved {
     box-shadow:
-        0 0 0 3px var(--neon-pink),
-        0 0 14px rgba(255, 45, 111, 0.7),
-        0 0 28px rgba(255, 45, 111, 0.4);
+        0 0 0 4px #ff6b8a,
+        0 0 18px rgba(255, 107, 138, 0.6),
+        0 0 36px rgba(255, 107, 138, 0.3),
+        0 3px 12px rgba(0, 0, 0, 0.6);
 }
 
 .piece.ai-moved {
-    border: 3px solid var(--neon-gold);
-    box-shadow: 0 0 15px rgba(255, 215, 0, 0.85), 0 0 30px rgba(255, 215, 0, 0.45);
+    border: 4px solid #ffd700;
+    box-shadow: 
+        0 0 20px rgba(255, 215, 0, 0.9), 
+        0 0 40px rgba(255, 215, 0, 0.5),
+        0 4px 16px rgba(0, 0, 0, 0.7);
     z-index: 100;
+    animation: goldenPulse 1s ease-in-out infinite;
+}
+
+@keyframes eyeGlow {
+    0%, 100% { filter: brightness(1.2) drop-shadow(0 0 8px rgba(0, 255, 136, 0.5)); }
+    50% { filter: brightness(1.4) drop-shadow(0 0 16px rgba(0, 255, 136, 0.8)); }
+}
+
+@keyframes goldenPulse {
+    0%, 100% { filter: brightness(1.3) drop-shadow(0 0 10px rgba(255, 215, 0, 0.6)); }
+    50% { filter: brightness(1.5) drop-shadow(0 0 20px rgba(255, 215, 0, 0.9)); }
 }
 
 .valid-move-indicator {
@@ -1013,16 +1148,16 @@ class DongwuqiBoard extends HTMLElement {
 /* Buttons */
 .btn {
     padding: 12px 20px;
-    border: 1px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
+    border: 1px solid #d4a83a;
+    background: rgba(61, 40, 23, 0.5);
+    color: #d4a83a;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    border-radius: 0;
+    border-radius: 4px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
@@ -1034,13 +1169,14 @@ class DongwuqiBoard extends HTMLElement {
     bottom: 0; left: 0;
     width: 100%;
     height: 0;
-    background: var(--ink);
+    background: linear-gradient(135deg, #d4a83a, #b8860b);
     transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: -1;
 }
 
 .btn:hover {
-    color: var(--paper);
+    color: #0d2818;
+    box-shadow: 0 0 15px rgba(212, 168, 58, 0.3);
 }
 
 .btn:hover::before {
@@ -1050,18 +1186,19 @@ class DongwuqiBoard extends HTMLElement {
 .btn-primary {
     padding: 12px 24px;
     border: none;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, #d4a83a, #b8860b);
+    color: #0d2818;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.82rem;
-    font-weight: 500;
+    font-weight: 600;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    border-radius: 0;
+    border-radius: 4px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
+    box-shadow: 0 2px 8px rgba(212, 168, 58, 0.3);
 }
 
 .btn-primary::after {
@@ -1072,9 +1209,9 @@ class DongwuqiBoard extends HTMLElement {
 }
 
 .btn-primary:hover {
-    background: var(--ink-soft);
+    background: linear-gradient(135deg, #e4b84a, #d4a83a);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+    box-shadow: 0 4px 16px rgba(212, 168, 58, 0.4);
 }
 
 .btn-primary:hover::after {
@@ -1082,16 +1219,18 @@ class DongwuqiBoard extends HTMLElement {
 }
 
 .btn.danger {
-    border-color: var(--danger);
-    color: var(--danger);
+    border-color: #c41e3a;
+    color: #c41e3a;
+    background: rgba(196, 30, 58, 0.1);
 }
 
 .btn.danger::before {
-    background: var(--danger);
+    background: linear-gradient(135deg, #c41e3a, #9a152a);
 }
 
 .btn.danger:hover {
-    color: var(--paper);
+    color: #fff;
+    box-shadow: 0 0 15px rgba(196, 30, 58, 0.4);
 }
 
 /* Modal */
@@ -1445,6 +1584,158 @@ class DongwuqiBoard extends HTMLElement {
 
 .game-over-overlay button:hover::after {
     transform: rotate(-180deg);
+}
+
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
 }
 
 /* AI Thinking Overlay */
@@ -2385,6 +2676,481 @@ class DongwuqiBoard extends HTMLElement {
 .objective-item.achieved {
     animation: objectiveAchieved 0.6s ease;
 }
+
+/* Jungle Effects - Falling Leaves */
+#board-container::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 25;
+    overflow: hidden;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 0C5 5 0 10 10 20C20 10 15 5 10 0Z' fill='%232d6a4f'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 15 15'%3E%3Cpath d='M7.5 0C3 4 0 8 7.5 15C12 8 9 4 7.5 0Z' fill='%233d7a5e'/%3E%3C/svg%3E"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M6 0C2 3 0 6 6 12C10 6 8 3 6 0Z' fill='%23228b45'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: 
+        10% -20px,
+        60% -15px,
+        85% -10px;
+    animation: leafFall1 8s linear infinite, leafFall2 10s linear infinite, leafFall3 12s linear infinite;
+}
+
+@keyframes leafFall1 {
+    0% { 
+        background-position: 10% -20px; 
+        opacity: 0;
+    }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { 
+        background-position: 30% 120%; 
+        opacity: 0;
+    }
+}
+
+@keyframes leafFall2 {
+    0% { 
+        background-position: 60% -15px; 
+        opacity: 0;
+    }
+    20% { opacity: 0.5; }
+    80% { opacity: 0.5; }
+    100% { 
+        background-position: 40% 120%; 
+        opacity: 0;
+    }
+}
+
+@keyframes leafFall3 {
+    0% { 
+        background-position: 85% -10px; 
+        opacity: 0;
+    }
+    15% { opacity: 0.4; }
+    85% { opacity: 0.4; }
+    100% { 
+        background-position: 95% 120%; 
+        opacity: 0;
+    }
+}
+
+/* Jungle Fog Effect */
+.board-section::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 15;
+    background: radial-gradient(ellipse at 50% 50%, 
+        rgba(22, 64, 42, 0.15) 0%, 
+        transparent 60%);
+    animation: fogDrift 15s ease-in-out infinite;
+}
+
+@keyframes fogDrift {
+    0%, 100% { 
+        opacity: 0.4; 
+        transform: translateX(0) scale(1);
+    }
+    50% { 
+        opacity: 0.6; 
+        transform: translateX(10px) scale(1.05);
+    }
+}
+
+/* Glowing Eyes Effect for Selected Pieces */
+.piece.selected::after {
+    content: '';
+    position: absolute;
+    width: 30%;
+    height: 30%;
+    background: radial-gradient(circle, #00ff88 0%, transparent 70%);
+    border-radius: 50%;
+    opacity: 0;
+    animation: eyeGlowPulse 1s ease-in-out infinite;
+    box-shadow: 0 0 10px #00ff88, 0 0 20px #00ff88;
+}
+
+@keyframes eyeGlowPulse {
+    0%, 100% { opacity: 0; transform: scale(0.5); }
+    50% { opacity: 0.8; transform: scale(1.2); }
+}
+
+/* River styling for jungle theme */
+.river-text {
+    color: #228b45;
+    text-shadow: 0 0 10px rgba(34, 139, 69, 0.5);
+    font-family: 'KaiTi', serif;
+    letter-spacing: 0.3em;
+}
+
+/* Valid move indicator jungle style */
+.valid-move-indicator {
+    background: radial-gradient(circle, #00ff88 0%, rgba(0, 255, 136, 0.3) 60%, transparent 100%);
+    box-shadow: 0 0 10px #00ff88, 0 0 20px rgba(0, 255, 136, 0.4);
+}
+
+/* Thinking overlay jungle theme */
+.thinking-overlay {
+    background: rgba(13, 40, 24, 0.95);
+}
+
+.thinking-text {
+    color: #d4a83a;
+    text-shadow: 0 0 10px rgba(212, 168, 58, 0.4);
+}
+
+.thinking-spinner::before {
+    border-top-color: #d4a83a;
+    border-right-color: #d4a83a;
+}
+
+.thinking-spinner::after {
+    border-bottom-color: rgba(212, 168, 58, 0.5);
+    border-left-color: rgba(212, 168, 58, 0.5);
+}
+
+/* Game over overlay jungle theme */
+.game-over-overlay {
+    background: rgba(13, 40, 24, 0.98);
+}
+
+.game-over-overlay h2 {
+    color: #d4a83a;
+    text-shadow: 0 0 20px rgba(212, 168, 58, 0.5);
+}
+
+.game-over-overlay button {
+    background: linear-gradient(135deg, #d4a83a, #b8860b);
+    color: #0d2818;
+    border-color: #d4a83a;
+}
+
+.game-over-overlay button:hover {
+    background: linear-gradient(135deg, #e4b84a, #d4a83a);
+}
+
+/* Input section jungle theme */
+.input-section {
+    background: linear-gradient(180deg, #0d2818 0%, #16402a 100%);
+    border-top: 2px solid #d4a83a;
+}
+
+#command-input {
+    background: rgba(61, 40, 23, 0.6);
+    border-color: rgba(212, 168, 58, 0.3);
+    color: #d4a83a;
+}
+
+#command-input:focus {
+    border-color: #d4a83a;
+    background: rgba(61, 40, 23, 0.8);
+    box-shadow: 0 2px 0 #d4a83a;
+}
+
+#command-input::placeholder {
+    color: rgba(212, 168, 58, 0.4);
+}
+
+.hints {
+    color: rgba(212, 168, 58, 0.6);
+}
+
+/* Modal jungle theme */
+.modal-content {
+    background: linear-gradient(135deg, #16402a 0%, #0d2818 100%);
+    border-color: rgba(212, 168, 58, 0.4);
+}
+
+.modal-content h3 {
+    color: #d4a83a;
+    border-bottom-color: rgba(212, 168, 58, 0.3);
+}
+
+.modal-content h3::after {
+    background: #d4a83a;
+}
+
+.form-group label {
+    color: rgba(212, 168, 58, 0.8);
+}
+
+.form-group input,
+.form-group select {
+    background: rgba(61, 40, 23, 0.6);
+    border-color: rgba(212, 168, 58, 0.3);
+    color: #d4a83a;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    border-color: #d4a83a;
+    background: rgba(61, 40, 23, 0.8);
+    box-shadow: 0 2px 0 #d4a83a;
+}
+
+/* Token stats jungle theme */
+.token-stat {
+    background: rgba(61, 40, 23, 0.5);
+}
+
+.token-stat:hover {
+    background: rgba(61, 40, 23, 0.7);
+}
+
+.token-stat .stat-value {
+    color: #d4a83a;
+}
+
+.token-stat.cost {
+    background: rgba(212, 168, 58, 0.2);
+}
+
+.token-stat.cost:hover {
+    background: rgba(212, 168, 58, 0.3);
+}
+
+.token-stat.cost .stat-label {
+    color: rgba(212, 168, 58, 0.7);
+}
+
+.token-stat.cost .stat-value {
+    color: #d4a83a;
+}
+
+/* Messages jungle theme */
+.message {
+    border-left-color: rgba(212, 168, 58, 0.4);
+    color: rgba(212, 168, 58, 0.9);
+}
+
+.message:hover {
+    border-left-color: #d4a83a;
+    background: rgba(212, 168, 58, 0.05);
+}
+
+.message.success {
+    border-left-color: #228b45;
+}
+
+.message.error {
+    border-left-color: #c41e3a;
+}
+
+/* Personality card jungle theme */
+.personality-card {
+    background: rgba(61, 40, 23, 0.5);
+    border-color: rgba(212, 168, 58, 0.3);
+}
+
+.personality-icon {
+    background: rgba(212, 168, 58, 0.1);
+    border-color: rgba(212, 168, 58, 0.4);
+}
+
+.personality-type {
+    color: #d4a83a;
+}
+
+.personality-subtitle {
+    color: rgba(212, 168, 58, 0.6);
+}
+
+.personality-desc {
+    color: rgba(212, 168, 58, 0.8);
+}
+
+/* Toast jungle theme */
+.toast {
+    background: linear-gradient(135deg, #3d2817 0%, #2a1a10 100%);
+    color: #d4a83a;
+    border-left-color: #d4a83a;
+}
+
+.toast.success {
+    border-left-color: #228b45;
+}
+
+.toast.error {
+    border-left-color: #c41e3a;
+}
+
+/* Logs modal jungle theme */
+.logs-content {
+    background: linear-gradient(135deg, #16402a 0%, #0d2818 100%);
+    border-color: rgba(212, 168, 58, 0.4);
+}
+
+.logs-container {
+    background: rgba(61, 40, 23, 0.5);
+    border-color: rgba(212, 168, 58, 0.3);
+}
+
+.log-content {
+    background: rgba(61, 40, 23, 0.6);
+    border-color: rgba(212, 168, 58, 0.2);
+    color: rgba(212, 168, 58, 0.9);
+}
+
+/* Mechanism badges jungle theme */
+.mechanism-badge {
+    background: rgba(61, 40, 23, 0.5);
+    border-color: rgba(212, 168, 58, 0.3);
+    color: rgba(212, 168, 58, 0.9);
+}
+
+.mechanism-badge:hover {
+    background: rgba(61, 40, 23, 0.7);
+    border-color: rgba(212, 168, 58, 0.5);
+}
+
+.mechanism-count {
+    background: rgba(212, 168, 58, 0.3);
+    color: #d4a83a;
+}
+
+/* Objectives jungle theme */
+.objective-item {
+    background: rgba(61, 40, 23, 0.4);
+    border-color: rgba(212, 168, 58, 0.2);
+}
+
+.objective-item.enabled {
+    border-color: #d4a83a;
+}
+
+.objective-item.achieved {
+    border-color: #d4a83a;
+    background: linear-gradient(135deg, rgba(212, 168, 58, 0.15) 0%, rgba(212, 168, 58, 0.05) 100%);
+}
+
+.objective-title {
+    color: #d4a83a;
+}
+
+.objective-item.achieved .objective-title {
+    color: #d4a83a;
+}
+
+.objective-desc {
+    color: rgba(212, 168, 58, 0.7);
+}
+
+.objective-badge.victory {
+    background: rgba(212, 168, 58, 0.15);
+    color: #d4a83a;
+}
+
+.objective-badge.special {
+    background: rgba(34, 139, 69, 0.15);
+    color: #228b45;
+}
+
+.objective-status {
+    border-top-color: rgba(212, 168, 58, 0.2);
+}
+
+.objective-item.enabled .objective-status {
+    color: #228b45;
+}
+
+.objective-item.achieved .objective-status {
+    color: #d4a83a;
+}
+
+/* Rules list jungle theme */
+.rule-item {
+    border-bottom-color: rgba(212, 168, 58, 0.2);
+    color: rgba(212, 168, 58, 0.8);
+}
+
+.rule-item:hover {
+    color: #d4a83a;
+    border-bottom-color: rgba(212, 168, 58, 0.4);
+}
+
+.rules-list .empty {
+    color: rgba(212, 168, 58, 0.4);
+}
+
+/* Coord dots jungle theme */
+.coord-dot:hover {
+    filter: drop-shadow(0 0 4px rgba(212, 168, 58, 0.9));
+}
+
+.coord-dot.selected {
+    filter: drop-shadow(0 0 8px rgba(212, 168, 58, 1));
+}
+
+.coord-dot.in-region {
+    fill: #228b45;
+}
+
+/* Region rect jungle theme */
+.region-rect {
+    fill: rgba(34, 139, 69, 0.2);
+    stroke: #228b45;
+    filter: drop-shadow(0 0 6px rgba(34, 139, 69, 0.4));
+}
+
+/* Toggle mode button jungle theme */
+.btn-toggle-mode {
+    border-color: #d4a83a;
+    color: #d4a83a;
+}
+
+.btn-toggle-mode:hover {
+    background: #d4a83a;
+    color: #0d2818;
+}
+
+/* AI personality bars jungle theme */
+.bar-chars.aggressive {
+    color: #c41e3a;
+    text-shadow: 0 0 6px rgba(196, 30, 58, 0.5);
+}
+
+.bar-chars.defensive {
+    color: #00ff88;
+    text-shadow: 0 0 6px rgba(0, 255, 136, 0.5);
+}
+
+.bar-percent {
+    color: rgba(212, 168, 58, 0.8);
+}
+
+/* Mechanism stop button jungle theme */
+.mechanism-stop {
+    border-color: #c41e3a;
+    color: #c41e3a;
+}
+
+.mechanism-stop:hover {
+    background: #c41e3a;
+    color: #fff;
+}
+
+/* Freeze effect jungle theme */
+#board-container.freeze-effect::before {
+    background: linear-gradient(135deg,
+        rgba(0, 255, 136, 0.08) 0%,
+        rgba(0, 255, 136, 0.02) 50%,
+        rgba(0, 255, 136, 0.08) 100%);
+}
+
+#board-container.freeze-effect::after {
+    color: #00ff88;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+}
+
+/* AI control turn indicator */
+#turn-indicator.ai-control {
+    background: linear-gradient(90deg, #3d2817, #5c3d2e);
+}
 `;
     }
 
@@ -2426,6 +3192,7 @@ class DongwuqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2438,6 +3205,29 @@ class DongwuqiBoard extends HTMLElement {
             };
             this.updateSamsaraUI();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2476,11 +3266,38 @@ class DongwuqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -3217,9 +4034,28 @@ class DongwuqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
-                    await this.consumeKarma(10);
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -3734,7 +4570,7 @@ class DongwuqiBoard extends HTMLElement {
         }
     }
 
-    showGameOver() {
+    async showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
@@ -3753,6 +4589,49 @@ class DongwuqiBoard extends HTMLElement {
         `;
         const restartBtn = overlay.querySelector('button');
         restartBtn.addEventListener('click', () => this.restart());
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = state.winner === this.playerSide;
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 
