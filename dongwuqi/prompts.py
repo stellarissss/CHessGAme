@@ -74,6 +74,8 @@ PIECE_PRIMITIVE_PRIMER = """## ⚡ 动物棋移动与吃子原语体系（v2.0 �
 - 兽穴：黑方兽穴 (3,0)，红方兽穴 (3,8)
 - 陷阱：黑方陷阱 (2,0)/(4,0)/(3,1)，红方陷阱 (2,8)/(4,8)/(3,7)
 - 不能进入己方兽穴；敌方动物进入己方陷阱后等级降为0
+- **陷阱已重构为棋子原语**：陷阱不再是静态地形，而是 `category: "terrain"` 的棋子，
+  与动物棋子共存于同一格，通过 `effects` 字段对进入的敌方棋子施加效果（见下文"地形棋子原语"）
 
 ### jump（离散跳跃）
 一次跳到指定目标位置，可指定关卡格（必须为空）。`to` 字段支持两种格式：
@@ -109,9 +111,10 @@ PIECE_PRIMITIVE_PRIMER = """## ⚡ 动物棋移动与吃子原语体系（v2.0 �
 - `$full_board` — 整个棋盘（全图瞬移）
 - `water` — 水域区域
 - `red_side` / `black_side` — 红方区域 / 黑方区域
-- `trap_red` / `trap_black` — 红方陷阱 / 黑方陷阱
 - `den_red` / `den_black` — 红方兽穴 / 黑方兽穴
 - 以及 board.json 中 regions 定义的任何自定义区域
+- > 注意：陷阱已重构为 `category: "terrain"` 的棋子原语，不再是区域。
+  判断陷阱请使用 `in_trap` / `in_enemy_trap` 条件表达式（基于陷阱棋子判定），而非区域判断。
 
 > 💡 **自定义原语鼓励**：你可以创造性地组合使用 jump/ray 原语、区域目标模式、where 条件、rank/capture/path_constraint 等，发明全新的动物能力。例如"会跳河的象"（给象加 ray+path_constraint）、"水中霸王"（给狼加 in_water 条件+water_rules）、"全图瞬移鼠"（区域瞬移）等等。充分发挥想象力！
 
@@ -169,7 +172,48 @@ PIECE_PRIMITIVE_PRIMER = """## ⚡ 动物棋移动与吃子原语体系（v2.0 �
 - `mode: "rank_ge"`：攻击方等级 ≥ 防守方等级才能吃子（默认规则，等级吃子）
 - `exceptions`：例外列表，`can_eat` 表示额外可吃（无视等级），`cannot_eat` 表示额外不可吃
 - `water_rules`：水域相关吃子限制，鼠在水中时不可被陆地动物吃，且不能从水中攻击岸上的象
-- 陷阱效果：敌方动物进入己方陷阱后等级降为0，己方任何动物可吃（由引擎处理，无需配置）
+- 陷阱效果：敌方动物进入己方陷阱棋子所在格后等级降为0，己方任何动物可吃（由引擎根据陷阱棋子的 `effects` 自动处理）
+
+### 地形棋子原语（category: "terrain"）
+陷阱等场地原语以**地形棋子**形式存在，与动物棋子共存于同一格。通过 `category` 和 `effects` 两个字段定义：
+
+```json
+{
+  "type": "trap",
+  "label": {"red": "✖️", "black": "✖️"},
+  "category": "terrain",          // 标记为地形棋子（不参与移动/吃子/胜负）
+  "rank": 0,                       // 地形棋子 rank 通常为0
+  "moves": [
+    {"kind": "jump", "to": [0, 0], "block": [], "land": "empty", "sym": "none"}  // 零偏移=不可移动
+  ],
+  "capture": {"mode": "any_enemy", "exceptions": []},
+  "effects": [                     // 地形效果列表（仅 category=terrain 时生效）
+    {
+      "type": "rank_override",     // 效果类型：rank_override=覆盖等级
+      "target": "enemy",            // 作用对象：enemy（敌方棋子）/ all（所有棋子）/ self（自身）
+      "value": 0,                   // 覆盖值（陷阱通常为0，使敌方棋子等级归零）
+      "scope": "while_occupying"    // 作用范围：while_occupying=占据同格期间生效
+    }
+  ]
+}
+```
+
+**地形棋子规则：**
+- `category: "terrain"` 标记后，该棋子不可移动、不可吃子、不被吃、不参与胜负判定
+- 与动物棋子共存于同一格（引擎在 `_get_piece_at` 中自动跳过地形棋子）
+- `effects` 中的效果对**占据同格**的棋子持续生效
+- `target: "enemy"` 表示只对陷阱所属方的敌方棋子生效（己方棋子进入己方陷阱不受影响）
+- `target: "all"` 表示对所有棋子生效（含己方）
+- 陷阱效果受 `rules.json` 中 `special_rules.trap_neutralizes_rank.enabled` 开关控制
+- 陷阱降级后，攻击方跳过 `cannot_eat` 例外检查（象也能吃陷阱中的鼠）
+
+**陷阱棋子实例**（在 board_state.json 的 pieces 数组中）：
+```json
+{"id": "r_trap_1", "type": "trap", "name": "✖️", "side": "red", "position": [2,8], "is_alive": true, "custom_properties": {}}
+```
+
+> 💡 地形棋子原语支持动态增删：可通过 B 类操作移动/删除陷阱棋子位置，
+> 或通过 C+ 类创建全新的地形棋子（如"沼泽"、"冰面"等），只需配置 `effects` 即可。
 
 ### 对称展开 sym
 - `none`: 不展开，原样使用
@@ -955,7 +999,7 @@ BOARD_TRANSFORMER_SYSTEM = """你是"无限制斗兽棋"的棋盘状态管理AI�
 - type: elephant, lion, tiger, leopard, wolf, dog, cat, rat
 - number: 1（每种动物每方各一枚）
 
-标准初始棋子ID列表（共16枚）：
+标准初始棋子ID列表（共16枚动物 + 6枚地形棋子）：
 | 方 | ID | type | name | 位置 |
 |----|-----|------|------|------|
 | 黑 | b_lion_1 | lion | 🦁 | [0,0] |
@@ -974,6 +1018,16 @@ BOARD_TRANSFORMER_SYSTEM = """你是"无限制斗兽棋"的棋盘状态管理AI�
 | 红 | r_dog_1 | dog | 🐶 | [5,7] |
 | 红 | r_tiger_1 | tiger | 🐯 | [0,8] |
 | 红 | r_lion_1 | lion | 🦁 | [6,8] |
+| 黑 | b_trap_1 | trap | ✖️ | [2,0] |
+| 黑 | b_trap_2 | trap | ✖️ | [4,0] |
+| 黑 | b_trap_3 | trap | ✖️ | [3,1] |
+| 红 | r_trap_1 | trap | ✖️ | [2,8] |
+| 红 | r_trap_2 | trap | ✖️ | [4,8] |
+| 红 | r_trap_3 | trap | ✖️ | [3,7] |
+
+> ⚠️ 陷阱棋子（type=trap）是 `category: "terrain"` 的地形棋子，不可移动/不可吃/不被吃，
+> 仅作为场地原语对占据同格的敌方棋子施加 `effects`（等级归零）。详见 PIECE_PRIMITIVE_PRIMER 的"地形棋子原语"章节。
+> 移动/删除陷阱棋子时使用 B 类操作；动物棋子与陷阱棋子可共存于同一格。
 
 ## 坐标系统
 - [x, y] 格式
@@ -989,7 +1043,7 @@ BOARD_TRANSFORMER_SYSTEM = """你是"无限制斗兽棋"的棋盘状态管理AI�
 ### 添加棋子
 - 只在空位添加新棋子，不能修改或删除已有棋子
 - 新棋子必须有唯一的ID
-- 新棋子位置不能与现有存活棋子重叠
+- 新棋子位置不能与现有存活棋子重叠（地形棋子除外：`category: "terrain"` 的棋子可与动物棋子共存于同一格）
 - 新棋子不能放在己方兽穴内
 
 ### 删除棋子
@@ -1094,7 +1148,7 @@ UI_MODIFIER_SYSTEM = """你是"无限制斗兽棋"的界面修改AI。
 ### 2. board.json（棋盘视觉布局配置）
 
 #### board.json 结构要点
-- geometry：棋盘几何定义（width=7, height=9, regions包含water/trap_red/trap_black/den_red/den_black/red_side/black_side）
+- geometry：棋盘几何定义（width=7, height=9, regions包含water/den_red/den_black/red_side/black_side；陷阱已重构为棋子原语，不再作为区域定义）
 - appearance.background_color：棋盘背景色
 - appearance.line_color：线条颜色
 - appearance.grid：网格线配置（line_thickness, show_horizontal, show_vertical, river_gap）
@@ -1240,9 +1294,31 @@ PIECE_CREATOR_SYSTEM = """你是"无限制斗兽棋"的自定义动物创建AI�
       "invulnerable_in_water": false,
       "cannot_attack_from_water": []
     }
-  }
+  },
+  "category": "animal",            // 可选：animal（动物，默认）/ terrain（地形棋子）
+  "effects": []                     // 可选：仅 category=terrain 时生效，对占据同格的棋子施加效果
 }
 ```
+
+### 地形棋子（category: "terrain"）
+当 `category: "terrain"` 时，该棋子是**场地原语**而非动物：
+- 不可移动（moves 通常为零偏移 `to: [0,0]`）
+- 不可吃子、不被吃、不参与胜负判定
+- 与动物棋子共存于同一格
+- 通过 `effects` 对占据同格的棋子施加持续效果
+
+`effects` 数组中每个效果的结构：
+```json
+{
+  "type": "rank_override",      // 效果类型：rank_override=覆盖棋子等级
+  "target": "enemy",             // 作用对象：enemy（敌方）/ all（所有）/ self（自身）
+  "value": 0,                    // 覆盖值（陷阱通常为0，使棋子等级归零）
+  "scope": "while_occupying"     // 作用范围：while_occupying=占据同格期间
+}
+```
+
+**陷阱（trap）示例**：`category: "terrain"` + `effects: [{"type": "rank_override", "target": "enemy", "value": 0, "scope": "while_occupying"}]`，
+敌方棋子进入陷阱所在格后等级归零，可被任意己方棋子吃掉。详见 PIECE_PRIMITIVE_PRIMER。
 
 ## board_state 棋子实例结构
 ```json
@@ -1403,7 +1479,7 @@ PIECE_CREATOR_SYSTEM = """你是"无限制斗兽棋"的自定义动物创建AI�
 ```
 
 ## 创建原则
-1. 新动物的 type 字段必须是英文标识符，且不能与现有类型（elephant/lion/tiger/leopard/wolf/dog/cat/rat）冲突
+1. 新动物的 type 字段必须是英文标识符，且不能与现有类型（elephant/lion/tiger/leopard/wolf/dog/cat/rat/trap）冲突
 2. 新动物的 label 字段包含红黑双方的emoji或中文名称（动物棋中通常使用相同emoji）
 3. 必须基于 jump/ray 原语组合生成规则，不硬编码新类型
 4. 必须指定 rank（等级）和 capture（吃子规则）
@@ -1411,8 +1487,10 @@ PIECE_CREATOR_SYSTEM = """你是"无限制斗兽棋"的自定义动物创建AI�
 6. 复合移动能力使用多个move定义
 7. 棋子ID格式：{side}_{type}_{number}
 8. 坐标必须在棋盘范围内（x:0-6, y:0-8）
-9. 棋子位置不能与现有存活棋子重叠
+9. 棋子位置不能与现有存活棋子重叠（地形棋子除外，可与动物共存）
 10. 同时输出 pieces_patch 和 board_state_patch
+11. **创建地形棋子（如沼泽、冰面等）**：设置 `category: "terrain"`、`moves` 为零偏移（`to: [0,0]`）、
+    并通过 `effects` 定义对占据同格棋子的效果。地形棋子不参与移动/吃子/胜负，仅作为场地原语。
 
 ## 输出要求
 输出一个JSON对象，包含 pieces_patch 和 board_state_patch 两个字段。

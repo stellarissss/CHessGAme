@@ -203,5 +203,19 @@
       }
     }
   },
-  "custom_pieces": []
+  "custom_pieces": [
+    {
+      "type": "trap",
+      "label": {"red": "✖️", "black": "✖️"},
+      "category": "terrain",
+      "rank": 0,
+      "moves": [
+        {"kind": "jump", "to": [0, 0], "block": [], "land": "empty", "sym": "none"}
+      ],
+      "capture": {"mode": "any_enemy", "exceptions": []},
+      "effects": [
+        {"type": "rank_override", "target": "enemy", "value": 0, "scope": "while_occupying"}
+      ]
+    }
+  ]
 }
