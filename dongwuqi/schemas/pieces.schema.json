@@ -23,6 +23,11 @@
             }
           },
           "is_king": { "type": "boolean" },
+          "category": {
+            "type": "string",
+            "enum": ["animal", "terrain"],
+            "description": "棋子类别：animal（动物，可移动可吃子）/ terrain（地形，不可移动，作为陷阱等场地原语）"
+          },
           "rank": {
             "type": "integer",
             "minimum": 0,
@@ -212,6 +217,37 @@
               }
             },
             "additionalProperties": false
+          },
+          "effects": {
+            "type": "array",
+            "description": "地形效果列表（category=terrain 时生效，对占据同格的棋子施加效果）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["rank_override"],
+                  "description": "效果类型：rank_override=覆盖目标棋子的吃子等级"
+                },
+                "target": {
+                  "type": "string",
+                  "enum": ["enemy", "all", "self"],
+                  "description": "效果作用对象：enemy=敌方棋子 / all=所有棋子 / self=同阵营棋子"
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "覆盖后的等级值（陷阱通常为0，使敌方棋子降级为0）"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": ["while_occupying"],
+                  "description": "效果作用范围：while_occupying=占据该格期间持续生效"
+                }
+              },
+              "required": ["type", "target", "value"],
+              "additionalProperties": false
+            }
           }
         },
         "required": ["label", "moves"]
@@ -231,6 +267,11 @@
             }
           },
           "is_king": { "type": "boolean" },
+          "category": {
+            "type": "string",
+            "enum": ["animal", "terrain"],
+            "description": "棋子类别：animal（动物）/ terrain（地形，作为陷阱等场地原语）"
+          },
           "rank": { "type": "integer", "minimum": 0 },
           "moves": {
             "type": "array",
@@ -408,6 +449,37 @@
               }
             },
             "additionalProperties": false
+          },
+          "effects": {
+            "type": "array",
+            "description": "地形效果列表（category=terrain 时生效，对占据同格的棋子施加效果）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["rank_override"],
+                  "description": "效果类型：rank_override=覆盖目标棋子的吃子等级"
+                },
+                "target": {
+                  "type": "string",
+                  "enum": ["enemy", "all", "self"],
+                  "description": "效果作用对象：enemy=敌方棋子 / all=所有棋子 / self=同阵营棋子"
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "覆盖后的等级值（陷阱通常为0）"
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": ["while_occupying"],
+                  "description": "效果作用范围：while_occupying=占据该格期间持续生效"
+                }
+              },
+              "required": ["type", "target", "value"],
+              "additionalProperties": false
+            }
           }
         },
         "required": ["type", "label", "moves"]

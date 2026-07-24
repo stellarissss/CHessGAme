@@ -20,7 +20,13 @@
     {"id": "r_cat_1", "type": "cat", "name": "🐱", "side": "red", "position": [1, 7], "is_alive": true, "custom_properties": {}},
     {"id": "r_dog_1", "type": "dog", "name": "🐶", "side": "red", "position": [5, 7], "is_alive": true, "custom_properties": {}},
     {"id": "r_tiger_1", "type": "tiger", "name": "🐯", "side": "red", "position": [0, 8], "is_alive": true, "custom_properties": {}},
-    {"id": "r_lion_1", "type": "lion", "name": "🦁", "side": "red", "position": [6, 8], "is_alive": true, "custom_properties": {}}
+    {"id": "r_lion_1", "type": "lion", "name": "🦁", "side": "red", "position": [6, 8], "is_alive": true, "custom_properties": {}},
+    {"id": "r_trap_1", "type": "trap", "name": "✖️", "side": "red", "position": [2, 8], "is_alive": true, "custom_properties": {}},
+    {"id": "r_trap_2", "type": "trap", "name": "✖️", "side": "red", "position": [4, 8], "is_alive": true, "custom_properties": {}},
+    {"id": "r_trap_3", "type": "trap", "name": "✖️", "side": "red", "position": [3, 7], "is_alive": true, "custom_properties": {}},
+    {"id": "b_trap_1", "type": "trap", "name": "✖️", "side": "black", "position": [2, 0], "is_alive": true, "custom_properties": {}},
+    {"id": "b_trap_2", "type": "trap", "name": "✖️", "side": "black", "position": [4, 0], "is_alive": true, "custom_properties": {}},
+    {"id": "b_trap_3", "type": "trap", "name": "✖️", "side": "black", "position": [3, 1], "is_alive": true, "custom_properties": {}}
   ],
   "current_turn": "red",
   "move_history": [],

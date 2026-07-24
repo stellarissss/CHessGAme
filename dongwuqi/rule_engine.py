@@ -26,6 +26,17 @@ class RuleEngine:
         # 预计算各区域单元格集合，用于快速查表
         self._region_cells = self._build_region_cells()
 
+        # 预计算地形棋子类型集合（category == "terrain"，如陷阱）
+        # 这些棋子不参与移动/吃子，仅作为场地原语对占据同格的动物施加 effects
+        self._terrain_types: Set[str] = set()
+        for side in ("red", "black"):
+            for ptype, pconf in self._pieces_by_side.get(side, {}).items():
+                if pconf.get("category") == "terrain":
+                    self._terrain_types.add(ptype)
+            for cp in self._custom_pieces_by_side.get(side, []):
+                if cp.get("category") == "terrain":
+                    self._terrain_types.add(cp.get("type"))
+
     def _build_region_cells(self) -> Dict[str, Set[Tuple[int, int]]]:
         """预计算各区域的单元格集合"""
         regions = self.board_config.get("geometry", {}).get("regions", {})
@@ -43,15 +54,53 @@ class RuleEngine:
     def _is_in_water(self, pos: List[int]) -> bool:
         return (pos[0], pos[1]) in self._region_cells.get("water", set())
 
-    def _is_in_trap(self, pos: List[int]) -> bool:
-        """是否在任意一方的陷阱中"""
-        return ((pos[0], pos[1]) in self._region_cells.get("trap_red", set())
-                or (pos[0], pos[1]) in self._region_cells.get("trap_black", set()))
+    def _is_terrain_piece(self, piece: dict) -> bool:
+        """判断棋子是否为地形棋子（陷阱等场地原语，不参与移动/吃子）"""
+        if piece.get("category") == "terrain":
+            return True
+        return piece.get("type") in self._terrain_types
 
-    def _is_in_enemy_trap(self, pos: List[int], side: str) -> bool:
-        """是否在 side 的敌方陷阱中（即对方设置的陷阱）"""
-        enemy_trap = "trap_black" if side == "red" else "trap_red"
-        return (pos[0], pos[1]) in self._region_cells.get(enemy_trap, set())
+    def _get_terrain_pieces_at(
+        self, pos: List[int], board_state: dict
+    ) -> List[dict]:
+        """获取指定位置的所有地形棋子（陷阱等），与动物棋子共存于同一格"""
+        result = []
+        for p in board_state.get("pieces", []):
+            if not p.get("is_alive", True):
+                continue
+            if p["position"][0] != pos[0] or p["position"][1] != pos[1]:
+                continue
+            if self._is_terrain_piece(p):
+                result.append(p)
+        return result
+
+    def _is_in_trap(self, pos: List[int], board_state: dict) -> bool:
+        """是否在任意一方的陷阱中（基于陷阱棋子判定）"""
+        return any(self._is_in_enemy_trap(pos, tp["side"], board_state)
+                   for tp in self._get_terrain_pieces_at(pos, board_state))
+
+    def _is_in_enemy_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
+        """是否在 side 的敌方陷阱中（即对方设置的陷阱棋子所在格）"""
+        for tp in self._get_terrain_pieces_at(pos, board_state):
+            if tp.get("side") != side:
+                return True
+        return False
+
+    def _get_enemy_trap_effects(
+        self, pos: List[int], side: str, board_state: dict
+    ) -> List[dict]:
+        """获取 pos 处由 side 的敌方陷阱施加的效果列表"""
+        effects: List[dict] = []
+        for tp in self._get_terrain_pieces_at(pos, board_state):
+            if tp.get("side") == side:
+                continue  # 己方陷阱对己方棋子无效果
+            tp_config = self._get_piece_config(tp.get("type"), tp.get("side"))
+            if not tp_config:
+                continue
+            tp_effects = tp_config.get("effects", []) or tp.get("effects", [])
+            # 仅收集 target=enemy 的效果（针对敌方棋子）
+            effects.extend(e for e in tp_effects if e.get("target") in ("enemy", "all"))
+        return effects
 
     def _is_in_own_den(self, pos: List[int], side: str) -> bool:
         """是否在 side 自己的兽穴中"""
@@ -73,6 +122,10 @@ class RuleEngine:
         """计算棋子的所有合法移动位置"""
         piece_type = piece.get("type")
         if not piece_type:
+            return []
+
+        # 地形棋子（陷阱等）不参与移动
+        if self._is_terrain_piece(piece):
             return []
 
         move_defs = self._get_move_definitions(piece_type, piece.get("side"))
@@ -362,6 +415,10 @@ class RuleEngine:
         if attacker.get("side") == defender.get("side"):
             return False
 
+        # 地形棋子（陷阱）不可被吃，也不作为防守方参与吃子判定
+        if self._is_terrain_piece(defender) or self._is_terrain_piece(attacker):
+            return False
+
         attacker_type = attacker.get("type")
         defender_type = defender.get("type")
         attacker_config = self._get_piece_config(attacker_type, attacker.get("side"))
@@ -392,18 +449,33 @@ class RuleEngine:
             if defender_type in cannot_attack_from_water:
                 return False
 
-        # 3. 陷阱降级 - defender 在 attacker 方的陷阱中（即 defender 的敌方陷阱）
-        if self._is_in_enemy_trap(defender_pos, defender["side"]):
-            defender_rank = 0
+        # 3. 陷阱降级 - defender 在其敌方陷阱棋子上（基于陷阱棋子的 effects）
+        #    读取 rules.json 中 trap_neutralizes_rank.enabled 开关
+        trap_neutralize_enabled = (
+            self.rules.get("special_rules", {})
+            .get("trap_neutralizes_rank", {})
+            .get("enabled", True)
+        )
+        trap_neutralized = False
+        if trap_neutralize_enabled and defender_pos:
+            trap_effects = self._get_enemy_trap_effects(defender_pos, defender["side"], board_state)
+            for eff in trap_effects:
+                if eff.get("type") == "rank_override":
+                    defender_rank = eff.get("value", 0)
+                    trap_neutralized = True
+                    break
 
         # 4. 例外规则（鼠克象 / 象不能吃鼠）
+        #    注意：陷阱降级后跳过 cannot_eat 检查——陷阱使防守方等级归零，
+        #    任何敌方可吃（象也能吃陷阱中的鼠）
         attacker_capture = attacker_config.get("capture", {})
         exceptions = attacker_capture.get("exceptions", [])
         for exc in exceptions:
             if "can_eat" in exc and exc["can_eat"] == defender_type:
                 return True  # 显式可吃（鼠克象）
-            if "cannot_eat" in exc and exc["cannot_eat"] == defender_type:
-                return False  # 显式不可吃（象不能吃鼠）
+            if ("cannot_eat" in exc and exc["cannot_eat"] == defender_type
+                    and not trap_neutralized):
+                return False  # 显式不可吃（象不能吃鼠）——陷阱中除外
 
         # 5. 默认等级规则
         return attacker_rank >= defender_rank
@@ -467,11 +539,11 @@ class RuleEngine:
 
         if key == "in_trap":
             pos = _resolve_pos(value, "$dest")
-            return self._is_in_trap(pos)
+            return self._is_in_trap(pos, board_state)
 
         if key == "in_enemy_trap":
             pos = _resolve_pos(value, "$dest")
-            return self._is_in_enemy_trap(pos, piece["side"])
+            return self._is_in_enemy_trap(pos, piece["side"], board_state)
 
         if key == "in_own_den":
             pos = _resolve_pos(value, "$dest")
@@ -560,10 +632,15 @@ class RuleEngine:
     def _get_piece_at(
         self, pos: List[int], board_state: dict
     ) -> Optional[dict]:
-        """获取指定位置的棋子"""
+        """获取指定位置的可交互棋子（跳过地形棋子——陷阱与动物共存于同一格）"""
         for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
+            if not p.get("is_alive", True):
+                continue
+            if p["position"][0] != pos[0] or p["position"][1] != pos[1]:
+                continue
+            if self._is_terrain_piece(p):
+                continue  # 地形棋子不阻挡移动、不可被吃
+            return p
         return None
 
     # ═══════════════════════════════════════════════════════════════
@@ -574,12 +651,15 @@ class RuleEngine:
         """判定胜负，返回胜方 'red'/'black' 或 None
 
         优先级：enter_den（进兽穴）> annihilation（全歼）> stalemate（困毙）
+        地形棋子（陷阱）不参与胜负判定。
         """
         pieces = board_state.get("pieces", [])
 
         # 1. enter_den：己方动物进入对方兽穴
         for p in pieces:
             if not p.get("is_alive", True):
+                continue
+            if self._is_terrain_piece(p):
                 continue
             pos = p.get("position")
             side = p.get("side")
@@ -588,9 +668,11 @@ class RuleEngine:
             if self._is_in_enemy_den(pos, side):
                 return side
 
-        # 2. annihilation：一方无存活棋子
-        red_alive = any(p.get("is_alive", True) and p.get("side") == "red" for p in pieces)
-        black_alive = any(p.get("is_alive", True) and p.get("side") == "black" for p in pieces)
+        # 2. annihilation：一方无存活动物棋子（地形棋子不计入）
+        red_alive = any(p.get("is_alive", True) and p.get("side") == "red"
+                       and not self._is_terrain_piece(p) for p in pieces)
+        black_alive = any(p.get("is_alive", True) and p.get("side") == "black"
+                          and not self._is_terrain_piece(p) for p in pieces)
         if not red_alive:
             return "black"
         if not black_alive:
@@ -601,7 +683,11 @@ class RuleEngine:
         if current_turn:
             has_move = False
             for p in pieces:
-                if p.get("is_alive", True) and p.get("side") == current_turn:
+                if not p.get("is_alive", True):
+                    continue
+                if self._is_terrain_piece(p):
+                    continue
+                if p.get("side") == current_turn:
                     if self.get_valid_moves(p, board_state):
                         has_move = True
                         break

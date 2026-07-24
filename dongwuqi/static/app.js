@@ -3506,11 +3506,15 @@ class DongwuqiBoard extends HTMLElement {
             });
         }
 
-        // 陷阱装饰：半透明填充 + 对角十字
+        // 陷阱装饰：半透明填充 + 对角十字（陷阱已重构为棋子原语，从 board_state.pieces 读取）
         if (layoutConfig.traps?.enabled) {
             const trapsCfg = layoutConfig.traps;
-            const allTraps = [...(regions.trap_red?.cells || []), ...(regions.trap_black?.cells || [])];
-            allTraps.forEach(([cx, cy]) => {
+            // 陷阱现在作为 category=terrain 的棋子存在，从棋子数组动态渲染
+            const trapPieces = (this.boardState?.pieces || []).filter(
+                p => (p.type === 'trap' || p.category === 'terrain') && p.is_alive
+            );
+            trapPieces.forEach(piece => {
+                const [cx, cy] = piece.position;
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 rect.setAttribute('x', cx);
                 rect.setAttribute('y', cy);

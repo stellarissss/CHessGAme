@@ -81,6 +81,9 @@ class AnimalChessAI:
         # 注意：这里是同步方法，预计算应在调用get_best_move前通过precompute_custom_piece_values完成
         # 此处仅作为兜底，用启发式评估未缓存的自定义棋子
         for cp in self.custom_pieces:
+            # 地形棋子（陷阱等）无价值，跳过
+            if cp.get("category") == "terrain":
+                continue
             cp_type = cp.get("type")
             if cp_type and cp_type not in self._custom_piece_values:
                 self._heuristic_custom_piece_value(cp)
@@ -128,6 +131,9 @@ class AnimalChessAI:
         moves = []
         for p in board_state.get("pieces", []):
             if not p.get("is_alive", True):
+                continue
+            # 地形棋子（陷阱等）不可移动，跳过
+            if self.rule_engine._is_terrain_piece(p):
                 continue
             if p["side"] != side:
                 continue
@@ -244,8 +250,18 @@ class AnimalChessAI:
         cons = getattr(self, "personality_conservatism", 0.5)
         value_biases = getattr(self, "personality_value_biases", {})
 
+        # 陷阱效果开关（与规则引擎保持一致）
+        trap_enabled = (
+            self.rule_engine.rules.get("special_rules", {})
+            .get("trap_neutralizes_rank", {})
+            .get("enabled", True)
+        )
+
         for p in board_state.get("pieces", []):
             if not p.get("is_alive", True):
+                continue
+            # 地形棋子（陷阱等）无自身价值，跳过主评估
+            if self.rule_engine._is_terrain_piece(p):
                 continue
             # 预定义棋子用固定价值表，自定义棋子用缓存的AI评估值
             piece_type = p["type"]
@@ -273,6 +289,16 @@ class AnimalChessAI:
                 score += val
             else:
                 score -= val
+
+            # 陷阱位置评估：棋子陷入敌方陷阱则等级归零，价值大幅受损
+            # 己方棋子在敌方陷阱→扣分；敌方棋子在己方陷阱→加分（可被任意己方棋子吃）
+            pos = p.get("position")
+            if trap_enabled and pos:
+                if self.rule_engine._is_in_enemy_trap(pos, p["side"], board_state):
+                    if p["side"] == ai_side:
+                        score -= val * 0.5  # 己方高价值棋子勿入敌陷阱
+                    else:
+                        score += val * 0.3  # 诱敌入己方陷阱有利
 
             # 位置奖励
             px, py = p["position"]
@@ -475,6 +501,9 @@ class AnimalChessAI:
         if not self.custom_pieces:
             return  # 无自定义棋子，跳过避免无谓的 async 调用开销
         for cp in self.custom_pieces:
+            # 地形棋子（陷阱等）无价值，无需 AI 评估
+            if cp.get("category") == "terrain":
+                continue
             cp_type = cp.get("type")
             if cp_type and cp_type not in self._custom_piece_values:
                 await self._evaluate_custom_piece_value(cp)
