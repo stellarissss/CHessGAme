@@ -2896,7 +2896,7 @@ class HeibaiqiBoard extends HTMLElement {
                 this._dispatchMoveEvent();
 
                 if (this.boardState.game_status.state === 'ended') {
-                    if (this.boardState.game_status.winner === this.playerSide) {
+                    if (this.boardState.game_status.winner === 'black') {
                         await this.reportKarmaEvent('win');
                     }
                     this.showGameOver();
@@ -3111,7 +3111,8 @@ class HeibaiqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    this.addMessage(`✅ ${data.message}`, 'success');
+                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
+                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
                     await this.consumeKarma(10);
                     if (data.refresh_page) {
                         await this.sleep(500);
@@ -3188,13 +3189,13 @@ class HeibaiqiBoard extends HTMLElement {
         this.shadowRoot.getElementById('command-input').disabled = false;
 
         if (this.thinkingPollInterval) {
-            clearTimeout(this.thinkingPollInterval);
+            clearInterval(this.thinkingPollInterval);
             this.thinkingPollInterval = null;
         }
     }
 
     async pollThinkingStatus() {
-        const poll = async () => {
+        this.thinkingPollInterval = setInterval(async () => {
             try {
                 const resp = await fetch(`${this.apiBase}/api/thinking_status`);
                 const data = await resp.json();
@@ -3210,15 +3211,11 @@ class HeibaiqiBoard extends HTMLElement {
                         textEl.textContent = 'CodeAI 正在生成代码...';
                         stageEl.textContent = '阶段: 代码生成';
                     }
-                    // 继续轮询
-                    this.thinkingPollInterval = setTimeout(poll, 500);
                 }
             } catch (e) {
                 console.error('轮询思考状态失败:', e);
-                this.thinkingPollInterval = setTimeout(poll, 500);
             }
-        };
-        this.thinkingPollInterval = setTimeout(poll, 500);
+        }, 500);
     }
 
     async showLogs() {
@@ -3418,8 +3415,8 @@ class HeibaiqiBoard extends HTMLElement {
         const state = this.boardState?.game_status;
 
         if (state?.state === 'ended') {
-            const winnerLabel = state.winner === 'black' ? '黑方' : (state.winner === 'white' ? '白方' : (state.winner || '未知'));
-            indicator.textContent = `${winnerLabel}获胜!`;
+            const winner = state.winner === 'black' ? '黑方' : '白方';
+            indicator.textContent = `${winner}获胜!`;
             indicator.style.background = 'var(--success)';
         } else {
             indicator.textContent = turn === 'black' ? '黑方回合' : '白方回合';
@@ -3634,7 +3631,7 @@ class HeibaiqiBoard extends HTMLElement {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
-        const winner = state.winner === 'black' ? '黑方' : (state.winner === 'white' ? '白方' : (state.winner || '未知'));
+        const winner = state.winner === 'black' ? '黑方' : '白方';
         const container = this.shadowRoot.getElementById('board-container');
 
         const existing = container.querySelector('.game-over-overlay');
@@ -4166,7 +4163,7 @@ class HeibaiqiBoard extends HTMLElement {
             this._gameOverTimer = null;
         }
         if (this.thinkingPollInterval) {
-            clearTimeout(this.thinkingPollInterval);
+            clearInterval(this.thinkingPollInterval);
             this.thinkingPollInterval = null;
         }
         if (this._keydownHandler) {

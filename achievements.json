@@ -5,11 +5,21 @@
       "unlocked_at": "2026-07-22T15:02:11.897306",
       "game": "xiangqi",
       "context": "测试解锁"
+    },
+    "sea_of_pieces": {
+      "unlocked_at": "2026-07-23T23:33:34.709690",
+      "game": "xiangqi",
+      "context": "总棋子数: 50"
+    },
+    "ambush": {
+      "unlocked_at": "2026-07-23T23:33:34.717226",
+      "game": "xiangqi",
+      "context": "你方棋子数量: 35"
     }
   },
   "stats": {
-    "total_commands": 0,
-    "total_moves": 0,
+    "total_commands": 1,
+    "total_moves": 4,
     "total_captures": 0,
     "games_played": {}
   }

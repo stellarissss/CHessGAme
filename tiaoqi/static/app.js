@@ -3142,7 +3142,8 @@ class CheckersBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    this.addMessage(`✅ ${data.message}`, 'success');
+                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
+                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();

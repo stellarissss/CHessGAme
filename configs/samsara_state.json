@@ -1,19 +1,19 @@
 {
   "version": 1,
-  "current_realm": "hell",
+  "current_realm": "hungry",
   "current_level": 0,
-  "skill_points": 0,
+  "skill_points": 1,
   "karma": 0,
   "karma_max": 150,
   "karma_single_max": 80,
-  "detection": 0.0,
+  "detection": 100.0,
   "skills": {
     "karma_capacity_t1": {
-      "unlocked_at": "2026-07-23T08:04:33.811901",
+      "unlocked_at": "2026-07-24T00:00:00Z",
       "tier": 1
     },
     "stealth_t1": {
-      "unlocked_at": "2026-07-23T14:43:06.687136",
+      "unlocked_at": "2026-07-24T00:00:00Z",
       "tier": 1
     }
   },
@@ -22,14 +22,12 @@
   "cheat_count": 0,
   "overdraft_count": 0,
   "no_cheat_this_level": true,
-  "total_levels_completed": 0,
+  "total_levels_completed": 1,
   "bosses_defeated": [],
-  "first_overdraft_skip_used": false,
-  "golden_escape_used": false,
   "realm_progress": {
     "hell": {
       "completed": false,
-      "levels_passed": 0
+      "levels_passed": 1
     },
     "hungry": {
       "completed": false,
@@ -52,5 +50,5 @@
       "levels_passed": 0
     }
   },
-  "last_modified": "2026-07-23T14:43:06.687142"
+  "last_modified": "2026-07-24T04:28:34.981928"
 }

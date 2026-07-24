@@ -55,6 +55,19 @@ class SamsaraState:
         for k, v in defaults.items():
             if k not in self._data:
                 self._data[k] = v
+        
+        if not self._data["skills"]:
+            self._data["skills"] = {
+                "karma_capacity_t1": {
+                    "unlocked_at": datetime.now().isoformat(),
+                    "tier": 1,
+                },
+                "stealth_t1": {
+                    "unlocked_at": datetime.now().isoformat(),
+                    "tier": 1,
+                },
+            }
+            self._save()
 
     def _save(self):
         self._data["last_modified"] = datetime.now().isoformat()
@@ -76,18 +89,10 @@ class SamsaraState:
 
     def reset_level_state(self):
         self._data["karma"] = 0
-        self._data["detection"] = 0.0
         self._data["current_turn"] = 0
         self._data["cheat_count"] = 0
         self._data["overdraft_count"] = 0
         self._data["no_cheat_this_level"] = True
-        # 应用开局业力加成（karma_capacity_t3b技能）
-        modifiers = self.get_skill_modifiers()
-        if modifiers.get("start_karma_bonus", 0) > 0:
-            self._data["karma"] = modifiers["start_karma_bonus"]
-        # 重置一次性技能使用标记
-        self._data["first_overdraft_skip_used"] = False
-        self._data["golden_escape_used"] = False
         self._save()
 
     def advance_level(self):
@@ -111,9 +116,10 @@ class SamsaraState:
         return False
 
     def unlock_skill(self, skill_id, tier):
-        if self._data["skills"].get(skill_id):
+        skill_key = f"{skill_id}_t{tier}"
+        if self._data["skills"].get(skill_key):
             return False
-        self._data["skills"][skill_id] = {
+        self._data["skills"][skill_key] = {
             "unlocked_at": datetime.now().isoformat(),
             "tier": tier,
         }
@@ -121,7 +127,7 @@ class SamsaraState:
         return True
 
     def is_skill_unlocked(self, skill_id, tier):
-        return skill_id in self._data["skills"]
+        return f"{skill_id}_t{tier}" in self._data["skills"]
 
     def record_cheat(self):
         self._data["cheat_count"] += 1
@@ -213,9 +219,7 @@ class SamsaraState:
         if "karma_capacity_t3a" in skills:
             modifiers["detection_alpha"] = 1.4
         if "karma_capacity_t3b" in skills:
-            modifiers["start_karma_bonus"] = 50
-        else:
-            modifiers["start_karma_bonus"] = 0
+            self._data["karma"] = 50
         if "stealth_t1" in skills:
             modifiers["detection_coefficient"] = 0.35
         if "stealth_t2a" in skills:

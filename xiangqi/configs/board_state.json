@@ -119,8 +119,8 @@
       "name": "砲",
       "side": "black",
       "position": [
-        0,
-        9
+        1,
+        2
       ],
       "is_alive": true,
       "custom_properties": {}
@@ -206,7 +206,7 @@
         0,
         9
       ],
-      "is_alive": false,
+      "is_alive": true,
       "custom_properties": {}
     },
     {
@@ -218,7 +218,7 @@
         1,
         9
       ],
-      "is_alive": false,
+      "is_alive": true,
       "custom_properties": {}
     },
     {
@@ -242,7 +242,7 @@
         3,
         9
       ],
-      "is_alive": false,
+      "is_alive": true,
       "custom_properties": {}
     },
     {
@@ -336,7 +336,7 @@
       "side": "red",
       "position": [
         0,
-        5
+        6
       ],
       "is_alive": true,
       "custom_properties": {}
@@ -348,7 +348,7 @@
       "side": "red",
       "position": [
         2,
-        5
+        6
       ],
       "is_alive": true,
       "custom_properties": {}
@@ -360,7 +360,7 @@
       "side": "red",
       "position": [
         4,
-        5
+        6
       ],
       "is_alive": true,
       "custom_properties": {}
@@ -391,80 +391,7 @@
     }
   ],
   "current_turn": "red",
-  "move_history": [
-    {
-      "piece_id": "r_soldier_3",
-      "from": [
-        4,
-        6
-      ],
-      "to": [
-        4,
-        5
-      ],
-      "captured": null
-    },
-    {
-      "piece_id": "b_cannon_1",
-      "from": [
-        1,
-        2
-      ],
-      "to": [
-        1,
-        9
-      ],
-      "captured": "r_horse_1"
-    },
-    {
-      "piece_id": "r_soldier_1",
-      "from": [
-        0,
-        6
-      ],
-      "to": [
-        0,
-        5
-      ],
-      "captured": null
-    },
-    {
-      "piece_id": "b_cannon_1",
-      "from": [
-        1,
-        9
-      ],
-      "to": [
-        3,
-        9
-      ],
-      "captured": "r_advisor_1"
-    },
-    {
-      "piece_id": "r_soldier_2",
-      "from": [
-        2,
-        6
-      ],
-      "to": [
-        2,
-        5
-      ],
-      "captured": null
-    },
-    {
-      "piece_id": "b_cannon_1",
-      "from": [
-        3,
-        9
-      ],
-      "to": [
-        0,
-        9
-      ],
-      "captured": "r_chariot_1"
-    }
-  ],
+  "move_history": [],
   "game_status": {
     "state": "playing",
     "winner": null,
