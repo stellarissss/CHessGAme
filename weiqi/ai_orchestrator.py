@@ -363,11 +363,38 @@ class AIOrchestrator:
                 "type": "rejected",
                 "message": intent.get("response_to_player", "该操作无法实现"),
                 "classification": intent.get("classification", ""),
+                "estimated_karma_cost": estimated_karma_cost,
                 "log_id": len(self.logger.logs) - 1,
             }
 
         classification = intent.get("classification", "")
         log_entry["classification"] = classification
+
+        game_type = "weiqi"
+        board_summary = self._generate_board_summary(configs)
+
+        estimated_karma_cost = 0
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    "http://localhost:8000/api/karma/assess",
+                    json={
+                        "game_type": game_type,
+                        "instruction": command,
+                        "intent_class": classification,
+                        "board_summary": board_summary,
+                    }
+                )
+                assess_result = resp.json()
+                estimated_karma_cost = assess_result.get("estimated_cost", 0)
+        except Exception as e:
+            estimated_karma_cost = 0
+
+        log_entry["karma_assessment"] = {
+            "cost": estimated_karma_cost,
+            "intent_class": classification,
+            "game_type": game_type,
+        }
 
         # E类搞笑
         if classification == "E":
@@ -383,6 +410,7 @@ class AIOrchestrator:
                 "type": "fun",
                 "message": intent.get("response_to_player", ""),
                 "classification": "E",
+                "estimated_karma_cost": estimated_karma_cost,
                 "log_id": len(self.logger.logs) - 1,
             }
 
@@ -394,6 +422,7 @@ class AIOrchestrator:
             self.current_thinking = False
             self.thinking_stage = ""
             result["log_id"] = len(self.logger.logs) - 1
+            result["estimated_karma_cost"] = estimated_karma_cost
             return result
 
         # F类高级功能 - 直接标记不可行
@@ -411,6 +440,7 @@ class AIOrchestrator:
                 "type": "error",
                 "message": "该功能需要修改核心引擎代码，暂时无法实现",
                 "classification": "F",
+                "estimated_karma_cost": estimated_karma_cost,
                 "log_id": len(self.logger.logs) - 1,
             }
 
@@ -474,6 +504,7 @@ class AIOrchestrator:
         self.current_thinking = False
         self.thinking_stage = ""
         result["log_id"] = len(self.logger.logs) - 1
+        result["estimated_karma_cost"] = estimated_karma_cost
         return result
 
     async def _execute_action(
