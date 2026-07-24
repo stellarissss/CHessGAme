@@ -127,6 +127,7 @@ export class GoBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -287,35 +288,40 @@ export class GoBoard extends HTMLElement {
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --paper: #0f0a1e;
+    --paper-warm: #1a1033;
+    --paper-dark: #150d28;
+    --ink: #e0e0ff;
+    --ink-soft: #a0a0d0;
+    --ink-medium: #7070a0;
+    --ink-light: #505080;
+    --ink-faint: #303050;
+    --line: #2a2a4a;
+    --line-strong: #3a3a5a;
 
-    --board-bg: #dcb35c;
-    --board-line: #5c3a1e;
-    --black-stone: #1a1a1a;
-    --white-stone: #f5f5f5;
+    --board-bg: #0a0515;
+    --board-line: #6366f1;
+    --black-stone: #0a0a0a;
+    --white-stone: #ffffff;
 
-    --neon-cyan: #00f0ff;
-    --neon-magenta: #ff00aa;
-    --neon-pink: #ff2d6f;
-    --neon-green: #39ff14;
-    --neon-gold: #ffd700;
+    --space-black: #0f0a1e;
+    --cosmic-purple: #6366f1;
+    --battle-red: #ef4444;
+    --energy-blue: #06b6d4;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
-    --last-move: #8b5a2b;
-    --danger: #9b2c2c;
-    --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --neon-cyan: #06b6d4;
+    --neon-magenta: #a855f7;
+    --neon-pink: #ec4899;
+    --neon-green: #22d3ee;
+    --neon-gold: #fbbf24;
+
+    --highlight: #6366f1;
+    --valid-move: #06b6d4;
+    --last-move: #ef4444;
+    --danger: #ef4444;
+    --success: #06b6d4;
+    --warning: #fbbf24;
+    --text-light: #a0a0d0;
 
     display: block;
     width: 100%;
@@ -336,13 +342,27 @@ export class GoBoard extends HTMLElement {
     position: relative;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Resource Han Rounded CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     color: var(--ink);
-    background-color: var(--paper);
+    background-color: var(--space-black);
     background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+        radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.06) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(239, 68, 68, 0.04) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='25' cy='25' r='0.5' fill='%23ffffff' opacity='0.3'/%3E%3Ccircle cx='75' cy='75' r='0.3' fill='%23ffffff' opacity='0.2'/%3E%3Ccircle cx='50' cy='30' r='0.4' fill='%236366f1' opacity='0.4'/%3E%3Ccircle cx='80' cy='20' r='0.2' fill='%2306b6d4' opacity='0.3'/%3E%3Ccircle cx='30' cy='80' r='0.3' fill='%23ef4444' opacity='0.2'/%3E%3Ccircle cx='60' cy='60' r='0.25' fill='%23ffffff' opacity='0.25'/%3E%3Ccircle cx='10' cy='50' r='0.35' fill='%23a855f7' opacity='0.3'/%3E%3Ccircle cx='90' cy='40' r='0.2' fill='%23ffffff' opacity='0.2'/%3E%3C/svg%3E");
     background-repeat: repeat;
-    background-size: 200px 200px;
-    background-blend-mode: multiply;
+    background-size: cover, cover, cover, 100px 100px;
     overflow: hidden;
+}
+
+#app::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: 
+        linear-gradient(135deg, transparent 0%, rgba(99, 102, 241, 0.03) 50%, transparent 100%);
+    animation: cosmicPulse 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
 }
 
 .header {
@@ -350,10 +370,11 @@ export class GoBoard extends HTMLElement {
     justify-content: space-between;
     align-items: center;
     padding: 8px 24px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background: rgba(15, 10, 30, 0.9);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.3);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    backdrop-filter: blur(8px);
 }
 
 .header::after {
@@ -361,7 +382,7 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     left: 24px; right: 24px; bottom: -1px;
     height: 1px;
-    background: var(--ink);
+    background: var(--cosmic-purple);
     transform: scaleX(0);
     transform-origin: left;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
@@ -457,12 +478,48 @@ export class GoBoard extends HTMLElement {
 
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    border-bottom: 2px solid #e94560;
-    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+    background: linear-gradient(135deg, #0f0a1e 0%, #1a1033 50%, #150d28 100%);
+    border-bottom: 2px solid var(--cosmic-purple);
+    box-shadow:
+        0 4px 20px rgba(99, 102, 241, 0.3),
+        0 0 30px rgba(99, 102, 241, 0.1);
+}
+
+.level-info-bar {
+    flex-basis: 100%;
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    padding: 2px 0;
+}
+
+.level-info-bar:empty {
+    display: none;
+}
+
+.level-realm {
+    color: var(--neon-magenta);
+    font-weight: 600;
+}
+
+.level-name {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.level-type-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--neon-cyan);
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 6px;
 }
 
 .samsara-item {
@@ -554,9 +611,25 @@ export class GoBoard extends HTMLElement {
     background: var(--board-bg);
     border-radius: 4px;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 2px rgba(99, 102, 241, 0.3),
+        0 0 30px rgba(99, 102, 241, 0.15),
+        0 0 60px rgba(6, 182, 212, 0.08),
+        0 4px 20px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+#board-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: 
+        radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 70%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='50' r='0.8' fill='%23ffffff' opacity='0.6'/%3E%3Ccircle cx='150' cy='150' r='0.5' fill='%23ffffff' opacity='0.4'/%3E%3Ccircle cx='100' cy='80' r='0.6' fill='%236366f1' opacity='0.5'/%3E%3Ccircle cx='180' cy='40' r='0.4' fill='%2306b6d4' opacity='0.4'/%3E%3Ccircle cx='30' cy='160' r='0.5' fill='%23ef4444' opacity='0.3'/%3E%3Ccircle cx='120' cy='120' r='0.3' fill='%23ffffff' opacity='0.3'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: cover, 50px 50px;
+    pointer-events: none;
+    z-index: 1;
 }
 
 .side-panel {
@@ -577,10 +650,11 @@ export class GoBoard extends HTMLElement {
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: rgba(15, 10, 30, 0.8);
+    border: 1px solid rgba(99, 102, 241, 0.3);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    backdrop-filter: blur(8px);
 }
 
 .panel-section::before {
@@ -588,8 +662,8 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    border-top: 1px solid var(--cosmic-purple);
+    border-left: 1px solid var(--cosmic-purple);
     pointer-events: none;
 }
 
@@ -598,8 +672,8 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     bottom: 0; right: 0;
     width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    border-bottom: 1px solid var(--cosmic-purple);
+    border-right: 1px solid var(--cosmic-purple);
     pointer-events: none;
 }
 
@@ -837,16 +911,16 @@ export class GoBoard extends HTMLElement {
     flex-direction: column;
     align-items: flex-start;
     padding: 12px 14px;
-    background: var(--paper);
+    background: rgba(99, 102, 241, 0.05);
     transition: background 0.2s ease;
 }
 
 .capture-stat:hover {
-    background: var(--paper-warm);
+    background: rgba(99, 102, 241, 0.15);
 }
 
 .capture-stat.black {
-    border-right: 1px solid var(--line);
+    border-right: 1px solid rgba(99, 102, 241, 0.3);
 }
 
 .capture-stat .stat-label {
@@ -893,30 +967,57 @@ export class GoBoard extends HTMLElement {
 }
 
 .stone.black {
-    background: radial-gradient(circle at 30% 30%, #4a4a4a, #1a1a1a);
+    background: radial-gradient(circle at 30% 30%, #2a2a4a, #0a0a0a, #000000);
     box-shadow:
-        2px 2px 4px rgba(0, 0, 0, 0.5),
-        -1px -1px 2px rgba(255, 255, 255, 0.1);
+        0 0 10px rgba(99, 102, 241, 0.3),
+        0 0 20px rgba(99, 102, 241, 0.15),
+        inset 0 0 8px rgba(99, 102, 241, 0.2),
+        inset -2px -2px 4px rgba(0, 0, 0, 0.8);
+    animation: blackHoleGlow 3s ease-in-out infinite;
+}
+
+.stone.black::after {
+    content: '';
+    position: absolute;
+    top: 20%; left: 20%;
+    width: 30%; height: 30%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.6) 0%, transparent 70%);
+    animation: darkMatterPulse 2s ease-in-out infinite;
 }
 
 .stone.white {
-    background: radial-gradient(circle at 30% 30%, #ffffff, #e0e0e0);
+    background: radial-gradient(circle at 30% 30%, #ffffff, #e0f2fe, #a5f3fc);
     box-shadow:
-        2px 2px 4px rgba(0, 0, 0, 0.3),
-        -1px -1px 2px rgba(255, 255, 255, 0.8);
-    border: 1px solid rgba(0, 0, 0, 0.1);
+        0 0 12px rgba(6, 182, 212, 0.6),
+        0 0 24px rgba(6, 182, 212, 0.3),
+        0 0 40px rgba(6, 182, 212, 0.15),
+        inset 0 0 10px rgba(255, 255, 255, 0.9);
+    animation: starGlow 2s ease-in-out infinite;
+}
+
+.stone.white::after {
+    content: '';
+    position: absolute;
+    top: 15%; left: 15%;
+    width: 25%; height: 25%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, transparent 60%);
+    animation: energyPulse 1.5s ease-in-out infinite;
 }
 
 .stone:hover {
-    transform: translate(-50%, -50%) scale(1.1);
-    filter: brightness(1.1);
+    transform: translate(-50%, -50%) scale(1.15);
+    filter: brightness(1.2);
 }
 
 .stone.last-moved {
     box-shadow:
-        0 0 0 3px var(--neon-pink),
-        0 0 14px rgba(255, 45, 111, 0.7),
-        0 0 28px rgba(255, 45, 111, 0.4);
+        0 0 0 3px var(--battle-red),
+        0 0 20px rgba(239, 68, 68, 0.8),
+        0 0 40px rgba(239, 68, 68, 0.4),
+        0 0 60px rgba(239, 68, 68, 0.2);
+    animation: battlePulse 0.8s ease-in-out infinite;
 }
 
 .valid-move-indicator {
@@ -924,19 +1025,35 @@ export class GoBoard extends HTMLElement {
     width: 3%;
     height: 3%;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--neon-green) 0%, rgba(57, 255, 20, 0.4) 60%, transparent 100%);
-    box-shadow: 0 0 8px var(--neon-green), 0 0 16px rgba(57, 255, 20, 0.5);
+    background: radial-gradient(circle, var(--energy-blue) 0%, rgba(6, 182, 212, 0.5) 50%, transparent 100%);
+    box-shadow: 
+        0 0 10px var(--energy-blue), 
+        0 0 20px rgba(6, 182, 212, 0.6),
+        0 0 30px rgba(6, 182, 212, 0.3);
     opacity: 0.85;
     pointer-events: none;
     z-index: 5;
+    animation: energyOrb 1.5s ease-in-out infinite;
+}
+
+.valid-move-indicator::before {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    border: 1px solid var(--energy-blue);
+    animation: energyRing 1.5s ease-out infinite;
 }
 
 .input-section {
     padding: 10px 24px;
-    background: var(--paper);
-    border-top: 1px solid var(--line);
+    background: rgba(15, 10, 30, 0.9);
+    border-top: 1px solid rgba(99, 102, 241, 0.3);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.5s both;
+    backdrop-filter: blur(8px);
 }
 
 .input-section::before {
@@ -944,7 +1061,7 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     left: 24px; right: 24px; top: -1px;
     height: 1px;
-    background: var(--ink);
+    background: var(--cosmic-purple);
     transform: scaleX(0);
     transform-origin: right;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
@@ -959,8 +1076,8 @@ export class GoBoard extends HTMLElement {
 #command-input {
     flex: 1;
     padding: 10px 14px;
-    border: 1px solid var(--line-strong);
-    background: var(--paper-warm);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    background: rgba(15, 10, 30, 0.6);
     color: var(--ink);
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.88rem;
@@ -977,9 +1094,9 @@ export class GoBoard extends HTMLElement {
 
 #command-input:focus {
     outline: none;
-    border-color: var(--ink);
-    background: var(--paper);
-    box-shadow: 0 2px 0 var(--ink);
+    border-color: var(--cosmic-purple);
+    background: rgba(15, 10, 30, 0.8);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.3);
 }
 
 .hints {
@@ -999,8 +1116,8 @@ export class GoBoard extends HTMLElement {
 
 .btn {
     padding: 12px 20px;
-    border: 1px solid var(--ink);
-    background: transparent;
+    border: 1px solid var(--cosmic-purple);
+    background: rgba(99, 102, 241, 0.1);
     color: var(--ink);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
@@ -1020,13 +1137,14 @@ export class GoBoard extends HTMLElement {
     bottom: 0; left: 0;
     width: 100%;
     height: 0;
-    background: var(--ink);
+    background: var(--cosmic-purple);
     transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: -1;
 }
 
 .btn:hover {
-    color: var(--paper);
+    color: #ffffff;
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
 }
 
 .btn:hover::before {
@@ -1036,8 +1154,8 @@ export class GoBoard extends HTMLElement {
 .btn-primary {
     padding: 12px 24px;
     border: none;
-    background: var(--ink);
-    color: var(--paper);
+    background: linear-gradient(135deg, var(--cosmic-purple), var(--energy-blue));
+    color: #ffffff;
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.82rem;
@@ -1058,9 +1176,10 @@ export class GoBoard extends HTMLElement {
 }
 
 .btn-primary:hover {
-    background: var(--ink-soft);
+    box-shadow: 
+        0 0 20px rgba(99, 102, 241, 0.5),
+        0 0 40px rgba(6, 182, 212, 0.3);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
 }
 
 .btn-primary:hover::after {
@@ -1085,9 +1204,9 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(26, 26, 26, 0.5);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(15, 10, 30, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 100;
     justify-content: center;
     align-items: center;
@@ -1100,14 +1219,14 @@ export class GoBoard extends HTMLElement {
 
 .modal-content {
     position: relative;
-    background: var(--paper);
+    background: rgba(15, 10, 30, 0.95);
     padding: 36px 32px;
     width: 90%;
     max-width: 440px;
-    border: 1px solid var(--line-strong);
+    border: 1px solid rgba(99, 102, 241, 0.4);
     box-shadow:
-        0 20px 60px rgba(0, 0, 0, 0.15),
-        0 2px 0 var(--ink);
+        0 0 40px rgba(99, 102, 241, 0.2),
+        0 20px 60px rgba(0, 0, 0, 0.3);
     animation: modalIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1333,15 +1452,15 @@ export class GoBoard extends HTMLElement {
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.95);
+    background: rgba(15, 10, 30, 0.95);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 50;
     border-radius: 4px;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: fadeIn 0.4s ease;
 }
 
@@ -1429,14 +1548,166 @@ export class GoBoard extends HTMLElement {
     transform: rotate(-180deg);
 }
 
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
+}
+
 .thinking-overlay {
     display: none;
     position: absolute;
     top: 0; left: 0;
     width: 100%; height: 100%;
-    background: rgba(250, 250, 248, 0.9);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(15, 10, 30, 0.9);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     z-index: 200;
     justify-content: center;
     align-items: center;
@@ -1516,6 +1787,115 @@ export class GoBoard extends HTMLElement {
     50% { content: '..'; }
     75% { content: '...'; }
     100% { content: ''; }
+}
+
+@keyframes cosmicPulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+}
+
+@keyframes blackHoleGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 10px rgba(99, 102, 241, 0.3),
+            0 0 20px rgba(99, 102, 241, 0.15),
+            inset 0 0 8px rgba(99, 102, 241, 0.2),
+            inset -2px -2px 4px rgba(0, 0, 0, 0.8);
+    }
+    50% { 
+        box-shadow:
+            0 0 15px rgba(99, 102, 241, 0.5),
+            0 0 30px rgba(99, 102, 241, 0.25),
+            inset 0 0 12px rgba(99, 102, 241, 0.3),
+            inset -2px -2px 4px rgba(0, 0, 0, 0.8);
+    }
+}
+
+@keyframes darkMatterPulse {
+    0%, 100% { 
+        opacity: 0.6;
+        transform: scale(0.8);
+    }
+    50% { 
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+@keyframes starGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 12px rgba(6, 182, 212, 0.6),
+            0 0 24px rgba(6, 182, 212, 0.3),
+            0 0 40px rgba(6, 182, 212, 0.15),
+            inset 0 0 10px rgba(255, 255, 255, 0.9);
+    }
+    50% { 
+        box-shadow:
+            0 0 18px rgba(6, 182, 212, 0.8),
+            0 0 36px rgba(6, 182, 212, 0.4),
+            0 0 60px rgba(6, 182, 212, 0.2),
+            inset 0 0 12px rgba(255, 255, 255, 1);
+    }
+}
+
+@keyframes energyPulse {
+    0%, 100% { 
+        opacity: 0.8;
+        transform: scale(0.9);
+    }
+    50% { 
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes battlePulse {
+    0%, 100% { 
+        box-shadow:
+            0 0 0 3px var(--battle-red),
+            0 0 20px rgba(239, 68, 68, 0.8),
+            0 0 40px rgba(239, 68, 68, 0.4),
+            0 0 60px rgba(239, 68, 68, 0.2);
+    }
+    50% { 
+        box-shadow:
+            0 0 0 3px var(--battle-red),
+            0 0 30px rgba(239, 68, 68, 1),
+            0 0 60px rgba(239, 68, 68, 0.6),
+            0 0 90px rgba(239, 68, 68, 0.3);
+    }
+}
+
+@keyframes energyOrb {
+    0%, 100% { 
+        opacity: 0.6;
+        transform: scale(0.9);
+    }
+    50% { 
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}
+
+@keyframes energyRing {
+    0% { 
+        width: 100%; 
+        height: 100%; 
+        opacity: 1; 
+        border-width: 1px;
+    }
+    100% { 
+        width: 300%; 
+        height: 300%; 
+        opacity: 0; 
+        border-width: 0;
+    }
+}
+
+@keyframes starField {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(100px); }
 }
 
 .logs-content {
@@ -1824,8 +2204,8 @@ export class GoBoard extends HTMLElement {
 .personality-card {
     position: relative;
     padding: 14px 12px 12px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: rgba(15, 10, 30, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.3);
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1833,7 +2213,7 @@ export class GoBoard extends HTMLElement {
     content: '';
     position: absolute;
     top: 6px; left: 6px; right: 6px; bottom: 6px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(99, 102, 241, 0.3);
     pointer-events: none;
     opacity: 0.6;
 }
@@ -1854,8 +2234,8 @@ export class GoBoard extends HTMLElement {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.4);
     animation: float 3s ease-in-out infinite;
 }
 
@@ -2007,8 +2387,8 @@ export class GoBoard extends HTMLElement {
     align-items: center;
     gap: 8px;
     padding: 8px 10px;
-    background: var(--paper);
-    border: 1px solid var(--line);
+    background: rgba(15, 10, 30, 0.6);
+    border: 1px solid rgba(99, 102, 241, 0.3);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.78rem;
     color: var(--ink-soft);
@@ -2019,8 +2399,8 @@ export class GoBoard extends HTMLElement {
 }
 
 .mechanism-badge:hover {
-    border-color: var(--ink-faint);
-    background: var(--paper-warm);
+    border-color: var(--cosmic-purple);
+    background: rgba(99, 102, 241, 0.15);
 }
 
 .mechanism-badge.leaving {
@@ -2037,8 +2417,8 @@ export class GoBoard extends HTMLElement {
     font-size: 0.7rem;
     font-weight: 500;
     padding: 2px 6px;
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--cosmic-purple);
+    color: #ffffff;
     flex-shrink: 0;
     min-width: 24px;
     text-align: center;
@@ -2151,6 +2531,7 @@ export class GoBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2162,7 +2543,31 @@ export class GoBoard extends HTMLElement {
                 objective: { type: 'win', description: '击败对手' }
             };
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2201,11 +2606,38 @@ export class GoBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -2819,7 +3251,7 @@ export class GoBoard extends HTMLElement {
         }, 3000);
     }
 
-    showGameOver(winner, condition) {
+    async showGameOver(winner, condition) {
         const container = this.shadowRoot.getElementById('board-container');
         const overlay = document.createElement('div');
         overlay.className = 'game-over-overlay';
@@ -2836,6 +3268,49 @@ export class GoBoard extends HTMLElement {
         const btn = overlay.querySelector('.restart-btn');
         btn.addEventListener('click', () => this.restartGame());
 
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = winner === this.playerSide;
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 
@@ -3060,15 +3535,34 @@ export class GoBoard extends HTMLElement {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ command: message })
             });
-
             const data = await resp.json();
 
             this.hideThinking();
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.modified_configs && Object.keys(data.modified_configs).length > 0) {
                         await this.loadConfigs();
                         this.renderBoard();
@@ -3079,8 +3573,6 @@ export class GoBoard extends HTMLElement {
                         this.updateAIPersonality();
                         this.updateMechanisms();
                     }
-
-                    await this.consumeKarma(10);
 
                     const gameStatus = this.boardState?.game_status;
                     if (gameStatus && gameStatus.state === 'ended') {

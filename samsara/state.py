@@ -49,6 +49,8 @@ class SamsaraState:
             "no_cheat_this_level": True,
             "total_levels_completed": 0,
             "bosses_defeated": [],
+            "sandbox_unlocked": [],
+            "sandbox_mode": False,
             "realm_progress": {r: {"completed": False, "levels_passed": 0} for r in REALMS},
             "last_modified": datetime.now().isoformat(),
         }
@@ -127,6 +129,10 @@ class SamsaraState:
         return True
 
     def is_skill_unlocked(self, skill_id, tier):
+        # skill_id 可能是 "karma_capacity" 或 "karma_capacity_t1" 格式
+        # 如果是完整格式，直接检查；否则构建完整键
+        if f"_t{tier}" in skill_id:
+            return skill_id in self._data["skills"]
         return f"{skill_id}_t{tier}" in self._data["skills"]
 
     def record_cheat(self):
@@ -252,3 +258,52 @@ class SamsaraState:
 
     def get_realm_index(self):
         return REALMS.index(self._data["current_realm"])
+
+    def is_sandbox_unlocked(self, realm: str) -> bool:
+        return realm in self._data.get("sandbox_unlocked", [])
+
+    def unlock_sandbox(self, realm: str):
+        if realm not in self._data.get("sandbox_unlocked", []):
+            self._data.setdefault("sandbox_unlocked", []).append(realm)
+            self._save()
+
+    def set_sandbox_mode(self, enabled: bool):
+        self._data["sandbox_mode"] = enabled
+        self._save()
+
+    def is_sandbox_mode(self) -> bool:
+        return self._data.get("sandbox_mode", False)
+
+    def reset_on_detection(self):
+        """被识破后重置所有进度，但保留技能树、技能点、Boss记录、已通关道标记、成就"""
+        preserved_skills = self._data.get("skills", {})
+        preserved_skill_points = self._data.get("skill_points", 0)
+        preserved_bosses = self._data.get("bosses_defeated", [])
+        preserved_sandbox = self._data.get("sandbox_unlocked", [])
+        preserved_realm_progress = self._data.get("realm_progress", {})
+        for r in REALMS:
+            if not preserved_realm_progress.get(r, {}).get("completed", False):
+                preserved_realm_progress[r] = {"completed": False, "levels_passed": 0}
+        self._data = {
+            "version": self._data.get("version", 1),
+            "current_realm": "hell",
+            "current_level": 0,
+            "skill_points": preserved_skill_points,
+            "karma": 0,
+            "karma_max": self._data.get("karma_max", 150),
+            "karma_single_max": self._data.get("karma_single_max", 80),
+            "detection": 0.0,
+            "skills": preserved_skills,
+            "current_turn": 0,
+            "turn_limit": 20,
+            "cheat_count": 0,
+            "overdraft_count": 0,
+            "no_cheat_this_level": True,
+            "total_levels_completed": self._data.get("total_levels_completed", 0),
+            "bosses_defeated": preserved_bosses,
+            "sandbox_unlocked": preserved_sandbox,
+            "sandbox_mode": False,
+            "realm_progress": preserved_realm_progress,
+            "last_modified": datetime.now().isoformat(),
+        }
+        self._save()

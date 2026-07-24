@@ -106,6 +106,7 @@ function render(games) {
             <h2 class="card-title">${game.name}</h2>
             <div class="card-sub">${game.sub}</div>
             <p class="card-desc">${game.description}</p>
+            <div class="card-progress" id="progress-${game.realm}"></div>
             <div class="card-footer">
                 <div style="display:flex;align-items:center;">
                     <span class="status-dot loading" id="status-${game.id}"></span>
@@ -115,20 +116,129 @@ function render(games) {
             </div>
         `;
 
-        const openGame = () => window.open(url, "_blank", "noopener,noreferrer");
-        card.addEventListener("click", openGame);
+        const openRealm = () => showRealmLevels(game);
+        card.addEventListener("click", openRealm);
         card.addEventListener("keydown", (e) => {
             if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                openGame();
+                openRealm();
             }
         });
 
         grid.appendChild(card);
     });
 
+    loadRealmProgress(games);
     updateStatuses(games);
     setInterval(() => updateStatuses(games), 6000);
+}
+
+async function loadRealmProgress(games) {
+    for (const game of games) {
+        try {
+            const resp = await fetch(`/samsara/api/levels/realm/${game.realm}`);
+            if (!resp.ok) continue;
+            const data = await resp.json();
+            const el = document.getElementById(`progress-${game.realm}`);
+            if (!el) continue;
+            const passed = data.levels_passed || 0;
+            const total = data.total_levels || 0;
+            const sandbox = data.sandbox_unlocked ? " · 沙盒已解锁" : "";
+            el.innerHTML = `<span class="progress-text">关卡进度: ${passed}/${total}${sandbox}</span>`;
+        } catch (e) {}
+    }
+}
+
+async function showRealmLevels(game) {
+    let modal = document.getElementById("realm-levels-modal");
+    if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "realm-levels-modal";
+        modal.className = "realm-levels-modal";
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `<div class="realm-levels-content"><div class="realm-levels-header"><h2>${game.icon} ${REALM_NAMES[game.realm]}</h2><button class="close-realm-btn" id="close-realm-btn">✕</button></div><div class="realm-levels-body" id="realm-levels-body"><p style="text-align:center;color:#888;">加载中...</p></div></div>`;
+
+    modal.classList.add("active");
+    modal.querySelector("#close-realm-btn").addEventListener("click", () => modal.classList.remove("active"));
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.remove("active"); });
+
+    try {
+        const resp = await fetch(`/samsara/api/levels/realm/${game.realm}`);
+        if (!resp.ok) throw new Error("加载失败");
+        const data = await resp.json();
+        const body = document.getElementById("realm-levels-body");
+        body.innerHTML = "";
+
+        const levels = data.levels || [];
+        const url = `http://localhost:${game.port}/`;
+
+        levels.forEach((level) => {
+            const levelEl = document.createElement("div");
+            levelEl.className = `level-item ${level.status}`;
+            const typeLabel = { standard: "对弈", puzzle: "残局", objective: "目标", boss: "Boss" }[level.type] || level.type;
+            const stars = "★".repeat(level.difficulty || 1);
+            const desc = level.description || "";
+            levelEl.innerHTML = `
+                <div class="level-info">
+                    <span class="level-name">${level.name}</span>
+                    <span class="level-type">${typeLabel}</span>
+                    <span class="level-stars">${stars}</span>
+                </div>
+                <div class="level-desc">${desc}</div>
+                <div class="level-status">${level.status === "completed" ? "✓ 已通关" : level.status === "current" ? "▶ 可挑战" : "🔒 锁定"}</div>
+            `;
+            if (level.status === "completed" || level.status === "current") {
+                levelEl.addEventListener("click", () => startLevel(game, level.index, url));
+            }
+            body.appendChild(levelEl);
+        });
+
+        if (data.sandbox_unlocked) {
+            const sandboxEl = document.createElement("div");
+            sandboxEl.className = "level-item sandbox";
+            sandboxEl.innerHTML = `
+                <div class="level-info">
+                    <span class="level-name">沙盒模式</span>
+                    <span class="level-type">自由对弈</span>
+                </div>
+                <div class="level-desc">无限制自由游玩，AI修改/业力/识破概率与关卡模式互通。胜利获得技能点。</div>
+                <div class="level-status">🔓 已解锁</div>
+            `;
+            sandboxEl.addEventListener("click", () => startSandbox(game, url));
+            body.appendChild(sandboxEl);
+        }
+    } catch (e) {
+        const body = document.getElementById("realm-levels-body");
+        if (body) body.innerHTML = `<p style="text-align:center;color:#f44;">加载关卡失败: ${e.message}</p>`;
+    }
+}
+
+async function startLevel(game, levelIndex, url) {
+    try {
+        await fetch("/samsara/api/levels/start", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ realm: game.realm, level_index: levelIndex }),
+        });
+    } catch (e) {
+        console.error("Failed to start level:", e);
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+}
+
+async function startSandbox(game, url) {
+    try {
+        await fetch("/samsara/api/levels/sandbox", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ realm: game.realm }),
+        });
+    } catch (e) {
+        console.error("Failed to start sandbox:", e);
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
 }
 
 async function updateStatuses(games) {

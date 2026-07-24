@@ -7,22 +7,38 @@ class ProgressionSystem:
 
     def resolve_level(self, won: bool, no_cheat: bool, boss_defeated: bool = False) -> dict:
         rewards = {"skill_points": 0, "bonus_reasons": []}
-        if won:
+        if not won:
+            return rewards
+
+        if self.state.is_sandbox_mode():
             rewards["skill_points"] += 1
-            rewards["bonus_reasons"].append("基础通关奖励")
-            if no_cheat:
-                rewards["skill_points"] += 2
-                rewards["bonus_reasons"].append("无AI通关奖励")
-            if not self.state.get("overdraft_count", 0) > 0:
-                rewards["skill_points"] += 1
-                rewards["bonus_reasons"].append("未透支奖励")
-            if boss_defeated and "boss_" + self.state.get("current_realm") not in self.state.get("bosses_defeated", []):
-                rewards["skill_points"] += 1
-                rewards["bonus_reasons"].append("首次击败Boss")
-                self.state.mark_boss_defeated("boss_" + self.state.get("current_realm"))
+            rewards["bonus_reasons"].append("沙盒模式胜利")
             self.state.add_skill_point(rewards["skill_points"])
-            self.state.increment_realm_levels_passed(self.state.get("current_realm"))
-            self.state.set("total_levels_completed", self.state.get("total_levels_completed", 0) + 1)
+            return rewards
+
+        rewards["skill_points"] += 1
+        rewards["bonus_reasons"].append("基础通关奖励")
+        if no_cheat:
+            rewards["skill_points"] += 2
+            rewards["bonus_reasons"].append("无AI通关奖励")
+        if not self.state.get("overdraft_count", 0) > 0:
+            rewards["skill_points"] += 1
+            rewards["bonus_reasons"].append("未透支奖励")
+        if boss_defeated and "boss_" + self.state.get("current_realm") not in self.state.get("bosses_defeated", []):
+            rewards["skill_points"] += 1
+            rewards["bonus_reasons"].append("首次击败Boss")
+            self.state.mark_boss_defeated("boss_" + self.state.get("current_realm"))
+        self.state.add_skill_point(rewards["skill_points"])
+        self.state.increment_realm_levels_passed(self.state.get("current_realm"))
+        self.state.set("total_levels_completed", self.state.get("total_levels_completed", 0) + 1)
+
+        current_realm = self.state.get("current_realm")
+        levels_passed = self.state.get("realm_progress", {}).get(current_realm, {}).get("levels_passed", 0)
+        total_levels = self._get_realm_level_count(current_realm)
+        if levels_passed >= total_levels:
+            self.state.mark_realm_completed(current_realm)
+            self.state.unlock_sandbox(current_realm)
+            rewards["sandbox_unlocked"] = True
         return rewards
 
     def advance_realm(self) -> dict:

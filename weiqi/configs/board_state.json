@@ -4,53 +4,9 @@
     "last_modified": "2026-07-13T00:00:00Z",
     "format": "go_standard"
   },
-  "pieces": [
-    {
-      "id": "black_stone_9_9_0",
-      "type": "stone",
-      "name": "●",
-      "side": "black",
-      "position": [
-        9,
-        9
-      ],
-      "is_alive": true,
-      "custom_properties": {}
-    },
-    {
-      "id": "white_stone_10_9_1",
-      "type": "stone",
-      "name": "○",
-      "side": "white",
-      "position": [
-        10,
-        9
-      ],
-      "is_alive": true,
-      "custom_properties": {}
-    }
-  ],
+  "pieces": [],
   "current_turn": "black",
-  "move_history": [
-    {
-      "piece_id": "black_stone_9_9_0",
-      "from": null,
-      "to": [
-        9,
-        9
-      ],
-      "captured": []
-    },
-    {
-      "piece_id": "white_stone_10_9_1",
-      "from": null,
-      "to": [
-        10,
-        9
-      ],
-      "captured": []
-    }
-  ],
+  "move_history": [],
   "game_status": {
     "state": "playing",
     "winner": null,

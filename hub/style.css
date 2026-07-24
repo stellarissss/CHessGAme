@@ -775,3 +775,146 @@ body {
     color: var(--text-muted);
     font-size: 14px;
 }
+
+/* ═══ 关卡进度卡片 ═══ */
+.card-progress {
+    margin-top: 8px;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.progress-text {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* ═══ 关卡选择模态框 ═══ */
+.realm-levels-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.realm-levels-modal.active {
+    display: flex;
+}
+
+.realm-levels-content {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 32px;
+    max-width: 600px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.realm-levels-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.realm-levels-header h2 {
+    font-size: 28px;
+    color: var(--gold);
+    margin: 0;
+}
+
+.close-realm-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.close-realm-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.level-item {
+    padding: 16px;
+    margin-bottom: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.25s ease;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.level-item:hover {
+    border-color: var(--gold);
+    background: rgba(255, 255, 255, 0.06);
+    transform: translateX(4px);
+}
+
+.level-item.completed {
+    border-color: rgba(74, 222, 128, 0.3);
+}
+
+.level-item.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.level-item.locked:hover {
+    transform: none;
+    border-color: var(--border);
+}
+
+.level-item.sandbox {
+    border-color: rgba(250, 204, 21, 0.4);
+    background: rgba(250, 204, 21, 0.05);
+}
+
+.level-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.level-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.level-type {
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+}
+
+.level-stars {
+    font-size: 12px;
+    color: var(--gold);
+}
+
+.level-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.level-status {
+    font-size: 12px;
+    margin-top: 4px;
+}

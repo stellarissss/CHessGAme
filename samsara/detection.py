@@ -46,6 +46,15 @@ class DetectionSystem:
                     "current": current * 0.5,
                     "escaped": True,
                 }
+            else:
+                self.state.reset_on_detection()
+                return {
+                    "detected": True,
+                    "delta": delta,
+                    "current": 0.0,
+                    "reset": True,
+                    "message": "天道识破 · 妄改天规者，罚入轮回",
+                }
         return {
             "detected": detected,
             "delta": delta,

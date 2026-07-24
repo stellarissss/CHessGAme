@@ -145,6 +145,7 @@ export class WuziqiBoard extends HTMLElement {
         </header>
 
         <div id="samsara-bar" class="samsara-bar">
+            <div id="level-info-bar" class="level-info-bar"></div>
             <div class="samsara-item karma-item">
                 <span class="samsara-icon">☯</span>
                 <div class="samsara-info">
@@ -313,38 +314,51 @@ export class WuziqiBoard extends HTMLElement {
 }
 
 :host {
-    --paper: #fafaf8;
-    --paper-warm: #f5f3ef;
-    --paper-dark: #ebe8e2;
-    --ink: #1a1a1a;
-    --ink-soft: #2d2d2d;
-    --ink-medium: #4a4a4a;
-    --ink-light: #7a7a7a;
-    --ink-faint: #b8b8b8;
-    --line: #e0ddd7;
-    --line-strong: #c9c5be;
+    --divine-white: #fafbfc;
+    --divine-white-warm: #f8fafc;
+    --divine-white-dark: #f1f5f9;
+    --sky-blue: #0ea5e9;
+    --sky-blue-light: #38bdf8;
+    --sky-blue-dark: #0284c7;
+    --holy-gold: #fbbf24;
+    --holy-gold-light: #fcd34d;
+    --holy-gold-dark: #f59e0b;
+    --nebula-purple: #8b5cf6;
+    --nebula-purple-light: #a78bfa;
+    --nebula-purple-dark: #7c3aed;
 
-    --board-bg: #DEB887;
-    --board-line: #333333;
+    --paper: #fafbfc;
+    --paper-warm: #f8fafc;
+    --paper-dark: #f1f5f9;
+    --ink: #0f172a;
+    --ink-soft: #1e293b;
+    --ink-medium: #475569;
+    --ink-light: #64748b;
+    --ink-faint: #94a3b8;
+    --line: #e2e8f0;
+    --line-strong: #cbd5e1;
+
+    --board-bg: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f8fafc 100%);
+    --board-line: #64748b;
     --white-stone: #ffffff;
-    --black-stone: #1a1a1a;
+    --black-stone: #0f172a;
 
-    --neon-cyan: #00f0ff;
-    --neon-magenta: #ff00aa;
-    --neon-pink: #ff2d6f;
-    --neon-green: #39ff14;
-    --neon-gold: #ffd700;
+    --neon-cyan: #0ea5e9;
+    --neon-magenta: #8b5cf6;
+    --neon-pink: #ec4899;
+    --neon-green: #22d3ee;
+    --neon-gold: #fbbf24;
 
-    --highlight: #1a1a1a;
-    --valid-move: #3d7a3d;
-    --last-move: #8b5a2b;
-    --danger: #9b2c2c;
-    --success: #2d6a4f;
-    --warning: #8b6914;
-    --text-light: #4a4a4a;
+    --highlight: #0ea5e9;
+    --valid-move: #22d3ee;
+    --last-move: #fbbf24;
+    --danger: #dc2626;
+    --success: #0ea5e9;
+    --warning: #f59e0b;
+    --text-light: #475569;
 
-    --muted-ink: #7a7a7a;
-    --accent-green: #2d6a4f;
+    --muted-ink: #64748b;
+    --accent-green: #0ea5e9;
 
     display: block;
     width: 100%;
@@ -365,13 +379,47 @@ export class WuziqiBoard extends HTMLElement {
     position: relative;
     font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Resource Han Rounded CN', 'PingFang SC', 'Microsoft YaHei', sans-serif;
     color: var(--ink);
-    background-color: var(--paper);
-    background-image:
-        url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-    background-repeat: repeat;
-    background-size: 200px 200px;
-    background-blend-mode: multiply;
+    background: linear-gradient(180deg, 
+        #f0f9ff 0%, 
+        #fafbfc 30%, 
+        #f8fafc 60%, 
+        #f0f9ff 100%);
     overflow: hidden;
+}
+
+#app::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-image: 
+        radial-gradient(2px 2px at 20px 30px, rgba(14, 165, 233, 0.3), transparent),
+        radial-gradient(2px 2px at 40px 70px, rgba(139, 92, 246, 0.25), transparent),
+        radial-gradient(1px 1px at 90px 40px, rgba(251, 191, 36, 0.35), transparent),
+        radial-gradient(2px 2px at 160px 120px, rgba(14, 165, 233, 0.2), transparent),
+        radial-gradient(1px 1px at 230px 80px, rgba(139, 92, 246, 0.3), transparent),
+        radial-gradient(2px 2px at 300px 150px, rgba(251, 191, 36, 0.25), transparent),
+        radial-gradient(1px 1px at 370px 60px, rgba(14, 165, 233, 0.3), transparent),
+        radial-gradient(2px 2px at 450px 180px, rgba(139, 92, 246, 0.2), transparent),
+        radial-gradient(1px 1px at 520px 100px, rgba(251, 191, 36, 0.3), transparent);
+    background-size: 500px 200px;
+    animation: starTwinkle 8s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#app::after {
+    content: '';
+    position: absolute;
+    top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: 
+        radial-gradient(circle at 20% 30%, rgba(14, 165, 233, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(139, 92, 246, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(251, 191, 36, 0.03) 0%, transparent 60%);
+    animation: nebulaDrift 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
 }
 
 /* Header */
@@ -380,18 +428,26 @@ export class WuziqiBoard extends HTMLElement {
     justify-content: space-between;
     align-items: center;
     padding: 8px 24px;
-    background: var(--paper);
-    border-bottom: 1px solid var(--line);
+    background: rgba(250, 251, 252, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(14, 165, 233, 0.15);
     position: relative;
     animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+    z-index: 10;
 }
 
 .header::after {
     content: '';
     position: absolute;
     left: 24px; right: 24px; bottom: -1px;
-    height: 1px;
-    background: var(--ink);
+    height: 2px;
+    background: linear-gradient(90deg, 
+        transparent 0%, 
+        rgba(14, 165, 233, 0.4) 30%, 
+        rgba(251, 191, 36, 0.3) 50%, 
+        rgba(139, 92, 246, 0.4) 70%, 
+        transparent 100%);
     transform: scaleX(0);
     transform-origin: left;
     animation: scaleIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.4s forwards;
@@ -399,24 +455,26 @@ export class WuziqiBoard extends HTMLElement {
 
 .header h1 {
     font-family: 'Playfair Display', Georgia, 'Resource Han Rounded CN', 'PingFang SC', serif;
-    font-weight: 500;
+    font-weight: 600;
     font-size: 1.5rem;
     letter-spacing: 0.02em;
     color: var(--ink);
     font-style: italic;
+    text-shadow: 0 1px 2px rgba(14, 165, 233, 0.1);
 }
 
 .header h1::before {
-    content: '五 子 棋';
+    content: '天 道';
     display: block;
     font-family: 'Playfair Display', serif;
-    font-size: 0.65rem;
-    font-weight: 400;
-    letter-spacing: 0.3em;
-    color: var(--ink-light);
+    font-size: 0.55rem;
+    font-weight: 500;
+    letter-spacing: 0.4em;
+    color: var(--sky-blue);
     text-transform: uppercase;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     font-style: normal;
+    text-shadow: 0 0 8px rgba(14, 165, 233, 0.3);
 }
 
 .header-actions {
@@ -427,7 +485,7 @@ export class WuziqiBoard extends HTMLElement {
 
 #turn-indicator {
     padding: 8px 20px;
-    background: var(--ink);
+    background: linear-gradient(135deg, var(--sky-blue-dark) 0%, var(--sky-blue) 50%, var(--sky-blue-light) 100%);
     color: var(--paper);
     font-family: 'DM Sans', sans-serif;
     font-size: 0.75rem;
@@ -438,6 +496,8 @@ export class WuziqiBoard extends HTMLElement {
     position: relative;
     overflow: hidden;
     transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 20px;
+    box-shadow: 0 2px 10px rgba(14, 165, 233, 0.3);
 }
 
 #turn-indicator::before {
@@ -445,7 +505,7 @@ export class WuziqiBoard extends HTMLElement {
     position: absolute;
     top: 0; left: -100%;
     width: 100%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
     transition: left 0.5s ease;
 }
 
@@ -453,14 +513,74 @@ export class WuziqiBoard extends HTMLElement {
     left: 100%;
 }
 
+#turn-indicator:hover {
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.5);
+    transform: translateY(-1px);
+}
+
 .samsara-bar {
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 16px;
     padding: 6px 24px;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-    border-bottom: 2px solid #e94560;
-    box-shadow: 0 4px 20px rgba(233, 69, 96, 0.3);
+    background: linear-gradient(135deg,
+        rgba(14, 165, 233, 0.08) 0%,
+        rgba(139, 92, 246, 0.06) 50%,
+        rgba(14, 165, 233, 0.08) 100%);
+    border-bottom: 1px solid rgba(251, 191, 36, 0.2);
+    box-shadow:
+        0 2px 12px rgba(14, 165, 233, 0.08),
+        0 4px 24px rgba(139, 92, 246, 0.06);
+    position: relative;
+    overflow: hidden;
+}
+
+.level-info-bar {
+    flex-basis: 100%;
+    width: 100%;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+    padding: 2px 0;
+    position: relative;
+    z-index: 1;
+}
+
+.level-info-bar:empty {
+    display: none;
+}
+
+.level-realm {
+    color: var(--nebula-purple);
+    font-weight: 600;
+}
+
+.level-name {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.level-type-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    background: rgba(14, 165, 233, 0.1);
+    color: var(--sky-blue-dark);
+    border-radius: 10px;
+    font-size: 0.7rem;
+    margin-left: 6px;
+}
+
+.samsara-bar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, 
+        transparent, 
+        rgba(251, 191, 36, 0.1), 
+        transparent);
+    animation: goldenGlow 4s ease-in-out infinite;
 }
 
 .samsara-item {
@@ -468,9 +588,13 @@ export class WuziqiBoard extends HTMLElement {
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(250, 251, 252, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(14, 165, 233, 0.15);
+    position: relative;
+    z-index: 1;
 }
 
 .samsara-icon {
@@ -485,7 +609,7 @@ export class WuziqiBoard extends HTMLElement {
 
 .samsara-label {
     font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-medium);
     text-transform: uppercase;
     letter-spacing: 0.1em;
 }
@@ -493,7 +617,7 @@ export class WuziqiBoard extends HTMLElement {
 .samsara-bar-container {
     width: 80px;
     height: 6px;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(14, 165, 233, 0.1);
     border-radius: 3px;
     overflow: hidden;
 }
@@ -505,21 +629,21 @@ export class WuziqiBoard extends HTMLElement {
 }
 
 .karma-fill {
-    background: linear-gradient(90deg, #4ade80, #22c55e);
+    background: linear-gradient(90deg, var(--sky-blue), var(--sky-blue-light));
 }
 
 .detection-fill {
-    background: linear-gradient(90deg, #fbbf24, #f97316, #ef4444);
+    background: linear-gradient(90deg, var(--holy-gold), var(--holy-gold-light), var(--nebula-purple));
 }
 
 .turn-fill {
-    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    background: linear-gradient(90deg, var(--nebula-purple), var(--nebula-purple-light));
 }
 
 .samsara-value {
     font-size: 0.75rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--ink-soft);
     font-family: 'JetBrains Mono', monospace;
 }
 
@@ -582,12 +706,44 @@ export class WuziqiBoard extends HTMLElement {
     position: relative;
     width: min(90vmin, 560px, calc(100vh - 180px));
     height: min(90vmin, 560px, calc(100vh - 180px));
-    background: var(--board-bg);
-    border-radius: 4px;
+    background: linear-gradient(135deg, 
+        #f0f9ff 0%, 
+        #e0f2fe 25%, 
+        #f8fafc 50%, 
+        #f0f9ff 75%, 
+        #e0f2fe 100%);
+    border-radius: 12px;
     box-shadow:
-        0 0 0 1px rgba(26, 26, 26, 0.1),
-        0 4px 20px rgba(0, 0, 0, 0.08),
-        0 20px 60px rgba(0, 0, 0, 0.12);
+        0 0 0 1px rgba(14, 165, 233, 0.15),
+        0 8px 32px rgba(14, 165, 233, 0.12),
+        0 24px 80px rgba(139, 92, 246, 0.08),
+        inset 0 0 60px rgba(255, 255, 255, 0.8);
+    overflow: hidden;
+}
+
+#board-container::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-image: 
+        radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, 0.6) 0%, transparent 40%),
+        radial-gradient(ellipse at 70% 80%, rgba(14, 165, 233, 0.08) 0%, transparent 40%),
+        radial-gradient(ellipse at 50% 50%, rgba(251, 191, 36, 0.04) 0%, transparent 50%);
+    pointer-events: none;
+    animation: cloudDrift 15s ease-in-out infinite;
+}
+
+#board-container::after {
+    content: '';
+    position: absolute;
+    top: 4px; left: 4px; right: 4px; bottom: 4px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    pointer-events: none;
+    box-shadow: 
+        inset 0 0 20px rgba(14, 165, 233, 0.05),
+        inset 0 0 40px rgba(251, 191, 36, 0.03);
 }
 
 /* Side Panel */
@@ -609,19 +765,22 @@ export class WuziqiBoard extends HTMLElement {
 
 .panel-section {
     position: relative;
-    background: var(--paper-warm);
-    border: 1px solid var(--line);
+    background: rgba(250, 251, 252, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(14, 165, 233, 0.15);
     padding: 12px 16px;
     animation: fadeInUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    border-radius: 8px;
 }
 
 .panel-section::before {
     content: '';
     position: absolute;
     top: 0; left: 0;
-    width: 24px; height: 24px;
-    border-top: 1px solid var(--ink);
-    border-left: 1px solid var(--ink);
+    width: 16px; height: 16px;
+    border-top: 1px solid rgba(14, 165, 233, 0.3);
+    border-left: 1px solid rgba(14, 165, 233, 0.3);
     pointer-events: none;
 }
 
@@ -629,9 +788,9 @@ export class WuziqiBoard extends HTMLElement {
     content: '';
     position: absolute;
     bottom: 0; right: 0;
-    width: 24px; height: 24px;
-    border-bottom: 1px solid var(--ink);
-    border-right: 1px solid var(--ink);
+    width: 16px; height: 16px;
+    border-bottom: 1px solid rgba(14, 165, 233, 0.3);
+    border-right: 1px solid rgba(14, 165, 233, 0.3);
     pointer-events: none;
 }
 
@@ -863,51 +1022,69 @@ export class WuziqiBoard extends HTMLElement {
     justify-content: center;
     cursor: pointer;
     user-select: none;
-    transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease, filter 0.25s ease;
     z-index: 10;
     border: none;
 }
 
 .piece:hover {
-    transform: translate(-50%, -50%) scale(1.1);
+    transform: translate(-50%, -50%) scale(1.12);
+    filter: brightness(1.05);
 }
 
 .piece[data-side="black"] {
-    background-color: #1a1a1a;
+    background: radial-gradient(circle at 30% 30%, 
+        #334155 0%, 
+        #1e293b 20%, 
+        #0f172a 50%, 
+        #020617 100%);
     box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.5),
-        inset 0 1px 2px rgba(255, 255, 255, 0.1);
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        0 8px 24px rgba(15, 23, 42, 0.3),
+        inset 0 -2px 6px rgba(0, 0, 0, 0.3),
+        inset 0 2px 8px rgba(51, 65, 85, 0.2);
 }
 
 .piece[data-side="red"],
 .piece[data-side="white"] {
-    background-color: #ffffff;
+    background: radial-gradient(circle at 30% 30%, 
+        #ffffff 0%, 
+        #f8fafc 30%, 
+        #e2e8f0 60%, 
+        #cbd5e1 100%);
     box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.4),
-        inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        0 4px 12px rgba(14, 165, 233, 0.15),
+        0 8px 24px rgba(14, 165, 233, 0.08),
+        inset 0 -2px 6px rgba(148, 163, 184, 0.2),
+        inset 0 4px 12px rgba(255, 255, 255, 0.8);
 }
 
 .piece.selected {
     box-shadow:
-        0 0 0 3px var(--neon-cyan),
-        0 0 16px rgba(0, 240, 255, 0.8),
-        0 0 32px rgba(0, 240, 255, 0.5);
+        0 0 0 3px var(--sky-blue),
+        0 0 16px rgba(14, 165, 233, 0.7),
+        0 0 32px rgba(14, 165, 233, 0.4),
+        0 0 48px rgba(14, 165, 233, 0.2);
     z-index: 20;
+    animation: divineGlow 2s ease-in-out infinite;
 }
 
 .piece.last-moved {
     box-shadow:
-        0 0 0 2px var(--neon-pink),
-        0 0 14px rgba(255, 45, 111, 0.7),
-        0 0 28px rgba(255, 45, 111, 0.4);
+        0 0 0 2px var(--holy-gold),
+        0 0 14px rgba(251, 191, 36, 0.6),
+        0 0 28px rgba(251, 191, 36, 0.3),
+        0 0 42px rgba(251, 191, 36, 0.15);
 }
 
 .piece.ai-moved {
     box-shadow:
-        0 0 0 3px var(--neon-gold),
-        0 0 15px rgba(255, 215, 0, 0.85),
-        0 0 30px rgba(255, 215, 0, 0.45);
+        0 0 0 3px var(--nebula-purple),
+        0 0 15px rgba(139, 92, 246, 0.7),
+        0 0 30px rgba(139, 92, 246, 0.4),
+        0 0 48px rgba(139, 92, 246, 0.2);
     z-index: 100;
+    animation: celestialRing 1.5s ease-out;
 }
 
 .valid-move-indicator {
@@ -915,11 +1092,19 @@ export class WuziqiBoard extends HTMLElement {
     width: 4%;
     height: 3.6%;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--neon-green) 0%, rgba(57, 255, 20, 0.4) 60%, transparent 100%);
-    box-shadow: 0 0 8px var(--neon-green), 0 0 16px rgba(57, 255, 20, 0.5);
-    opacity: 0.85;
+    background: radial-gradient(circle, 
+        rgba(34, 211, 238, 0.9) 0%, 
+        rgba(14, 165, 233, 0.5) 40%, 
+        rgba(14, 165, 233, 0.2) 70%, 
+        transparent 100%);
+    box-shadow: 
+        0 0 8px rgba(34, 211, 238, 0.6), 
+        0 0 16px rgba(14, 165, 233, 0.4),
+        0 0 24px rgba(14, 165, 233, 0.2);
+    opacity: 0.9;
     pointer-events: none;
     z-index: 5;
+    animation: validMovePulse 2s ease-in-out infinite;
 }
 
 /* Input section */
@@ -992,16 +1177,16 @@ export class WuziqiBoard extends HTMLElement {
 /* Buttons */
 .btn {
     padding: 12px 20px;
-    border: 1px solid var(--ink);
-    background: transparent;
-    color: var(--ink);
+    border: 1px solid var(--sky-blue);
+    background: rgba(250, 251, 252, 0.8);
+    color: var(--sky-blue-dark);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
     font-size: 0.8rem;
     font-weight: 500;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    border-radius: 0;
+    border-radius: 8px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
@@ -1013,13 +1198,14 @@ export class WuziqiBoard extends HTMLElement {
     bottom: 0; left: 0;
     width: 100%;
     height: 0;
-    background: var(--ink);
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--nebula-purple) 100%);
     transition: height 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: -1;
 }
 
 .btn:hover {
     color: var(--paper);
+    box-shadow: 0 4px 16px rgba(14, 165, 233, 0.25);
 }
 
 .btn:hover::before {
@@ -1029,7 +1215,7 @@ export class WuziqiBoard extends HTMLElement {
 .btn-primary {
     padding: 12px 24px;
     border: none;
-    background: var(--ink);
+    background: linear-gradient(135deg, var(--sky-blue) 0%, var(--sky-blue-light) 100%);
     color: var(--paper);
     cursor: pointer;
     font-family: 'DM Sans', sans-serif;
@@ -1037,10 +1223,11 @@ export class WuziqiBoard extends HTMLElement {
     font-weight: 500;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    border-radius: 0;
+    border-radius: 8px;
     transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
     position: relative;
     overflow: hidden;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
 }
 
 .btn-primary::after {
@@ -1051,9 +1238,9 @@ export class WuziqiBoard extends HTMLElement {
 }
 
 .btn-primary:hover {
-    background: var(--ink-soft);
+    background: linear-gradient(135deg, var(--sky-blue-dark) 0%, var(--sky-blue) 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(26, 26, 26, 0.2);
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
 }
 
 .btn-primary:hover::after {
@@ -1278,6 +1465,80 @@ export class WuziqiBoard extends HTMLElement {
     to { opacity: 1; }
 }
 
+@keyframes starTwinkle {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+@keyframes nebulaDrift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(2%, -2%) scale(1.02); }
+    66% { transform: translate(-2%, 2%) scale(0.98); }
+}
+
+@keyframes cloudDrift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33% { transform: translate(1%, -1%) rotate(0.5deg); }
+    66% { transform: translate(-1%, 1%) rotate(-0.5deg); }
+}
+
+@keyframes goldenGlow {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+@keyframes divineGlow {
+    0%, 100% { 
+        box-shadow:
+            0 0 0 3px var(--sky-blue),
+            0 0 16px rgba(14, 165, 233, 0.7),
+            0 0 32px rgba(14, 165, 233, 0.4),
+            0 0 48px rgba(14, 165, 233, 0.2);
+    }
+    50% { 
+        box-shadow:
+            0 0 0 3px var(--sky-blue),
+            0 0 20px rgba(14, 165, 233, 0.9),
+            0 0 40px rgba(14, 165, 233, 0.6),
+            0 0 60px rgba(14, 165, 233, 0.3);
+    }
+}
+
+@keyframes celestialRing {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+        box-shadow:
+            0 0 0 1px var(--nebula-purple),
+            0 0 0 2px var(--nebula-purple-light),
+            0 0 0 3px var(--nebula-purple);
+    }
+    30% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.1);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+        box-shadow:
+            0 0 0 3px var(--nebula-purple),
+            0 0 15px rgba(139, 92, 246, 0.7),
+            0 0 30px rgba(139, 92, 246, 0.4),
+            0 0 48px rgba(139, 92, 246, 0.2);
+    }
+}
+
+@keyframes validMovePulse {
+    0%, 100% { 
+        opacity: 0.7;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% { 
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.15);
+    }
+}
+
 @keyframes fadeInUp {
     from {
         opacity: 0;
@@ -1424,6 +1685,158 @@ export class WuziqiBoard extends HTMLElement {
 
 .game-over-overlay button:hover::after {
     transform: rotate(-180deg);
+}
+
+/* Victory Reward Overlay */
+.victory-reward-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.victory-reward-overlay .reward-card {
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(18, 18, 22, 0.8));
+    border: 1px solid rgba(212, 175, 55, 0.4);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 60px rgba(212, 175, 55, 0.2);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.victory-reward-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #d4af37;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.victory-reward-overlay .reward-skill-points {
+    font-size: 1.6rem;
+    color: #d4af37;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-sandbox {
+    color: #0d7377;
+    background: rgba(13, 115, 119, 0.15);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-weight: 600;
+}
+
+.victory-reward-overlay .reward-reasons {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 24px;
+    color: #99948a;
+    font-size: 0.9rem;
+}
+
+.victory-reward-overlay .reward-reasons li {
+    padding: 4px 0;
+}
+
+.victory-reward-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #d4af37;
+    background: #d4af37;
+    color: #070708;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.victory-reward-overlay button:hover {
+    background: transparent;
+    color: #d4af37;
+}
+
+/* Detection Reset Overlay */
+.detection-reset-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(7, 7, 8, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 70;
+    border-radius: 4px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    animation: fadeIn 0.5s ease;
+}
+
+.detection-reset-overlay .detection-reset-card {
+    background: linear-gradient(135deg, rgba(155, 35, 53, 0.2), rgba(18, 18, 22, 0.9));
+    border: 1px solid rgba(155, 35, 53, 0.5);
+    border-radius: 12px;
+    padding: 48px 56px;
+    text-align: center;
+    color: #f3e9d2;
+    max-width: 420px;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7), 0 0 60px rgba(155, 35, 53, 0.25);
+    animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.detection-reset-overlay h2 {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 2.2rem;
+    color: #9b2335;
+    margin: 0 0 24px;
+    letter-spacing: 0.05em;
+}
+
+.detection-reset-overlay .detection-message {
+    color: #f3e9d2;
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+}
+
+.detection-reset-overlay .detection-detail {
+    color: #99948a;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+}
+
+.detection-reset-overlay button {
+    padding: 12px 32px;
+    border: 1px solid #9b2335;
+    background: #9b2335;
+    color: #f3e9d2;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.detection-reset-overlay button:hover {
+    background: transparent;
+    color: #9b2335;
 }
 
 /* AI Thinking Overlay */
@@ -2394,6 +2807,7 @@ export class WuziqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data;
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
@@ -2405,7 +2819,31 @@ export class WuziqiBoard extends HTMLElement {
                 objective: { type: 'win', description: '五子连珠' }
             };
             this.updateSamsaraUI();
+            await this.loadLevelInfo();
         }
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch('/samsara/api/levels');
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            console.error('Failed to load level info:', e);
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar || !this.levelInfo) return;
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || ''}</span> > <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
     }
 
     updateSamsaraUI() {
@@ -2444,11 +2882,38 @@ export class WuziqiBoard extends HTMLElement {
             const data = await resp.json();
             this.samsaraState = data.state;
             this.updateSamsaraUI();
+            // 检查是否被识破
+            if (data.detection?.detected) {
+                this.showDetectionReset(data.detection.message);
+            }
             return data;
         } catch (e) {
             console.error('Failed to consume karma:', e);
             return { success: false };
         }
+    }
+
+    showDetectionReset(message) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.detection-reset-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.className = 'detection-reset-overlay';
+        overlay.innerHTML = `
+            <div class="detection-reset-card">
+                <h2>👁️ 天道识破</h2>
+                <p class="detection-message">${message || '妄改天规者，罚入轮回'}</p>
+                <p class="detection-detail">存档已重置, 但技能与成就得以保留。</p>
+                <button class="btn-primary">重新开始</button>
+            </div>
+        `;
+        const restartBtn = overlay.querySelector('button');
+        restartBtn.addEventListener('click', () => {
+            overlay.remove();
+            window.location.reload();
+        });
+        container.appendChild(overlay);
     }
 
     async reportKarmaEvent(eventType, details = {}) {
@@ -3125,9 +3590,28 @@ export class WuziqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
-                    const karmaMsg = data.estimated_karma_cost ? ` (业力消耗: ${data.estimated_karma_cost})` : '';
-                    this.addMessage(`✅ ${data.message}${karmaMsg}`, 'success');
-                    await this.consumeKarma(10);
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
+                    // 使用后端返回的状态更新 UI
+                    if (data.karma_state) {
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: data.karma_state.current,
+                            karma_max: data.karma_state.max
+                        };
+                        this.updateSamsaraUI();
+                    } else {
+                        await this.loadSamsaraState();
+                    }
+
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -3434,10 +3918,14 @@ export class WuziqiBoard extends HTMLElement {
         if (state?.state === 'ended') {
             const winner = state.winner === 'black' ? '黑方' : '白方';
             indicator.textContent = `${winner}获胜!`;
-            indicator.style.background = 'var(--success)';
+            indicator.style.background = 'linear-gradient(135deg, var(--holy-gold) 0%, var(--holy-gold-light) 100%)';
+            indicator.style.color = '#1e293b';
         } else {
             indicator.textContent = turn === 'black' ? '黑方回合' : '白方回合';
-            indicator.style.background = turn === 'black' ? '#333' : '#8B0000';
+            indicator.style.background = turn === 'black' 
+                ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 50%, #020617 100%)' 
+                : 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%)';
+            indicator.style.color = turn === 'black' ? '#fafbfc' : '#0f172a';
         }
     }
 
@@ -3641,7 +4129,7 @@ export class WuziqiBoard extends HTMLElement {
         }
     }
 
-    showGameOver() {
+    async showGameOver() {
         const state = this.boardState?.game_status;
         if (!state || state.state !== 'ended') return;
 
@@ -3660,6 +4148,49 @@ export class WuziqiBoard extends HTMLElement {
         `;
         const restartBtn = overlay.querySelector('button');
         restartBtn.addEventListener('click', () => this.restart());
+        container.appendChild(overlay);
+
+        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+        try {
+            const isPlayerWin = state.winner === this.playerSide;
+            if (isPlayerWin) {
+                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
+                    this.showVictoryReward(data);
+                    await this.loadSamsaraState();
+                }
+            }
+        } catch (e) {
+            console.error('Failed to resolve level rewards:', e);
+        }
+    }
+
+    showVictoryReward(rewards) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const existing = container.querySelector('.victory-reward-overlay');
+        if (existing) existing.remove();
+
+        const skillPoints = rewards?.skill_points || 0;
+        const reasons = rewards?.bonus_reasons || [];
+        const sandboxUnlocked = rewards?.sandbox_unlocked;
+
+        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
+
+        const overlay = document.createElement('div');
+        overlay.className = 'victory-reward-overlay';
+        overlay.innerHTML = `
+            <div class="reward-card">
+                <h2>🏆 通关胜利</h2>
+                <div class="reward-skill-points">⭐ +${skillPoints} 技能点</div>
+                ${sandboxHtml}
+                ${reasonsHtml ? `<ul class="reward-reasons">${reasonsHtml}</ul>` : ''}
+                <button class="btn-primary">继续</button>
+            </div>
+        `;
+        const continueBtn = overlay.querySelector('button');
+        continueBtn.addEventListener('click', () => overlay.remove());
         container.appendChild(overlay);
     }
 
