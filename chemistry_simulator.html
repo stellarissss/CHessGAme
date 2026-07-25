@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>化学反应模拟器 · Chemistry Lab</title>
+<style>
+/* 深色实验室主题 */
+:root{
+  --bg:#070a10;--bg-2:#0c1118;--panel:rgba(18,24,34,.82);--panel-2:rgba(24,32,44,.92);
+  --text:#e8eef5;--text-mute:#8a96a8;--text-dim:#5a6678;
+  --reagent:#3dd9b3;--reagent-dim:#1f7a64;--flame:#ffa940;--warn:#ff5c5c;--glass:#e6f0ff;
+  --border:rgba(180,210,255,.12);--border-strong:rgba(180,210,255,.28);
+  --shadow:0 18px 60px rgba(0,0,0,.55);
+  --font-body:"Noto Serif SC","Songti SC",serif;
+  --font-tech:"Orbitron","JetBrains Mono","Courier New",monospace;
+  --font-mono:"JetBrains Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);line-height:1.5;overflow:hidden;user-select:none;-webkit-user-select:none}
+.ambient{position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:radial-gradient(ellipse at 18% 12%,rgba(61,217,179,.10),transparent 45%),
+    radial-gradient(ellipse at 82% 78%,rgba(255,169,64,.08),transparent 45%),
+    radial-gradient(ellipse at 50% 50%,rgba(120,160,220,.05),transparent 60%),var(--bg)}
+.ambient::after{content:"";position:absolute;inset:0;opacity:.04;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.app{display:grid;grid-template-columns:230px 1fr 320px;grid-template-rows:54px 1fr 96px;
+  grid-template-areas:"top top top" "shelf stage panel" "tray tray tray";height:100vh}
+.top{grid-area:top;display:flex;align-items:center;gap:14px;padding:0 18px;
+  background:linear-gradient(180deg,rgba(20,28,40,.95),rgba(14,20,30,.85));
+  border-bottom:1px solid var(--border);backdrop-filter:blur(12px);position:relative;z-index:5}
+.top h1{font-size:18px;margin:0;font-weight:600;letter-spacing:.5px}
+.top h1 .sub{color:var(--reagent);font-family:var(--font-tech);font-size:11px;letter-spacing:2px;margin-left:8px}
+.top .spacer{flex:1}
+.top button,.top select{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text);
+  padding:7px 12px;border-radius:8px;font-family:var(--font-body);font-size:13px;cursor:pointer;transition:.2s}
+.top button:hover,.top select:hover{background:rgba(61,217,179,.12);border-color:var(--reagent-dim)}
+.top .preset-sel{min-width:200px}
+.shelf{grid-area:shelf;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.shelf-head{padding:12px 14px 8px;font-size:13px;color:var(--text-mute);letter-spacing:1px;
+  border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.shelf-head .cnt{color:var(--reagent);font-family:var(--font-tech);font-size:11px}
+.shelf-tabs{display:flex;flex-wrap:wrap;gap:4px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.shelf-tabs button{flex:1;min-width:54px;background:transparent;border:1px solid var(--border);color:var(--text-mute);
+  padding:4px 6px;border-radius:6px;font-size:11px;cursor:pointer;transition:.15s}
+.shelf-tabs button.active{background:rgba(61,217,179,.18);color:var(--reagent);border-color:var(--reagent-dim)}
+.shelf-list{flex:1;overflow-y:auto;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start}
+.shelf-list::-webkit-scrollbar{width:6px}.shelf-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+.reagent-card{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:8px;
+  padding:7px 6px;cursor:grab;text-align:center;transition:.15s;position:relative;overflow:hidden}
+.reagent-card:hover{background:rgba(61,217,179,.10);border-color:var(--reagent-dim);transform:translateY(-1px)}
+.reagent-card:active{cursor:grabbing}
+.reagent-card .swatch{width:22px;height:22px;border-radius:50%;margin:0 auto 4px;
+  border:1px solid rgba(255,255,255,.25);box-shadow:inset 0 2px 4px rgba(0,0,0,.3)}
+.reagent-card .name{font-size:11px;color:var(--text);line-height:1.2}
+.reagent-card .formula{font-family:var(--font-mono);font-size:10px;color:var(--reagent);margin-top:2px}
+.reagent-card .state-tag{position:absolute;top:3px;right:3px;font-size:9px;color:var(--text-dim)}
+.stage-wrap{grid-area:stage;position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(10,14,20,.4),rgba(6,10,16,.7))}
+#stage{display:block;width:100%;height:100%;cursor:default}
+.stage-overlay{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;pointer-events:none;display:flex;gap:8px;flex-wrap:wrap}
+.tool-btn{pointer-events:auto;background:rgba(20,28,40,.88);border:1px solid var(--border-strong);
+  color:var(--text);padding:7px 12px;border-radius:8px;font-size:13px;cursor:pointer;backdrop-filter:blur(8px);
+  transition:.15s;display:inline-flex;align-items:center;gap:5px}
+.tool-btn:hover{background:rgba(61,217,179,.18);border-color:var(--reagent)}
+.tool-btn.active{background:rgba(255,169,64,.22);border-color:var(--flame);color:#ffd591}
+.tool-btn:disabled{opacity:.35;cursor:not-allowed}
+.tool-btn .ic{font-size:15px}
+.stage-hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  background:rgba(20,28,40,.7);border:1px solid var(--border);border-radius:20px;padding:6px 16px;
+  font-size:12px;color:var(--text-mute);backdrop-filter:blur(6px);pointer-events:none}
+.selected-info{position:absolute;top:12px;left:12px;background:rgba(20,28,40,.85);
+  border:1px solid var(--border-strong);border-radius:8px;padding:8px 12px;font-size:12px;
+  backdrop-filter:blur(8px);min-width:140px;display:none}
+.selected-info.show{display:block}
+.selected-info .ttl{color:var(--reagent);font-family:var(--font-tech);font-size:10px;letter-spacing:1px}
+.panel{grid-area:panel;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.panel-sec{border-bottom:1px solid var(--border);padding:12px 14px}
+.panel-sec h3{margin:0 0 8px;font-size:12px;color:var(--reagent);letter-spacing:1.5px;font-weight:500;
+  display:flex;align-items:center;justify-content:space-between}
+.panel-sec h3 .badge{color:var(--text-dim);font-family:var(--font-tech);font-size:10px}
+.empty-hint{color:var(--text-dim);font-size:12px;text-align:center;padding:14px 8px;font-style:italic}
+.contents-list{display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto}
+.contents-list::-webkit-scrollbar{width:5px}.contents-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.content-item{display:flex;align-items:center;gap:8px;padding:5px 7px;background:rgba(255,255,255,.02);
+  border-radius:6px;font-size:12px;border:1px solid transparent}
+.content-item .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.2)}
+.content-item .nm{flex:1;color:var(--text)}
+.content-item .fm{font-family:var(--font-mono);font-size:10px;color:var(--reagent)}
+.content-item .ml{font-family:var(--font-tech);font-size:10px;color:var(--text-mute)}
+.equation{font-family:var(--font-mono);font-size:12px;color:var(--glass);background:rgba(0,0,0,.25);
+  padding:8px 10px;border-radius:6px;border-left:2px solid var(--reagent);word-break:break-all;line-height:1.6}
+.phenom{font-size:12px;color:var(--text);line-height:1.6;background:rgba(255,169,64,.06);
+  padding:8px 10px;border-radius:6px;border-left:2px solid var(--flame)}
+.data-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.data-cell{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:6px;padding:6px 8px}
+.data-cell .lbl{font-size:10px;color:var(--text-dim);letter-spacing:1px}
+.data-cell .val{font-family:var(--font-tech);font-size:16px;color:var(--text);margin-top:2px}
+.data-cell .val .u{font-size:10px;color:var(--text-mute);margin-left:2px}
+.history{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.history::-webkit-scrollbar{width:5px}.history::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.history-item{font-size:11px;color:var(--text-mute);padding:4px 6px;border-left:2px solid var(--border);
+  background:rgba(255,255,255,.02);border-radius:0 4px 4px 0}
+.history-item .t{font-family:var(--font-tech);font-size:9px;color:var(--text-dim);margin-right:6px}
+.history-item .eq{font-family:var(--font-mono);color:var(--glass);font-size:10px;display:block;margin-top:2px}
+.tray{grid-area:tray;background:linear-gradient(180deg,rgba(14,20,30,.9),rgba(8,12,18,.95));
+  border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;padding:0 14px;overflow-x:auto}
+.tray::-webkit-scrollbar{height:6px}.tray::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1)}
+.tray-label{font-size:12px;color:var(--text-mute);letter-spacing:1px;flex-shrink:0;margin-right:4px}
+.tray-item{flex-shrink:0;width:64px;height:72px;background:rgba(255,255,255,.03);border:1px solid var(--border);
+  border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  cursor:grab;transition:.15s}
+.tray-item:hover{background:rgba(61,217,179,.10);border-color:var(--reagent-dim);transform:translateY(-2px)}
+.tray-item .ic{font-size:24px;color:var(--glass)}
+.tray-item .nm{font-size:10px;color:var(--text-mute)}
+.modal-layer{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(6px)}
+.modal-layer.show{display:flex}
+.modal{background:var(--panel-2);border:1px solid var(--border-strong);border-radius:14px;
+  padding:24px;max-width:480px;width:90%;box-shadow:var(--shadow)}
+.modal.warn{border-color:var(--warn)}
+.modal h2{margin:0 0 12px;font-size:18px;color:var(--text)}
+.modal.warn h2{color:var(--warn)}
+.modal p{font-size:13px;color:var(--text);line-height:1.7;margin:0 0 16px}
+.modal .actions{display:flex;gap:8px;justify-content:flex-end}
+.modal button{background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text);
+  padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;transition:.15s}
+.modal button:hover{background:rgba(61,217,179,.18);border-color:var(--reagent)}
+.modal button.primary{background:rgba(61,217,179,.22);border-color:var(--reagent);color:var(--reagent)}
+.toast-wrap{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:60;display:flex;
+  flex-direction:column;gap:6px;pointer-events:none}
+.toast{background:rgba(20,28,40,.92);border:1px solid var(--border-strong);color:var(--text);
+  padding:8px 16px;border-radius:8px;font-size:13px;backdrop-filter:blur(8px);
+  animation:toastIn .3s ease,toastOut .3s ease 2.4s forwards}
+.toast.warn{border-color:var(--warn);color:#ffb0b0}
+.toast.ok{border-color:var(--reagent);color:var(--reagent)}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px)}}
+@media(max-width:1200px){.app{grid-template-columns:200px 1fr 280px}}
+@media(max-width:980px){
+  .app{grid-template-columns:180px 1fr;grid-template-areas:"top top" "shelf stage" "tray tray"}
+  .panel{display:none}
+  .panel.mobile-show{display:flex;position:fixed;right:0;top:54px;bottom:96px;width:300px;z-index:20;box-shadow:-8px 0 32px rgba(0,0,0,.5)}
+}
+@media(max-width:640px){
+  .app{grid-template-columns:1fr;grid-template-rows:54px 1fr 96px;grid-template-areas:"top" "stage" "tray"}
+  .shelf{display:none}
+}
+</style>
+</head>
+<body>
+<div class="ambient"></div>
+<div class="app">
+  <header class="top">
+    <h1>化学反应模拟器<span class="sub">CHEM LAB</span></h1>
+    <select class="preset-sel" id="presetSel" title="选择经典实验"><option value="">— 经典实验导览 —</option></select>
+    <button id="btnHelp">帮助</button>
+    <button id="btnClear">清空实验台</button>
+    <div class="spacer"></div>
+    <button id="btnPanel">信息面板</button>
+  </header>
+  <aside class="shelf">
+    <div class="shelf-head"><span>试剂架</span><span class="cnt" id="reagentCnt">0</span></div>
+    <div class="shelf-tabs" id="shelfTabs"></div>
+    <div class="shelf-list" id="shelfList"></div>
+  </aside>
+  <main class="stage-wrap">
+    <canvas id="stage"></canvas>
+    <div class="stage-hint" id="stageHint">从左侧拖入试剂，或从底部拖入仪器</div>
+    <div class="selected-info" id="selectedInfo"></div>
+    <div class="stage-overlay" id="stageOverlay"></div>
+  </main>
+  <aside class="panel" id="panel">
+    <div class="panel-sec">
+      <h3>当前容器 <span class="badge" id="panelTarget">—</span></h3>
+      <div id="contentsBox"><div class="empty-hint">未选中容器</div></div>
+    </div>
+    <div class="panel-sec"><h3>反应方程式</h3><div id="equationBox"><div class="empty-hint">无反应</div></div></div>
+    <div class="panel-sec"><h3>反应现象</h3><div id="phenomBox"><div class="empty-hint">—</div></div></div>
+    <div class="panel-sec">
+      <h3>实验数据</h3>
+      <div class="data-grid">
+        <div class="data-cell"><div class="lbl">温度</div><div class="val" id="dTemp">25<span class="u">℃</span></div></div>
+        <div class="data-cell"><div class="lbl">体积</div><div class="val" id="dVol">0<span class="u">mL</span></div></div>
+        <div class="data-cell"><div class="lbl">pH</div><div class="val" id="dPH">7.0</div></div>
+        <div class="data-cell"><div class="lbl">状态</div><div class="val" id="dState" style="font-size:13px">静置</div></div>
+      </div>
+    </div>
+    <div class="panel-sec" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <h3>反应历史</h3>
+      <div class="history" id="historyBox"></div>
+    </div>
+  </aside>
+  <footer class="tray" id="tray"><span class="tray-label">仪器 ▸</span></footer>
+</div>
+<div class="modal-layer" id="modalLayer">
+  <div class="modal" id="modalBox"><h2 id="modalTitle"></h2><p id="modalBody"></p><div class="actions" id="modalActions"></div></div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+'use strict';
+/* ═══ CONFIG ═══ */
+const CONFIG = {
+  ROOM_TEMP:25, WATER_HEAT_CAP:4.18, REACTION_RATE:0.35, COOLING_RATE:0.04,
+  MAX_PARTICLES:600, DRAG_LIQUID_ML:8, DRAG_SOLID_MOL:0.05, DRAG_GAS_MOL:0.02,
+  COUPLE_DISTANCE:80, HEAT_PER_SEC:35, STIR_MIX_RATE:0.5,
+};
+
+/* ═══ SUBSTANCES 物质数据库（60+） ═══ */
+const SUBSTANCES = {
+  na:{name:'钠',formula:'Na',molarMass:23,state:'solid',color:'#e8e8e8',density:.97,category:'metal',attrs:{metalActivity:3,flammable:true}},
+  k:{name:'钾',formula:'K',molarMass:39,state:'solid',color:'#d8d8d8',density:.86,category:'metal',attrs:{metalActivity:2,flammable:true}},
+  fe:{name:'铁',formula:'Fe',molarMass:56,state:'solid',color:'#6b6b6b',density:7.87,category:'metal',attrs:{metalActivity:9}},
+  cu:{name:'铜',formula:'Cu',molarMass:64,state:'solid',color:'#b87333',density:8.96,category:'metal',attrs:{metalActivity:12}},
+  zn:{name:'锌',formula:'Zn',molarMass:65,state:'solid',color:'#a8a8b0',density:7.14,category:'metal',attrs:{metalActivity:8}},
+  mg:{name:'镁条',formula:'Mg',molarMass:24,state:'solid',color:'#c0c0c0',density:1.74,category:'metal',attrs:{metalActivity:6,flammable:true}},
+  al:{name:'铝',formula:'Al',molarMass:27,state:'solid',color:'#d0d0d0',density:2.70,category:'metal',attrs:{metalActivity:7}},
+  ca:{name:'钙',formula:'Ca',molarMass:40,state:'solid',color:'#c8c8c0',density:1.55,category:'metal',attrs:{metalActivity:4}},
+  h2:{name:'氢气',formula:'H₂',molarMass:2,state:'gas',color:'#f0f0f0',density:.00009,category:'nonmetal',attrs:{flammable:true}},
+  o2:{name:'氧气',formula:'O₂',molarMass:32,state:'gas',color:'#a8d8ff',density:.00143,category:'nonmetal',attrs:{redox:'oxidizer'}},
+  co2:{name:'二氧化碳',formula:'CO₂',molarMass:44,state:'gas',color:'#d0d0d0',density:.00198,category:'nonmetal'},
+  nh3:{name:'氨气',formula:'NH₃',molarMass:17,state:'gas',color:'#c0e8d0',density:.00077,category:'nonmetal'},
+  cl2:{name:'氯气',formula:'Cl₂',molarMass:71,state:'gas',color:'#9bd17a',density:.00321,category:'nonmetal',attrs:{redox:'oxidizer',corrosive:true}},
+  so2:{name:'二氧化硫',formula:'SO₂',molarMass:64,state:'gas',color:'#e0d8c0',density:.00293,category:'nonmetal'},
+  n2:{name:'氮气',formula:'N₂',molarMass:28,state:'gas',color:'#b0c8e0',density:.00125,category:'nonmetal'},
+  c:{name:'碳粉',formula:'C',molarMass:12,state:'solid',color:'#1a1a1a',density:2.26,category:'nonmetal',attrs:{flammable:true}},
+  cao:{name:'氧化钙',formula:'CaO',molarMass:56,state:'solid',color:'#f0f0e8',density:3.34,category:'oxide'},
+  fe2o3:{name:'氧化铁',formula:'Fe₂O₃',molarMass:160,state:'solid',color:'#9b2222',density:5.24,category:'oxide'},
+  fe3o4:{name:'四氧化三铁',formula:'Fe₃O₄',molarMass:232,state:'solid',color:'#1a1a1a',density:5.17,category:'oxide'},
+  cuo:{name:'氧化铜',formula:'CuO',molarMass:80,state:'solid',color:'#1a1a1a',density:6.31,category:'oxide'},
+  mno2:{name:'二氧化锰',formula:'MnO₂',molarMass:87,state:'solid',color:'#2a2a2a',density:5.03,category:'oxide',attrs:{catalyst:true}},
+  mgo:{name:'氧化镁',formula:'MgO',molarMass:40,state:'solid',color:'#f0f0f0',density:3.58,category:'oxide'},
+  hcl:{name:'稀盐酸',formula:'HCl',molarMass:36.5,state:'aqueous',color:'#f5f8fa',density:1.05,concentration:1.0,category:'acid',attrs:{pH:1,strongAcid:true,corrosive:true}},
+  hcl_conc:{name:'浓盐酸',formula:'HCl',molarMass:36.5,state:'aqueous',color:'#e8eef0',density:1.18,concentration:12,category:'acid',attrs:{pH:-1,strongAcid:true,corrosive:true}},
+  h2so4:{name:'稀硫酸',formula:'H₂SO₄',molarMass:98,state:'aqueous',color:'#f0f4f8',density:1.10,concentration:1.0,category:'acid',attrs:{pH:1,strongAcid:true,corrosive:true}},
+  h2so4_conc:{name:'浓硫酸',formula:'H₂SO₄',molarMass:98,state:'aqueous',color:'#e8d8a0',density:1.84,concentration:18,category:'acid',attrs:{pH:-1.5,strongAcid:true,corrosive:true,redox:'oxidizer'}},
+  hno3:{name:'稀硝酸',formula:'HNO₃',molarMass:63,state:'aqueous',color:'#f0f4e8',density:1.10,concentration:1.0,category:'acid',attrs:{pH:1,strongAcid:true,corrosive:true,redox:'oxidizer'}},
+  hno3_conc:{name:'浓硝酸',formula:'HNO₃',molarMass:63,state:'aqueous',color:'#e8e0a0',density:1.42,concentration:16,category:'acid',attrs:{pH:-1,strongAcid:true,corrosive:true,redox:'oxidizer'}},
+  ch3cooh:{name:'醋酸',formula:'CH₃COOH',molarMass:60,state:'aqueous',color:'#f5f5e8',density:1.05,concentration:1.0,category:'acid',attrs:{pH:2.4,weakAcid:true,corrosive:true}},
+  naoh:{name:'氢氧化钠',formula:'NaOH',molarMass:40,state:'aqueous',color:'#e8f4f0',density:1.10,concentration:1.0,category:'base',attrs:{pH:14,strongBase:true,corrosive:true}},
+  koh:{name:'氢氧化钾',formula:'KOH',molarMass:56,state:'aqueous',color:'#e8f0f4',density:1.10,concentration:1.0,category:'base',attrs:{pH:14,strongBase:true,corrosive:true}},
+  caoh2:{name:'石灰水',formula:'Ca(OH)₂',molarMass:74,state:'aqueous',color:'#f0f4e8',density:1.0,concentration:0.02,category:'base',attrs:{pH:12.4,weakBase:true}},
+  caoh2_s:{name:'氢氧化钙',formula:'Ca(OH)₂',molarMass:74,state:'solid',color:'#f0f0e8',density:2.21,category:'base',attrs:{weakBase:true}},
+  nh3h2o:{name:'氨水',formula:'NH₃·H₂O',molarMass:35,state:'aqueous',color:'#e8f4ec',density:0.91,concentration:1.0,category:'base',attrs:{pH:11.6,weakBase:true}},
+  nacl:{name:'氯化钠溶液',formula:'NaCl',molarMass:58.5,state:'aqueous',color:'#f5f5f5',density:1.0,concentration:1.0,category:'salt'},
+  nacl_s:{name:'食盐',formula:'NaCl',molarMass:58.5,state:'solid',color:'#f0f0f0',density:2.16,category:'salt'},
+  cuso4:{name:'硫酸铜溶液',formula:'CuSO₄',molarMass:160,state:'aqueous',color:'#3d8bff',density:1.1,concentration:1.0,category:'salt',attrs:{ionColor:'#3d8bff',metalAct:11}},
+  cuso4_s:{name:'胆矾',formula:'CuSO₄·5H₂O',molarMass:250,state:'solid',color:'#3d8bff',density:2.28,category:'salt'},
+  fecl3:{name:'氯化铁溶液',formula:'FeCl₃',molarMass:162.5,state:'aqueous',color:'#c87830',density:1.1,concentration:1.0,category:'salt',attrs:{ionColor:'#c87830',metalAct:9}},
+  fecl2:{name:'氯化亚铁',formula:'FeCl₂',molarMass:127,state:'aqueous',color:'#7ec0a0',density:1.1,concentration:1.0,category:'salt',attrs:{ionColor:'#7ec0a0',metalAct:9}},
+  feso4:{name:'硫酸亚铁',formula:'FeSO₄',molarMass:152,state:'aqueous',color:'#7ec0a0',density:1.1,concentration:1.0,category:'salt',attrs:{ionColor:'#7ec0a0',metalAct:9}},
+  agno3:{name:'硝酸银',formula:'AgNO₃',molarMass:170,state:'aqueous',color:'#f0f0f0',density:1.1,concentration:1.0,category:'salt',attrs:{metalAct:14}},
+  bacl2:{name:'氯化钡',formula:'BaCl₂',molarMass:208,state:'aqueous',color:'#f0f0f0',density:1.1,concentration:1.0,category:'salt'},
+  na2co3:{name:'碳酸钠',formula:'Na₂CO₃',molarMass:106,state:'aqueous',color:'#f0f4f8',density:1.1,concentration:1.0,category:'salt'},
+  nahco3:{name:'碳酸氢钠溶液',formula:'NaHCO₃',molarMass:84,state:'aqueous',color:'#f0f4f8',density:1.0,concentration:1.0,category:'salt'},
+  nahco3_s:{name:'小苏打',formula:'NaHCO₃',molarMass:84,state:'solid',color:'#f0f0e8',density:2.16,category:'salt'},
+  caco3:{name:'大理石',formula:'CaCO₃',molarMass:100,state:'solid',color:'#e8e8d8',density:2.71,category:'salt'},
+  kmno4:{name:'高锰酸钾溶液',formula:'KMnO₄',molarMass:158,state:'aqueous',color:'#9b2fb8',density:1.1,concentration:0.1,category:'salt',attrs:{ionColor:'#9b2fb8',redox:'oxidizer'}},
+  kmno4_s:{name:'高锰酸钾固体',formula:'KMnO₄',molarMass:158,state:'solid',color:'#5a1a78',density:2.70,category:'salt',attrs:{redox:'oxidizer'}},
+  na2so4:{name:'硫酸钠',formula:'Na₂SO₄',molarMass:142,state:'aqueous',color:'#f0f0f0',density:1.1,concentration:1.0,category:'salt'},
+  kclo3:{name:'氯酸钾',formula:'KClO₃',molarMass:122.5,state:'solid',color:'#f0f0f0',density:2.32,category:'salt',attrs:{redox:'oxidizer'}},
+  cucl2:{name:'氯化铜',formula:'CuCl₂',molarMass:135,state:'aqueous',color:'#3aa878',density:1.1,concentration:1.0,category:'salt',attrs:{ionColor:'#3aa878',metalAct:12}},
+  mgcl2:{name:'氯化镁',formula:'MgCl₂',molarMass:95,state:'aqueous',color:'#f0f0f0',density:1.1,concentration:1.0,category:'salt',attrs:{metalAct:6}},
+  na2s:{name:'硫化钠',formula:'Na₂S',molarMass:78,state:'aqueous',color:'#f0f0e8',density:1.1,concentration:1.0,category:'salt'},
+  ki:{name:'碘化钾',formula:'KI',molarMass:166,state:'aqueous',color:'#f0f0e8',density:1.1,concentration:1.0,category:'salt'},
+  h2o2:{name:'过氧化氢',formula:'H₂O₂',molarMass:34,state:'aqueous',color:'#f0f8f0',density:1.0,concentration:0.3,category:'other',attrs:{redox:'both'}},
+  ethanol:{name:'乙醇',formula:'C₂H₅OH',molarMass:46,state:'liquid',color:'#f5f5e0',density:0.789,category:'organic',attrs:{flammable:true}},
+  glucose:{name:'葡萄糖',formula:'C₆H₁₂O₆',molarMass:180,state:'solid',color:'#f0f0e8',density:1.54,category:'organic'},
+  h2o:{name:'蒸馏水',formula:'H₂O',molarMass:18,state:'liquid',color:'#e8f0f8',density:1.0,category:'other'},
+  phenolphthalein:{name:'酚酞',formula:'Phth',molarMass:318,state:'aqueous',color:'#f0f0f0',density:1.0,concentration:0.001,category:'indicator',
+    indicator:{acidColor:'#f0f0f0',baseColor:'#ff4080',neutralColor:'#f0f0f0',range:[8.2,10.0]}},
+  litmus:{name:'石蕊',formula:'Litmus',molarMass:300,state:'aqueous',color:'#9060c0',density:1.0,concentration:0.001,category:'indicator',
+    indicator:{acidColor:'#ff4060',baseColor:'#4080ff',neutralColor:'#9060c0',range:[5.0,8.0]}},
+  methylorange:{name:'甲基橙',formula:'MO',molarMass:327,state:'aqueous',color:'#ffc040',density:1.0,concentration:0.001,category:'indicator',
+    indicator:{acidColor:'#ff4020',baseColor:'#ffc040',neutralColor:'#ffc040',range:[3.1,4.4]}},
+};
+
+/* ═══ INSTRUMENTS 仪器规格 ═══ */
+const INSTRUMENTS = {
+  beaker:{name:'烧杯',icon:'⚗',w:90,h:110,capacity:250,canHeat:true,canStir:true,canPour:true,shape:'beaker'},
+  testtube:{name:'试管',icon:'⫯',w:34,h:140,capacity:30,canHeat:true,canStir:true,canPour:true,shape:'testtube'},
+  flask:{name:'锥形瓶',icon:'⋁',w:96,h:130,capacity:250,canHeat:true,canStir:true,canPour:true,shape:'flask'},
+  roundflask:{name:'圆底烧瓶',icon:'○',w:96,h:120,capacity:200,canHeat:true,canStir:true,canPour:true,shape:'roundflask'},
+  cylinder:{name:'量筒',icon:'⫍',w:50,h:160,capacity:100,canHeat:false,canStir:false,canPour:true,shape:'cylinder'},
+  evaporating:{name:'蒸发皿',icon:'⌒',w:90,h:42,capacity:50,canHeat:true,canStir:true,canPour:true,shape:'evaporating'},
+  gasjar:{name:'集气瓶',icon:'□',w:80,h:120,capacity:200,canHeat:false,canStir:false,canPour:true,shape:'gasjar',cappedDefault:true},
+  widebottle:{name:'广口瓶',icon:'▣',w:80,h:100,capacity:200,canHeat:false,canStir:false,canPour:true,shape:'widebottle'},
+  alcohollamp:{name:'酒精灯',icon:'🔥',w:50,h:60,isTool:true,shape:'alcohollamp'},
+  stand:{name:'铁架台',icon:'⊥',w:120,h:200,isTool:true,shape:'stand'},
+  funnel:{name:'漏斗',icon:'⏀',w:80,h:90,isTool:true,shape:'funnel'},
+  dropper:{name:'滴管',icon:'⌁',w:14,h:80,isTool:true,shape:'dropper'},
+  glassrod:{name:'玻璃棒',icon:'│',w:6,h:120,isTool:true,shape:'glassrod'},
+  thermometer:{name:'温度计',icon:'☰',w:10,h:130,isTool:true,shape:'thermometer'},
+  condenser:{name:'冷凝管',icon:'⦶',w:30,h:120,isTool:true,shape:'condenser'},
+  burningspoon:{name:'燃烧匙',icon:'⪫',w:50,h:120,isTool:true,shape:'burningspoon'},
+};
+
+/* ═══ 化学规则表 ═══ */
+const METAL_ACTIVITY = {k:1,na:2,ca:3,mg:5,al:6,zn:7,fe:8,cu:12,hg:13,ag:14};
+const SOLUBILITY_TABLE = {
+  'Ag+Cl-':{p:'agcl',color:'#f0f0f0',name:'AgCl（白）'},
+  'Ag+I-':{p:'agi',color:'#e8e048',name:'AgI（黄）'},
+  'Ag+CO3-':{p:'ag2co3',color:'#e8e0d0',name:'Ag₂CO₃（白）'},
+  'Ba+SO4-':{p:'baso4',color:'#f0f0f0',name:'BaSO₄（白）'},
+  'Ba+CO3-':{p:'baco3',color:'#f0f0f0',name:'BaCO₃（白）'},
+  'Ca+CO3-':{p:'caco3',color:'#e8e8d8',name:'CaCO₃（白）'},
+  'Mg+OH-':{p:'mgoh2',color:'#f0f0f0',name:'Mg(OH)₂（白）'},
+  'Cu+OH-':{p:'cuoh2',color:'#3d8bff',name:'Cu(OH)₂（蓝絮状）',floc:true},
+  'Cu+S-':{p:'cus',color:'#1a1a1a',name:'CuS（黑）'},
+  'Fe3+OH-':{p:'feoh3',color:'#9b2222',name:'Fe(OH)₃（红褐）',floc:true},
+  'Fe2+OH-':{p:'feoh2',color:'#7ec0a0',name:'Fe(OH)₂（白→绿）'},
+  'Fe2+S-':{p:'fes',color:'#1a1a1a',name:'FeS（黑）'},
+  'Pb+I-':{p:'pbi2',color:'#e8e048',name:'PbI₂（黄）'},
+  'Al+OH-':{p:'aloh3',color:'#f0f0f0',name:'Al(OH)₃（白）'},
+};
+const IONIZATION = {
+  hcl:{cations:['H+'],anions:['Cl-']}, hcl_conc:{cations:['H+'],anions:['Cl-']},
+  h2so4:{cations:['H+','H+'],anions:['SO4-']}, h2so4_conc:{cations:['H+','H+'],anions:['SO4-']},
+  hno3:{cations:['H+'],anions:['NO3-']}, hno3_conc:{cations:['H+'],anions:['NO3-']},
+  ch3cooh:{cations:['H+'],anions:['Ac-'],weak:true},
+  naoh:{cations:['Na+'],anions:['OH-']}, koh:{cations:['K+'],anions:['OH-']},
+  caoh2:{cations:['Ca+'],anions:['OH-','OH-']}, nh3h2o:{cations:['NH4+'],anions:['OH-'],weak:true},
+  nacl:{cations:['Na+'],anions:['Cl-']}, cuso4:{cations:['Cu+'],anions:['SO4-']},
+  fecl3:{cations:['Fe3+','Fe3+','Fe3+'],anions:['Cl-','Cl-','Cl-']},
+  fecl2:{cations:['Fe2+'],anions:['Cl-','Cl-']}, feso4:{cations:['Fe2+'],anions:['SO4-']},
+  agno3:{cations:['Ag+'],anions:['NO3-']}, bacl2:{cations:['Ba+'],anions:['Cl-','Cl-']},
+  na2co3:{cations:['Na+','Na+'],anions:['CO3-']}, nahco3:{cations:['Na+'],anions:['HCO3-']},
+  na2so4:{cations:['Na+','Na+'],anions:['SO4-']}, cucl2:{cations:['Cu+'],anions:['Cl-','Cl-']},
+  mgcl2:{cations:['Mg+'],anions:['Cl-','Cl-']}, na2s:{cations:['Na+','Na+'],anions:['S-']},
+  ki:{cations:['K+'],anions:['I-']}, kmno4:{cations:['K+'],anions:['MnO4-']},
+};
+const GAS_RULES = {
+  'HCO3-':{gas:'co2',name:'CO₂↑',need2H:false},
+  'CO3-':{gas:'co2',name:'CO₂↑',need2H:true},
+  'S-':{gas:'h2s',name:'H₂S↑',need2H:true},
+};
+
+/* ═══ REACTIONS 经典反应表（20+） ═══ */
+const REACTIONS = [
+  {id:'na_water',reactants:{na:2,h2o:2},products:{naoh:2,h2:1},
+   equation:'2Na + 2H₂O → 2NaOH + H₂↑',enthalpy:-184,
+   phenomena:[{type:'bubble',intensity:1.0},{type:'flame',chance:.5},{type:'melt'}],
+   description:'钠浮于水面，熔成小球，迅速游动，发出嘶嘶声，产生氢气（可能自燃）',
+   safety:{level:'warn',msg:'钠与水剧烈反应，可能燃烧/爆炸'}},
+  {id:'fe_cu',reactants:{fe:1,cuso4:1},products:{feso4:1,cu:1},
+   equation:'Fe + CuSO₄ → FeSO₄ + Cu',enthalpy:-138,
+   phenomena:[{type:'plate'},{type:'colorfade',to:'#7ec0a0'}],
+   description:'铁表面析出红色铜，溶液由蓝变浅绿'},
+  {id:'na2co3_hcl',reactants:{na2co3:1,hcl:2},products:{nacl:2,h2o:1,co2:1},
+   equation:'Na₂CO₃ + 2HCl → 2NaCl + H₂O + CO₂↑',enthalpy:-50,
+   phenomena:[{type:'bubble',intensity:1.0}],description:'产生大量气泡'},
+  {id:'agcl',reactants:{agno3:1,hcl:1},products:{agcl:1,hno3:1},
+   equation:'AgNO₃ + HCl → AgCl↓ + HNO₃',enthalpy:-65,
+   phenomena:[{type:'precipitate',color:'#f0f0f0',name:'白色沉淀'}],description:'产生不溶于硝酸的白色沉淀'},
+  {id:'baso4',reactants:{bacl2:1,na2so4:1},products:{baso4:1,nacl:2},
+   equation:'BaCl₂ + Na₂SO₄ → BaSO₄↓ + 2NaCl',enthalpy:-25,
+   phenomena:[{type:'precipitate',color:'#f0f0f0',name:'白色沉淀'}],description:'产生不溶于酸的白色沉淀'},
+  {id:'cuoh2',reactants:{cuso4:1,naoh:2},products:{cuoh2:1,na2so4:1},
+   equation:'CuSO₄ + 2NaOH → Cu(OH)₂↓ + Na₂SO₄',enthalpy:-50,
+   phenomena:[{type:'floc',color:'#3d8bff',name:'蓝色絮状沉淀'}],description:'产生蓝色絮状沉淀'},
+  {id:'feoh3',reactants:{fecl3:1,naoh:3},products:{feoh3:1,nacl:3},
+   equation:'FeCl₃ + 3NaOH → Fe(OH)₃↓ + 3NaCl',enthalpy:-80,
+   phenomena:[{type:'floc',color:'#9b2222',name:'红褐色沉淀'}],description:'产生红褐色沉淀'},
+  {id:'neutralize',reactants:{hcl:1,naoh:1},products:{nacl:1,h2o:1},
+   equation:'HCl + NaOH → NaCl + H₂O',enthalpy:-57.3,
+   phenomena:[{type:'heat'},{type:'indicator'}],description:'酸碱中和放热，指示剂变色'},
+  {id:'h2o2_decomp',reactants:{h2o2:2},products:{h2o:2,o2:1},
+   equation:'2H₂O₂ —(MnO₂)→ 2H₂O + O₂↑',enthalpy:-196,conditions:{catalyst:'mno2'},
+   phenomena:[{type:'bubble',intensity:.9,gas:'o2'}],description:'加入催化剂后迅速产生氧气'},
+  {id:'caco3_hcl',reactants:{caco3:1,hcl:2},products:{cacl2:1,h2o:1,co2:1},
+   equation:'CaCO₃ + 2HCl → CaCl₂ + H₂O + CO₂↑',enthalpy:-15,
+   phenomena:[{type:'bubble',intensity:1.0},{type:'dissolve'}],description:'固体溶解，产生大量气泡'},
+  {id:'mg_burn',reactants:{mg:2,o2:1},products:{mgo:2},
+   equation:'2Mg + O₂ —点燃→ 2MgO',enthalpy:-1204,conditions:{needsIgnition:true},
+   phenomena:[{type:'blaze',color:'#ffffff',intensity:1.5},{type:'spark'}],
+   description:'发出耀眼白光，生成白色固体',safety:{level:'warn',msg:'镁燃烧产生强光，勿直视'}},
+  {id:'fe_o2',reactants:{fe:3,o2:2},products:{fe3o4:1},
+   equation:'3Fe + 2O₂ —点燃→ Fe₃O₄',enthalpy:-3350,conditions:{needsIgnition:true},
+   phenomena:[{type:'spark',intensity:1.5},{type:'blaze',color:'#ffaa40'}],description:'火星四射，生成黑色固体'},
+  {id:'co2_lime1',reactants:{co2:1,caoh2:1},products:{caco3:1,h2o:1},
+   equation:'CO₂ + Ca(OH)₂ → CaCO₃↓ + H₂O',enthalpy:-30,
+   phenomena:[{type:'precipitate',color:'#e8e8d8',name:'白色浑浊'}],description:'石灰水变浑浊'},
+  {id:'co2_lime2',reactants:{co2:1,caco3:1,h2o:1},products:{caoh2:1},
+   equation:'CaCO₃ + CO₂ + H₂O → Ca(HCO₃)₂',enthalpy:0,
+   phenomena:[{type:'dissolve'}],description:'过量 CO₂ 使浑浊重新澄清'},
+  {id:'cu_hno3c',reactants:{cu:1,hno3_conc:4},products:{no2:2,h2o:2},
+   equation:'Cu + 4HNO₃(浓) → Cu(NO₃)₂ + 2NO₂↑ + 2H₂O',enthalpy:-260,conditions:{requireConc:true},
+   phenomena:[{type:'gas_color',color:'#9b2222',name:'红棕色NO₂'},{type:'colorshift',to:'#3aa878'}],
+   description:'产生红棕色气体，溶液变绿',safety:{level:'warn',msg:'NO₂ 有毒，注意通风'}},
+  {id:'ethanol_burn',reactants:{ethanol:1,o2:3},products:{co2:2,h2o:3},
+   equation:'C₂H₅OH + 3O₂ —点燃→ 2CO₂ + 3H₂O',enthalpy:-1367,conditions:{needsIgnition:true},
+   phenomena:[{type:'blaze',color:'#60a8ff',intensity:.8}],description:'燃烧产生淡蓝色火焰'},
+  {id:'kmno4_decomp',reactants:{kmno4_s:2},products:{mno2:1,o2:1},
+   equation:'2KMnO₄ —Δ→ K₂MnO₄ + MnO₂ + O₂↑',enthalpy:-80,conditions:{minTemp:200},
+   phenomena:[{type:'bubble',gas:'o2',intensity:.7},{type:'colorfade',to:'#2a2a2a'}],
+   description:'加热后紫色褪去，产生氧气'},
+  {id:'nahco3_hcl',reactants:{nahco3:1,hcl:1},products:{nacl:1,h2o:1,co2:1},
+   equation:'NaHCO₃ + HCl → NaCl + H₂O + CO₂↑',enthalpy:-28,
+   phenomena:[{type:'bubble',intensity:1.0}],description:'产生大量气泡'},
+  {id:'h2so4_dilute',reactants:{h2so4_conc:1,h2o:1},products:{h2so4:1},
+   equation:'H₂SO₄(浓) + H₂O → H₂SO₄(稀) + Q',enthalpy:-75,
+   phenomena:[{type:'heat',intensity:1.5}],description:'放出大量热，温度急剧升高',
+   safety:{level:'warn',msg:'稀释浓硫酸应"酸入水"，禁止"水入酸"'}},
+  {id:'k_water',reactants:{k:2,h2o:2},products:{koh:2,h2:1},
+   equation:'2K + 2H₂O → 2KOH + H₂↑',enthalpy:-200,
+   phenomena:[{type:'bubble',intensity:1.2},{type:'flame',chance:.8},{type:'melt'}],
+   description:'钾剧烈反应，立即燃烧',safety:{level:'warn',msg:'钾与水反应极剧烈，立即自燃'}},
+  {id:'ca_water',reactants:{ca:1,h2o:2},products:{caoh2:1,h2:1},
+   equation:'Ca + 2H₂O → Ca(OH)₂ + H₂↑',enthalpy:-100,
+   phenomena:[{type:'bubble',intensity:.6}],description:'钙与水反应产生氢气，溶液微浑浊'},
+  {id:'mg_hcl',reactants:{mg:1,hcl:2},products:{mgcl2:1,h2:1},
+   equation:'Mg + 2HCl → MgCl₂ + H₂↑',enthalpy:-460,
+   phenomena:[{type:'bubble',gas:'h2',intensity:.8},{type:'dissolve'}],description:'镁溶解，产生气泡'},
+  {id:'zn_hcl',reactants:{zn:1,hcl:2},products:{zncl2:1,h2:1},
+   equation:'Zn + 2HCl → ZnCl₂ + H₂↑',enthalpy:-152,
+   phenomena:[{type:'bubble',gas:'h2',intensity:.6},{type:'dissolve'}],description:'锌溶解，产生气泡'},
+  {id:'fe_hcl',reactants:{fe:1,hcl:2},products:{fecl2:1,h2:1},
+   equation:'Fe + 2HCl → FeCl₂ + H₂↑',enthalpy:-89,
+   phenomena:[{type:'bubble',gas:'h2',intensity:.5},{type:'dissolve'}],description:'铁溶解，溶液变浅绿色'},
+  {id:'cao_water',reactants:{cao:1,h2o:1},products:{caoh2:1},
+   equation:'CaO + H₂O → Ca(OH)₂',enthalpy:-65,
+   phenomena:[{type:'heat',intensity:1.0},{type:'steam'}],description:'剧烈放热，生成石灰乳'},
+  {id:'cu_hno3d',reactants:{cu:1,hno3:3},products:{no:1,h2o:2},
+   equation:'3Cu + 8HNO₃(稀) → 3Cu(NO₃)₂ + 2NO↑ + 4H₂O',enthalpy:-130,conditions:{requireDilute:true},
+   phenomena:[{type:'gas_color',color:'#a8d8ff',name:'无色NO'},{type:'colorshift',to:'#3aa878'}],
+   description:'产生无色气体（NO，遇空气变红棕）'},
+];
+
+/* ═══ SAFETY_RULES ═══ */
+const SAFETY_RULES = [
+  {test:(a,b)=>(a==='h2o'&&b==='h2so4_conc')||(a==='h2so4_conc'&&b==='h2o'),
+   level:'warn',title:'⚠ 稀释浓硫酸顺序提示',
+   msg:'稀释浓硫酸时必须将浓硫酸缓慢注入水中并搅拌散热。切勿将水倒入浓硫酸中——会导致酸液沸腾飞溅！'},
+];
+
+/* ═══ 工具函数 ═══ */
+function hexToRgb(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');
+  return{r:parseInt(h.slice(0,2),16),g:parseInt(h.slice(2,4),16),b:parseInt(h.slice(4,6),16)}}
+function mixColors(colors,weights){
+  if(!colors.length)return '#e8f0f8';
+  let r=0,g=0,b=0,tw=0;
+  colors.forEach((c,i)=>{const rgb=hexToRgb(c.replace('rgb(','').replace(')',''))||hexToRgb('#e8f0f8');const w=weights[i]||1;r+=rgb.r*w;g+=rgb.g*w;b+=rgb.b*w;tw+=w});
+  return `rgb(${Math.round(r/tw)},${Math.round(g/tw)},${Math.round(b/tw)})`;
+}
+function toHex(c){if(c.startsWith('#'))return c;const m=c.match(/\d+/g);if(!m||m.length<3)return '#e8f0f8';
+  return '#'+(+m[0]).toString(16).padStart(2,'0')+(+m[1]).toString(16).padStart(2,'0')+(+m[2]).toString(16).padStart(2,'0')}
+function rgba(hex,a){const c=hexToRgb(toHex(hex));return `rgba(${c.r},${c.g},${c.b},${a})`}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function uid(){return Math.random().toString(36).slice(2,9)}
+function nowStr(){const d=new Date();return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`}
+
+/* ═══ class Container ═══ */
+class Container {
+  constructor(typeId,x,y){
+    this.id=uid();this.typeId=typeId;this.spec=INSTRUMENTS[typeId];
+    this.x=x;this.y=y;this.w=this.spec.w;this.h=this.spec.h;
+    this.contents=[];this.precipitates=[];
+    this.temperature=CONFIG.ROOM_TEMP;this.heated=false;this.stirring=false;
+    this.capped=this.spec.cappedDefault||false;this.ignited=false;
+    this.particles=[];this.history=[];this.lastReaction=null;this.lastPhenom='静置中';
+    this.selected=false;this.dragging=false;
+  }
+  get volume(){
+    let v=0;
+    for(const c of this.contents){
+      const s=SUBSTANCES[c.id];if(!s)continue;
+      if(s.state==='aqueous')v+=c.moles/(s.concentration||1)*1000;
+      else if(s.state==='liquid')v+=c.moles*s.molarMass/s.density;
+    }
+    return v;
+  }
+  get liquidColor(){
+    const colors=[],weights=[];const pH=this.pH;
+    for(const c of this.contents){
+      const s=SUBSTANCES[c.id];if(!s)continue;
+      if(s.category==='indicator'&&s.indicator){
+        const ind=s.indicator;
+        const col=pH<ind.range[0]?ind.acidColor:pH>ind.range[1]?ind.baseColor:ind.neutralColor;
+        colors.push(col);weights.push(8);
+      } else if(s.state==='aqueous'||s.state==='liquid'){
+        colors.push(s.color);weights.push(c.moles);
+      }
+    }
+    return colors.length?mixColors(colors,weights):'#e8f0f8';
+  }
+  get pH(){
+    let hM=0,ohM=0;
+    for(const c of this.contents){
+      const s=SUBSTANCES[c.id];if(!s)continue;
+      if(s.attrs?.strongAcid){const n=s.formula.includes('₂')?2:1;hM+=c.moles*n}
+      else if(s.attrs?.weakAcid)hM+=c.moles*0.013;
+      if(s.attrs?.strongBase){const n=s.formula.includes('₂')?2:1;ohM+=c.moles*n}
+      else if(s.attrs?.weakBase)ohM+=c.moles*0.013;
+    }
+    if(hM>ohM){const net=hM-ohM;const vol=Math.max(this.volume,1)/1000;return clamp(-Math.log10(net/vol),0,7)}
+    if(ohM>hM){const net=ohM-hM;const vol=Math.max(this.volume,1)/1000;return clamp(14+Math.log10(net/vol),7,14)}
+    return 7;
+  }
+  addSubstance(id,moles){
+    const s=SUBSTANCES[id];if(!s)return;
+    const ex=this.contents.find(c=>c.id===id);
+    if(ex)ex.moles+=moles;
+    else this.contents.push({id,moles});
+  }
+  removeSubstance(id,moles){
+    const idx=this.contents.findIndex(c=>c.id===id);if(idx<0)return 0;
+    const c=this.contents[idx];const r=Math.min(moles,c.moles);c.moles-=r;
+    if(c.moles<1e-6)this.contents.splice(idx,1);return r;
+  }
+  has(id){return this.contents.some(c=>c.id===id&&c.moles>1e-6)}
+  molesOf(id){let m=0;for(const c of this.contents)if(c.id===id)m+=c.moles;return m}
+  clear(){this.contents=[];this.precipitates=[];this.particles=[];this.temperature=CONFIG.ROOM_TEMP;
+    this.heated=false;this.stirring=false;this.ignited=false;this.lastReaction=null;this.lastPhenom='已清空'}
+  addHistory(eq,name){this.history.push({t:nowStr(),eq,name});if(this.history.length>30)this.history.shift()}
+}
+
+class ToolInstrument {
+  constructor(typeId,x,y){
+    this.id=uid();this.typeId=typeId;this.spec=INSTRUMENTS[typeId];
+    this.x=x;this.y=y;this.w=this.spec.w;this.h=this.spec.h;
+    this.dragging=false;this.selected=false;this.lit=false;
+  }
+}
+
+class Particle {
+  constructor(){this.alive=false}
+  init(type,x,y,o={}){this.alive=true;this.type=type;this.x=x;this.y=y;
+    this.vx=o.vx||0;this.vy=o.vy||0;this.life=o.life||1;this.maxLife=this.life;
+    this.r=o.r||3;this.color=o.color||'#ffffff';this.opacity=o.opacity??1;
+    this.gravity=o.gravity||0;this.shrink=o.shrink||0;this.wobble=o.wobble||0;
+    this.phase=Math.random()*Math.PI*2;return this}
+  update(dt){if(!this.alive)return;
+    this.x+=this.vx*dt;this.y+=this.vy*dt;this.vy+=this.gravity*dt;this.life-=dt;
+    if(this.shrink)this.r=Math.max(0.1,this.r-this.shrink*dt);
+    if(this.wobble){this.phase+=dt*8;this.x+=Math.sin(this.phase)*this.wobble*dt}
+    if(this.life<=0||this.r<=0.1)this.alive=false}
+}
+
+class ParticleSystem {
+  constructor(){this.pool=[];this.active=[]}
+  spawn(type,x,y,o){let p=this.pool.pop()||new Particle();p.init(type,x,y,o);this.active.push(p);return p}
+  update(dt){for(let i=this.active.length-1;i>=0;i--){const p=this.active[i];p.update(dt);
+    if(!p.alive){this.active.splice(i,1);if(this.pool.length<200)this.pool.push(p)}}}
+}
+
+/* ═══ ReactionEngine ═══ */
+class ReactionEngine {
+  constructor(sim){this.sim=sim}
+  advance(container,dt){
+    const r=this.matchReaction(container);
+    if(r){this.runDefined(container,r,dt);return}
+    this.applyRules(container,dt);
+  }
+  matchReaction(container){
+    const have={};
+    for(const c of container.contents)if(c.moles>1e-6)have[c.id]=(have[c.id]||0)+c.moles;
+    let best=null,bestScore=0;
+    for(const r of REACTIONS){
+      const reqIds=Object.keys(r.reactants);
+      // 系数为化学计量比而非绝对量；只要每种反应物有正量即可
+      if(!reqIds.every(id=>have[id]&&have[id]>1e-5))continue;
+      if(r.conditions){
+        const c=r.conditions;
+        if(c.minTemp&&container.temperature<c.minTemp)continue;
+        if(c.catalyst&&!container.has(c.catalyst))continue;
+        if(c.needsIgnition&&!container.ignited)continue;
+        if(c.requireConc&&!container.has('hno3_conc'))continue;
+        if(c.requireDilute&&(container.has('hno3_conc')||!container.has('hno3')))continue;
+      }
+      const score=reqIds.length;
+      if(score>bestScore){bestScore=score;best=r}
+    }
+    return best;
+  }
+  runDefined(container,r,dt){
+    let limitMoles=Infinity;
+    for(const id in r.reactants){
+      const have=container.molesOf(id);const need=r.reactants[id];
+      const canDo=have/need;if(canDo<limitMoles)limitMoles=canDo;
+    }
+    if(limitMoles<=0)return;
+    const dn=Math.min(limitMoles,limitMoles*CONFIG.REACTION_RATE*dt+1e-5);
+    let actualDn=dn;
+    for(const id in r.reactants){
+      const need=r.reactants[id]*dn;
+      if(container.molesOf(id)<need)actualDn=Math.min(actualDn,container.molesOf(id)/r.reactants[id]);
+    }
+    for(const id in r.reactants)container.removeSubstance(id,r.reactants[id]*actualDn);
+    for(const id in r.products){
+      const make=r.products[id]*actualDn;
+      const s=SUBSTANCES[id];
+      if(s){
+        if(s.state==='gas'&&!container.capped){this.spawnGasBubbles(container,s,make)}
+        else container.addSubstance(id,make);
+      } else {
+        if(id==='caoh2_temp')container.addSubstance('caoh2',make);
+        else if(id==='no2'||id==='no'){this.spawnGasBubbles(container,{color:id==='no2'?'#9b2222':'#a8d8ff',name:id.toUpperCase()},make)}
+        else if(id==='k2mno4'){container.addSubstance('mno2',make)}
+      }
+    }
+    if(r.enthalpy){
+      const Q=Math.abs(r.enthalpy)*actualDn*1000;
+      const mass=Math.max(container.volume,10);
+      const dT=Q/(mass*CONFIG.WATER_HEAT_CAP);
+      container.temperature+=(r.enthalpy<0?1:-1)*dT;
+      container.temperature=clamp(container.temperature,-50,500);
+    }
+    this.triggerPhenomena(container,r,actualDn);
+    if(!container.lastReaction||container.lastReaction.id!==r.id){
+      container.addHistory(r.equation,r.id);
+      container.lastReaction=r;container.lastPhenom=r.description;
+      if(r.safety){
+        this.sim.ui.showToast(r.safety.msg,r.safety.level==='warn'?'warn':'ok');
+        if(r.safety.level==='warn')this.sim.ui.showModal('安全提示',r.safety.msg,[{label:'知道了',kind:'primary'}]);
+      }
+    }
+  }
+  applyRules(container,dt){
+    const ions={};
+    for(const c of container.contents){
+      const iz=IONIZATION[c.id];
+      if(iz){const f=c.moles;
+        for(const cat of iz.cations)ions[cat]=(ions[cat]||0)+f;
+        for(const an of iz.anions)ions[an]=(ions[an]||0)+f}
+    }
+    // 沉淀
+    for(const cat in ions){
+      for(const an in ions){
+        if(cat==='H+'||an==='OH-')continue;
+        const rule=SOLUBILITY_TABLE[cat+an];
+        if(rule&&rule.p){
+          const formMoles=Math.min(ions[cat],ions[an]);
+          if(formMoles>1e-5){
+            const dn=Math.min(formMoles,formMoles*CONFIG.REACTION_RATE*dt);
+            this.drainIons(container,cat,dn);
+            this.drainIons(container,an,dn,true);
+            ions[cat]-=dn;ions[an]-=dn;
+            const ex=container.precipitates.find(p=>p.id===rule.p);
+            if(ex)ex.amount+=dn;
+            else container.precipitates.push({id:rule.p,color:rule.color,amount:dn,name:rule.name,floc:rule.floc});
+            this.spawnPrecipitate(container,rule.color,dn,rule.floc);
+            const eq=`${cat.replace(/\d.*/,'').replace('+','⁺')} + ${an.replace('-','⁻')} → ${rule.name}`;
+            if(!container.lastReaction||container.lastReaction.id!=='precip:'+rule.p){
+              container.addHistory(eq,'precip:'+rule.p);
+              container.lastReaction={id:'precip:'+rule.p,equation:eq};
+              container.lastPhenom=`产生${rule.name}`;
+            }
+            return true;
+          }
+        }
+      }
+    }
+    // 中和
+    if(ions['H+']&&ions['OH-']){
+      const neutral=Math.min(ions['H+'],ions['OH-']);
+      if(neutral>1e-5){
+        const dn=Math.min(neutral,neutral*CONFIG.REACTION_RATE*dt);
+        this.drainIons(container,'H+',dn);
+        this.drainIons(container,'OH-',dn,true);
+        ions['H+']-=dn;ions['OH-']-=dn;
+        const Q=57.3*dn*1000;const mass=Math.max(container.volume,10);
+        container.temperature+=Q/(mass*CONFIG.WATER_HEAT_CAP);
+        const eq='H⁺ + OH⁻ → H₂O';
+        if(!container.lastReaction||container.lastReaction.id!=='neutral'){
+          container.addHistory(eq,'neutral');container.lastReaction={id:'neutral',equation:eq};
+          container.lastPhenom='酸碱中和，放热，指示剂变色';
+        }
+        return true;
+      }
+    }
+    // 气体生成
+    if(ions['H+']){
+      for(const an in GAS_RULES){
+        if(ions[an]&&ions['H+']){
+          const rule=GAS_RULES[an];const need=rule.need2H?2:1;
+          const formMoles=Math.min(ions[an],ions['H+']/need);
+          if(formMoles>1e-5){
+            const dn=Math.min(formMoles,formMoles*CONFIG.REACTION_RATE*dt);
+            this.drainIons(container,'H+',dn*need);
+            this.drainIons(container,an,dn,true);
+            ions['H+']-=dn*need;ions[an]-=dn;
+            this.spawnGasBubbles(container,SUBSTANCES[rule.gas]||{color:'#d0d0d0',name:rule.name},dn);
+            const eq=`H⁺ + ${an.replace('-','⁻')} → ${rule.name}`;
+            if(!container.lastReaction||container.lastReaction.id!=='gas:'+rule.gas){
+              container.addHistory(eq,'gas:'+rule.gas);
+              container.lastReaction={id:'gas:'+rule.gas,equation:eq};
+              container.lastPhenom=`产生${rule.name}气体`;
+            }
+            return true;
+          }
+        }
+      }
+      // NH4+ + OH-
+      if(ions['NH4+']&&ions['OH-']){
+        const form=Math.min(ions['NH4+'],ions['OH-']);
+        if(form>1e-5){
+          const dn=Math.min(form,form*CONFIG.REACTION_RATE*dt);
+          this.drainIons(container,'NH4+',dn);
+          this.drainIons(container,'OH-',dn,true);
+          ions['NH4+']-=dn;ions['OH-']-=dn;
+          this.spawnGasBubbles(container,SUBSTANCES.nh3,dn);
+          const eq='NH₄⁺ + OH⁻ → NH₃↑ + H₂O';
+          if(!container.lastReaction||container.lastReaction.id!=='gas:nh3'){
+            container.addHistory(eq,'gas:nh3');container.lastReaction={id:'gas:nh3',equation:eq};
+            container.lastPhenom='产生刺激性氨气';
+          }
+          return true;
+        }
+      }
+    }
+    // 金属置换
+    for(const c of container.contents){
+      const s=SUBSTANCES[c.id];
+      if(s&&s.category==='metal'&&s.state==='solid'&&s.attrs?.metalActivity){
+        const metalAct=s.attrs.metalActivity;
+        if(ions['H+']&&metalAct<11){
+          const dn=Math.min(c.moles,c.moles*CONFIG.REACTION_RATE*dt,ions['H+']/2);
+          if(dn>1e-5){
+            container.removeSubstance(c.id,dn);
+            this.drainIons(container,'H+',dn*2);
+            ions['H+']-=dn*2;
+            this.spawnGasBubbles(container,SUBSTANCES.h2,dn);
+            const salt=this.metalSaltOf(c.id,'Cl');
+            if(salt)container.addSubstance(salt,dn);
+            const eq=`${s.formula} + 2H⁺ → ${s.formula}²⁺ + H₂↑`;
+            if(!container.lastReaction||container.lastReaction.id!=='displace:'+c.id){
+              container.addHistory(eq,'displace:'+c.id);
+              container.lastReaction={id:'displace:'+c.id,equation:eq};
+              container.lastPhenom=`${s.name}溶解，产生氢气`;
+            }
+            return true;
+          }
+        }
+        // 与盐置换
+        for(const c2 of container.contents){
+          const s2=SUBSTANCES[c2.id];
+          if(s2&&s2.category==='salt'&&s2.state==='aqueous'&&s2.attrs?.metalAct){
+            const targetAct=s2.attrs.metalAct;
+            if(metalAct<targetAct){
+              const dn=Math.min(c.moles,c2.moles,c.moles*CONFIG.REACTION_RATE*dt);
+              if(dn>1e-5){
+                container.removeSubstance(c.id,dn);
+                container.removeSubstance(c2.id,dn);
+                const prod={cuso4:'cu',agno3:'ag',fecl3:'fe',fecl2:'fe',cucl2:'cu'}[c2.id];
+                if(prod)container.addSubstance(prod,dn);
+                const salt=this.metalSaltOf(c.id,this.anionOf(c2.id));
+                if(salt)container.addSubstance(salt,dn);
+                const eq=`${s.formula} + ${s2.formula} → ${salt||'?'} + ${SUBSTANCES[prod]?.formula||'?'}`;
+                if(!container.lastReaction||container.lastReaction.id!=='displace:'+c.id+c2.id){
+                  container.addHistory(eq,'displace:'+c.id+c2.id);
+                  container.lastReaction={id:'displace:'+c.id+c2.id,equation:eq};
+                  container.lastPhenom=`${s.name}置换出${SUBSTANCES[prod]?.name||'金属'}`;
+                }
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+  metalSaltOf(metalId,anion){
+    const map={na:{Cl:'nacl',SO4:'na2so4'},k:{Cl:'nacl',SO4:'na2so4'},
+      ca:{Cl:'mgcl2',SO4:'na2so4'},mg:{Cl:'mgcl2',SO4:'na2so4'},
+      al:{Cl:'mgcl2',SO4:'na2so4'},zn:{Cl:'mgcl2',SO4:'na2so4'},
+      fe:{Cl:'fecl2',SO4:'feso4'},cu:{Cl:'cucl2',SO4:'cuso4'}};
+    return(map[metalId]||{})[anion||'Cl'];
+  }
+  anionOf(saltId){
+    if(saltId.includes('so4')||saltId.includes('sulf'))return 'SO4';
+    if(saltId.includes('no3')||saltId.includes('nitr'))return 'NO3';
+    return 'Cl';
+  }
+  drainIons(container,ion,dn,isAnion){
+    for(const c of container.contents){
+      const iz=IONIZATION[c.id];if(!iz)continue;
+      const list=isAnion?iz.anions:iz.cations;
+      if(list.includes(ion)&&c.moles>0){
+        const factor=list.filter(x=>x===ion).length;
+        container.removeSubstance(c.id,dn/factor);
+        return;
+      }
+    }
+  }
+  triggerPhenomena(container,r,dn){
+    if(!r.phenomena)return;
+    for(const p of r.phenomena){
+      if(p.type==='bubble'||p.type==='gas_color'){
+        const gas=p.color?{color:p.color,name:p.name}:null;
+        this.spawnGasBubbles(container,gas||SUBSTANCES.h2,dn*(p.intensity||1)*3);
+      } else if(p.type==='precipitate'||p.type==='floc'){
+        const ex=container.precipitates.find(x=>x.color===p.color);
+        if(ex)ex.amount+=dn;
+        else container.precipitates.push({color:p.color,amount:dn,name:p.name,floc:p.type==='floc'});
+        this.spawnPrecipitate(container,p.color,dn,p.type==='floc');
+      } else if(p.type==='blaze'){
+        container.ignited=true;
+        this.sim.renderer.spawnFlame(container,p.color,dn*50);
+      } else if(p.type==='spark'){
+        this.sim.renderer.spawnSparks(container,dn*20);
+      } else if(p.type==='heat'||p.type==='steam'){
+        if(p.intensity)container.temperature+=p.intensity*20*dn;
+        if(p.type==='steam')this.sim.renderer.spawnSteam(container,dn*5);
+      } else if(p.type==='melt'){
+        this.sim.renderer.spawnMelt(container);
+      }
+    }
+  }
+  spawnGasBubbles(container,gas,moles){
+    const n=clamp(Math.floor(moles*30),1,15);
+    const cx=container.x+container.w/2;
+    const lh=this.sim.renderer.liquidHeight(container);
+    const liquidTop=container.y+container.h-lh-6;
+    const liquidBottom=container.y+container.h-8;
+    for(let i=0;i<n;i++){
+      this.sim.particles.spawn('bubble',
+        cx+(Math.random()-0.5)*container.w*0.6,
+        liquidBottom-Math.random()*Math.max(1,(liquidBottom-liquidTop)*0.5),
+        {vy:-30-Math.random()*40,r:2+Math.random()*4,life:0.8+Math.random()*0.8,
+         color:gas?.color||'#f0f0f0',opacity:0.6,wobble:8});
+    }
+  }
+  spawnPrecipitate(container,color,moles,floc){
+    const n=clamp(Math.floor(moles*25),1,12);
+    const cx=container.x+container.w/2;
+    const lh=this.sim.renderer.liquidHeight(container);
+    const liquidTop=container.y+container.h-lh-6;
+    for(let i=0;i<n;i++){
+      this.sim.particles.spawn('precipitate',
+        cx+(Math.random()-0.5)*container.w*0.5,
+        liquidTop+Math.random()*10,
+        {vy:floc?5:25+Math.random()*15,r:floc?3+Math.random()*3:1.5+Math.random()*1.5,
+         life:3,color,opacity:0.9,gravity:floc?2:8,wobble:floc?5:0});
+    }
+  }
+}
+
+/* ═══ Renderer Canvas 渲染器 ═══ */
+class Renderer {
+  constructor(sim){this.sim=sim;this.ctx=null}
+  attach(canvas){this.ctx=canvas.getContext('2d');this.dpr=window.devicePixelRatio||1}
+  resize(w,h){
+    this.ctx.canvas.width=w*this.dpr;this.ctx.canvas.height=h*this.dpr;
+    this.ctx.canvas.style.width=w+'px';this.ctx.canvas.style.height=h+'px';
+    this.ctx.setTransform(this.dpr,0,0,this.dpr,0,0);this.W=w;this.H=h;
+  }
+  render(){
+    const ctx=this.ctx;ctx.clearRect(0,0,this.W,this.H);
+    this.drawGrid();
+    for(const t of this.sim.tools)if(t.typeId==='stand'||t.typeId==='alcohollamp')this.drawTool(t);
+    const sorted=[...this.sim.containers].sort((a,b)=>a.y-b.y);
+    for(const c of sorted)this.drawContainer(c);
+    for(const t of this.sim.tools)if(t.typeId!=='stand'&&t.typeId!=='alcohollamp')this.drawTool(t);
+    this.drawParticles();
+    for(const c of this.sim.containers)if(c.selected)this.drawSelection(c);
+    for(const t of this.sim.tools)if(t.selected)this.drawSelection(t);
+    this.drawCouplings();
+  }
+  drawGrid(){
+    const ctx=this.ctx;ctx.strokeStyle='rgba(180,210,255,0.04)';ctx.lineWidth=1;ctx.beginPath();
+    for(let x=0;x<this.W;x+=40){ctx.moveTo(x,0);ctx.lineTo(x,this.H)}
+    for(let y=0;y<this.H;y+=40){ctx.moveTo(0,y);ctx.lineTo(this.W,y)}
+    ctx.stroke();
+    ctx.strokeStyle='rgba(180,210,255,0.10)';ctx.beginPath();
+    ctx.moveTo(0,this.H-40);ctx.lineTo(this.W,this.H-40);ctx.stroke();
+  }
+  liquidHeight(c){
+    const cap=c.spec.capacity||250;
+    const fillRatio=clamp(c.volume/cap,0,0.85);
+    return fillRatio*(c.h-16);
+  }
+  pathGlass(c){
+    const ctx=this.ctx,x=c.x,y=c.y,w=c.w,h=c.h,shape=c.spec.shape;
+    ctx.beginPath();
+    if(shape==='beaker'){
+      ctx.moveTo(x+2,y+4);ctx.lineTo(x+w-2,y+4);ctx.lineTo(x+w-4,y+h-6);
+      ctx.quadraticCurveTo(x+w-4,y+h-2,x+w/2,y+h-2);
+      ctx.quadraticCurveTo(x+4,y+h-2,x+4,y+h-6);ctx.closePath();
+    } else if(shape==='testtube'){
+      ctx.moveTo(x+3,y);ctx.lineTo(x+w-3,y);ctx.lineTo(x+w-3,y+h-12);
+      ctx.quadraticCurveTo(x+w-3,y+h-2,x+w/2,y+h-2);
+      ctx.quadraticCurveTo(x+3,y+h-2,x+3,y+h-12);ctx.closePath();
+    } else if(shape==='flask'){
+      ctx.moveTo(x+w/2-6,y);ctx.lineTo(x+w/2+6,y);ctx.lineTo(x+w/2+6,y+30);
+      ctx.lineTo(x+w-4,y+h-10);
+      ctx.quadraticCurveTo(x+w-4,y+h-2,x+w/2,y+h-2);
+      ctx.quadraticCurveTo(x+4,y+h-2,x+4,y+h-10);
+      ctx.lineTo(x+w/2-6,y+30);ctx.closePath();
+    } else if(shape==='roundflask'){
+      ctx.moveTo(x+w/2-5,y);ctx.lineTo(x+w/2+5,y);ctx.lineTo(x+w/2+5,y+30);
+      ctx.bezierCurveTo(x+w-6,y+40,x+w-6,y+h-12,x+w/2,y+h-8);
+      ctx.bezierCurveTo(x+6,y+h-12,x+6,y+40,x+w/2-5,y+30);ctx.closePath();
+    } else if(shape==='cylinder'){
+      ctx.moveTo(x+3,y);ctx.lineTo(x+w-3,y);ctx.lineTo(x+w-3,y+h-6);
+      ctx.quadraticCurveTo(x+w-3,y+h-2,x+w/2,y+h-2);
+      ctx.quadraticCurveTo(x+3,y+h-2,x+3,y+h-6);ctx.closePath();
+    } else if(shape==='evaporating'){
+      ctx.moveTo(x+2,y+8);ctx.quadraticCurveTo(x+w/2,y-2,x+w-2,y+8);
+      ctx.lineTo(x+w-6,y+h-4);ctx.quadraticCurveTo(x+w/2,y+h,x+6,y+h-4);ctx.closePath();
+    } else {
+      ctx.moveTo(x+3,y);ctx.lineTo(x+w-3,y);ctx.lineTo(x+w-3,y+h-6);
+      ctx.quadraticCurveTo(x+w-3,y+h-2,x+w/2,y+h-2);
+      ctx.quadraticCurveTo(x+3,y+h-2,x+3,y+h-6);ctx.closePath();
+    }
+  }
+  drawContainer(c){
+    const ctx=this.ctx,x=c.x,y=c.y,w=c.w,h=c.h;
+    ctx.save();
+    this.pathGlass(c);
+    ctx.fillStyle='rgba(255,255,255,0.03)';ctx.fill();
+    const lh=this.liquidHeight(c);
+    if(lh>1){
+      ctx.save();this.pathGlass(c);ctx.clip();
+      const liquidTop=y+h-lh-6;
+      const col=c.liquidColor;
+      const grad=ctx.createLinearGradient(0,liquidTop,0,y+h);
+      grad.addColorStop(0,rgba(col,0.85));grad.addColorStop(1,rgba(col,0.95));
+      ctx.fillStyle=grad;ctx.fillRect(x,liquidTop,w,lh+6);
+      // 弯月面
+      ctx.beginPath();ctx.moveTo(x,liquidTop);
+      ctx.quadraticCurveTo(x+w/2,liquidTop-4,x+w,liquidTop);
+      ctx.lineTo(x+w,liquidTop+3);
+      ctx.quadraticCurveTo(x+w/2,liquidTop-1,x,liquidTop+3);
+      ctx.closePath();ctx.fillStyle=rgba(col,0.7);ctx.fill();
+      // 波纹
+      if(c.stirring||c.particles.some(p=>p.type==='bubble')){
+        ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=1;
+        const t=performance.now()/300;ctx.beginPath();ctx.moveTo(x+4,liquidTop+1);
+        for(let i=4;i<w-4;i+=4)ctx.lineTo(x+i,liquidTop+1+Math.sin(t+i*0.3)*1.2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // 沉淀
+    if(c.precipitates.length){
+      ctx.save();this.pathGlass(c);ctx.clip();
+      const totalAmount=c.precipitates.reduce((s,p)=>s+p.amount,0);
+      const precipH=clamp(totalAmount*8,1,h*0.4);
+      let curY=y+h-6;
+      for(const p of c.precipitates){
+        const layerH=(p.amount/totalAmount)*precipH;
+        ctx.fillStyle=rgba(p.color,0.85);
+        if(p.floc){
+          for(let i=0;i<8;i++){
+            ctx.beginPath();
+            ctx.arc(x+4+Math.random()*(w-8),curY-layerH+Math.random()*layerH,2+Math.random()*3,0,Math.PI*2);
+            ctx.fill();
+          }
+        } else {
+          ctx.fillRect(x+3,curY-layerH,w-6,layerH);
+        }
+        curY-=layerH;
+      }
+      ctx.restore();
+    }
+    // 玻璃壁
+    this.pathGlass(c);
+    ctx.strokeStyle='rgba(200,225,255,0.45)';ctx.lineWidth=1.5;ctx.stroke();
+    // 高光
+    ctx.beginPath();ctx.moveTo(x+6,y+10);ctx.lineTo(x+6,y+h-14);
+    ctx.strokeStyle='rgba(255,255,255,0.18)';ctx.lineWidth=1.5;ctx.stroke();
+    // 加热光晕
+    if(c.heated){
+      ctx.fillStyle='rgba(255,140,40,0.10)';ctx.beginPath();
+      ctx.ellipse(x+w/2,y+h+8,w*0.6,12,0,0,Math.PI*2);ctx.fill();
+    }
+    // 温度浮标
+    if(c.temperature>30||c.temperature<10){
+      ctx.fillStyle=c.temperature>60?'#ff8040':'#a8d8ff';
+      ctx.font='11px Orbitron, monospace';ctx.textAlign='left';
+      ctx.fillText(`${c.temperature.toFixed(0)}℃`,x+w+4,y+12);
+    }
+    ctx.restore();
+  }
+  drawTool(t){
+    const ctx=this.ctx,x=t.x,y=t.y,w=t.w,h=t.h,shape=t.spec.shape;
+    ctx.save();
+    if(shape==='alcohollamp'){
+      ctx.fillStyle='rgba(120,160,200,0.25)';ctx.strokeStyle='rgba(200,225,255,0.5)';
+      ctx.beginPath();ctx.moveTo(x+8,y+h-4);ctx.lineTo(x+w-8,y+h-4);
+      ctx.lineTo(x+w-12,y+25);ctx.lineTo(x+12,y+25);ctx.closePath();
+      ctx.fill();ctx.stroke();
+      ctx.fillStyle='#3a3a3a';ctx.fillRect(x+w/2-3,y+10,6,18);
+      if(t.lit)this.drawFlame(ctx,x+w/2,y+5,22);
+    } else if(shape==='stand'){
+      ctx.fillStyle='rgba(80,90,100,0.6)';ctx.fillRect(x,y+h-8,w,8);
+      ctx.strokeStyle='rgba(200,225,255,0.4)';ctx.strokeRect(x,y+h-8,w,8);
+      ctx.fillStyle='rgba(120,130,140,0.7)';ctx.fillRect(x+8,y,6,h-8);
+      ctx.strokeRect(x+8,y,6,h-8);
+      ctx.fillStyle='rgba(100,110,120,0.7)';ctx.fillRect(x+14,y+50,w-20,6);
+      ctx.strokeRect(x+14,y+50,w-20,6);
+    } else if(shape==='funnel'){
+      ctx.fillStyle='rgba(255,255,255,0.06)';ctx.strokeStyle='rgba(200,225,255,0.5)';
+      ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);
+      ctx.lineTo(x+w/2+3,y+h*0.6);ctx.lineTo(x+w/2+3,y+h);
+      ctx.lineTo(x+w/2-3,y+h);ctx.lineTo(x+w/2-3,y+h*0.6);ctx.closePath();
+      ctx.fill();ctx.stroke();
+    } else if(shape==='dropper'){
+      ctx.fillStyle='rgba(180,200,220,0.5)';ctx.fillRect(x+w/2-3,y,6,h*0.7);
+      ctx.fillStyle='rgba(200,80,80,0.5)';ctx.fillRect(x+w/2-4,y,8,10);
+      ctx.strokeStyle='rgba(200,225,255,0.5)';ctx.strokeRect(x+w/2-3,y,6,h*0.7);
+    } else if(shape==='glassrod'){
+      ctx.fillStyle='rgba(200,225,255,0.6)';ctx.fillRect(x+w/2-1.5,y,3,h);
+      ctx.strokeStyle='rgba(255,255,255,0.3)';ctx.strokeRect(x+w/2-1.5,y,3,h);
+    } else if(shape==='thermometer'){
+      ctx.fillStyle='rgba(220,80,80,0.7)';ctx.beginPath();
+      ctx.arc(x+w/2,y+h-6,6,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(200,225,255,0.5)';ctx.stroke();
+      ctx.fillStyle='rgba(200,225,255,0.3)';ctx.fillRect(x+w/2-2,y,4,h-6);
+      ctx.strokeRect(x+w/2-2,y,4,h-6);
+      const target=this.sim.findHeatedContainerNear(t);
+      if(target){
+        ctx.fillStyle='#ffaa40';ctx.font='11px Orbitron, monospace';ctx.textAlign='left';
+        ctx.fillText(`${target.temperature.toFixed(0)}℃`,x+w+4,y+h-6);
+      }
+    } else if(shape==='condenser'){
+      ctx.fillStyle='rgba(255,255,255,0.05)';ctx.strokeStyle='rgba(200,225,255,0.5)';
+      ctx.beginPath();ctx.moveTo(x+w/2-4,y);ctx.lineTo(x+w-2,y+10);
+      ctx.lineTo(x+w-2,y+h-10);ctx.lineTo(x+w/2+4,y+h);
+      ctx.lineTo(x+w/2-4,y+h);ctx.lineTo(x+2,y+h-10);
+      ctx.lineTo(x+2,y+10);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle='rgba(168,216,255,0.3)';
+      for(let i=15;i<h-15;i+=10){ctx.beginPath();ctx.moveTo(x+4,y+i);ctx.lineTo(x+w-4,y+i+4);ctx.stroke()}
+    } else if(shape==='burningspoon'){
+      ctx.fillStyle='rgba(120,130,140,0.7)';ctx.fillRect(x+w/2-1.5,y,3,h-20);
+      ctx.strokeStyle='rgba(200,225,255,0.4)';ctx.strokeRect(x+w/2-1.5,y,3,h-20);
+      ctx.fillStyle='rgba(180,180,180,0.5)';ctx.beginPath();
+      ctx.ellipse(x+w/2,y+h-15,12,6,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+    ctx.restore();
+  }
+  drawFlame(ctx,cx,cy,size){
+    const t=performance.now()/100;
+    const flicker=Math.sin(t)*2+Math.sin(t*1.7)*1.5;
+    const g1=ctx.createRadialGradient(cx,cy-size*0.3,2,cx,cy-size*0.4,size*1.2);
+    g1.addColorStop(0,'rgba(255,200,80,0.9)');g1.addColorStop(0.4,'rgba(255,140,40,0.7)');
+    g1.addColorStop(1,'rgba(255,80,20,0)');ctx.fillStyle=g1;
+    ctx.beginPath();ctx.moveTo(cx,cy-size*1.5+flicker);
+    ctx.quadraticCurveTo(cx+size*0.8,cy-size*0.3,cx+size*0.4,cy+size*0.2);
+    ctx.quadraticCurveTo(cx,cy+size*0.3,cx-size*0.4,cy+size*0.2);
+    ctx.quadraticCurveTo(cx-size*0.8,cy-size*0.3,cx,cy-size*1.5+flicker);ctx.fill();
+    const g2=ctx.createRadialGradient(cx,cy,1,cx,cy,size*0.6);
+    g2.addColorStop(0,'rgba(120,180,255,0.9)');g2.addColorStop(1,'rgba(80,120,255,0)');ctx.fillStyle=g2;
+    ctx.beginPath();ctx.moveTo(cx,cy-size*0.8+flicker*0.5);
+    ctx.quadraticCurveTo(cx+size*0.3,cy,cx,cy+size*0.1);
+    ctx.quadraticCurveTo(cx-size*0.3,cy,cx,cy-size*0.8+flicker*0.5);ctx.fill();
+  }
+  drawParticles(){
+    const ctx=this.ctx;
+    for(const p of this.sim.particles.active){
+      const a=p.opacity*clamp(p.life/p.maxLife,0,1);
+      if(p.type==='bubble'){
+        ctx.fillStyle=rgba(p.color.startsWith('#')?p.color:'#f0f8ff',a*0.5);
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle=rgba('#ffffff',a*0.6);ctx.lineWidth=0.8;ctx.stroke();
+        ctx.fillStyle=rgba('#ffffff',a*0.7);
+        ctx.beginPath();ctx.arc(p.x-p.r*0.3,p.y-p.r*0.3,p.r*0.25,0,Math.PI*2);ctx.fill();
+      } else if(p.type==='precipitate'){
+        ctx.fillStyle=rgba(p.color.startsWith('#')?p.color:'#ffffff',a);
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      } else if(p.type==='flame'){
+        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*2);
+        g.addColorStop(0,rgba(p.color.startsWith('#')?p.color:'#ffa040',a));
+        g.addColorStop(0.6,rgba('#ff6020',a*0.5));g.addColorStop(1,rgba('#ff2010',0));
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r*2,0,Math.PI*2);ctx.fill();
+      } else if(p.type==='spark'){
+        ctx.fillStyle=rgba(p.color.startsWith('#')?p.color:'#ffff80',a);
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle=rgba(p.color.startsWith('#')?p.color:'#ffff80',a*0.4);ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x-p.vx*0.05,p.y-p.vy*0.05);ctx.stroke();
+      } else if(p.type==='smoke'||p.type==='steam'){
+        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);
+        g.addColorStop(0,rgba(p.color.startsWith('#')?p.color:'#c0c0c0',a*0.6));
+        g.addColorStop(1,rgba(p.color.startsWith('#')?p.color:'#c0c0c0',0));
+        ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      }
+    }
+  }
+  drawSelection(obj){
+    const ctx=this.ctx;ctx.save();
+    ctx.strokeStyle='rgba(61,217,179,0.8)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.strokeRect(obj.x-4,obj.y-4,obj.w+8,obj.h+8);ctx.restore();
+  }
+  drawCouplings(){
+    const ctx=this.ctx;ctx.save();
+    for(const c of this.sim.containers){
+      for(const t of this.sim.tools){
+        if(t.typeId==='alcohollamp'&&t.lit){
+          const dx=(t.x+t.w/2)-(c.x+c.w/2);
+          const dy=c.y-(t.y+t.h);
+          if(Math.abs(dx)<30&&dy>-10&&dy<40){
+            ctx.strokeStyle='rgba(255,140,40,0.4)';ctx.setLineDash([3,3]);
+            ctx.beginPath();ctx.moveTo(t.x+t.w/2,t.y);ctx.lineTo(c.x+c.w/2,c.y);ctx.stroke();
+          }
+        }
+      }
+    }
+    ctx.restore();
+  }
+  spawnFlame(container,color,intensity){
+    const n=clamp(Math.floor(intensity),1,5);
+    for(let i=0;i<n;i++){
+      this.sim.particles.spawn('flame',container.x+container.w/2+(Math.random()-0.5)*20,container.y-5,
+        {vy:-30-Math.random()*20,vx:(Math.random()-0.5)*15,r:8+Math.random()*5,
+         life:0.6+Math.random()*0.4,color,opacity:0.9,shrink:8});
+    }
+  }
+  spawnSparks(container,n){
+    for(let i=0;i<n;i++){
+      this.sim.particles.spawn('spark',container.x+container.w/2,container.y+10,
+        {vy:-80-Math.random()*60,vx:(Math.random()-0.5)*120,r:1+Math.random()*1.5,
+         life:0.5+Math.random()*0.5,color:'#ffff80',gravity:120});
+    }
+  }
+  spawnSteam(container,n){
+    for(let i=0;i<n;i++){
+      this.sim.particles.spawn('steam',container.x+container.w/2+(Math.random()-0.5)*30,container.y-5,
+        {vy:-20-Math.random()*10,r:8+Math.random()*4,life:1.5,color:'#e0e0e0',opacity:0.5,shrink:-2});
+    }
+  }
+  spawnMelt(container){
+    const lh=this.liquidHeight(container);
+    const top=container.y+container.h-lh-6;
+    this.sim.particles.spawn('spark',container.x+container.w/2,top,
+      {vy:0,vx:(Math.random()-0.5)*30,r:3,life:1,color:'#ffaa40',gravity:0});
+  }
+}
+
+/* ═══ UI DOM 面板与交互 ═══ */
+class UI {
+  constructor(sim){this.sim=sim;this.activeCategory='all'}
+  init(){
+    this.buildShelfTabs();this.buildShelf('all');this.buildTray();
+    this.bindTopbar();this.bindCanvasDrop();this.bindCanvasDrag();
+  }
+  buildShelfTabs(){
+    const tabs=[{id:'all',name:'全部'},{id:'metal',name:'金属'},{id:'nonmetal',name:'非金属'},
+      {id:'oxide',name:'氧化物'},{id:'acid',name:'酸'},{id:'base',name:'碱'},
+      {id:'salt',name:'盐'},{id:'organic',name:'有机'},{id:'indicator',name:'指示剂'}];
+    const wrap=document.getElementById('shelfTabs');wrap.innerHTML='';
+    for(const t of tabs){
+      const b=document.createElement('button');b.textContent=t.name;
+      if(t.id===this.activeCategory)b.classList.add('active');
+      b.onclick=()=>{this.activeCategory=t.id;
+        document.querySelectorAll('#shelfTabs button').forEach(x=>x.classList.remove('active'));
+        b.classList.add('active');this.buildShelf(t.id)};
+      wrap.appendChild(b);
+    }
+  }
+  buildShelf(category){
+    const list=document.getElementById('shelfList');list.innerHTML='';let count=0;
+    for(const id in SUBSTANCES){
+      const s=SUBSTANCES[id];
+      if(category!=='all'&&s.category!==category)continue;
+      count++;
+      const card=document.createElement('div');card.className='reagent-card';card.draggable=true;
+      card.dataset.id=id;
+      card.innerHTML=`<div class="swatch" style="background:${s.color}"></div>
+        <div class="name">${s.name}</div><div class="formula">${s.formula}</div>
+        <div class="state-tag">${s.state==='aqueous'?'液':s.state==='solid'?'固':s.state==='gas'?'气':'液'}</div>`;
+      card.addEventListener('dragstart',e=>{
+        e.dataTransfer.setData('text/plain',JSON.stringify({kind:'reagent',id}));
+        e.dataTransfer.effectAllowed='copy';
+      });
+      list.appendChild(card);
+    }
+    document.getElementById('reagentCnt').textContent=count+' 种';
+  }
+  buildTray(){
+    const tray=document.getElementById('tray');
+    for(const id in INSTRUMENTS){
+      const inst=INSTRUMENTS[id];
+      const item=document.createElement('div');item.className='tray-item';item.draggable=true;
+      item.innerHTML=`<div class="ic">${inst.icon}</div><div class="nm">${inst.name}</div>`;
+      item.addEventListener('dragstart',e=>{
+        e.dataTransfer.setData('text/plain',JSON.stringify({kind:'instrument',id}));
+        e.dataTransfer.effectAllowed='copy';
+      });
+      tray.appendChild(item);
+    }
+  }
+  bindTopbar(){
+    document.getElementById('btnClear').onclick=()=>{
+      this.sim.containers.length=0;this.sim.tools.length=0;
+      this.sim.particles.active.length=0;this.sim.selected=null;
+      this.refreshPanel();this.refreshToolbar();
+      this.showToast('实验台已清空','ok');
+      document.getElementById('stageHint').style.display='block';
+    };
+    document.getElementById('btnHelp').onclick=()=>{
+      this.showModal('使用帮助',
+`<b>基本操作</b><br>
+1. 从左侧试剂架拖拽物质到中央实验区（自动放入新烧杯）；拖到已有容器上则加入该容器。<br>
+2. 从底部托盘拖拽仪器到实验区。<br>
+3. 点击容器/仪器可选中；选中后底部出现操作按钮（加热/搅拌/倾倒/点燃/清空）。<br>
+4. 拖拽容器可移动位置；将酒精灯拖到容器<b>下方</b>并点燃即可加热。<br>
+5. 右侧信息面板实时显示内容物、方程式、现象、温度、pH、历史。<br><br>
+<b>邻近耦合</b><br>
+酒精灯在容器下方→加热；玻璃棒/温度计插入容器→搅拌/测温；漏斗在容器上方→可转移液体。<br><br>
+<b>经典实验</b><br>
+顶栏下拉可选择 20 个经典实验预设场景，一键载入。`,
+        [{label:'关闭',kind:'primary'}]);
+    };
+    document.getElementById('btnPanel').onclick=()=>{
+      document.getElementById('panel').classList.toggle('mobile-show');
+    };
+    const sel=document.getElementById('presetSel');
+    for(const p of PRESETS){
+      const o=document.createElement('option');o.value=p.id;
+      o.textContent=`${p.idx}. ${p.name}`;sel.appendChild(o);
+    }
+    sel.onchange=()=>{
+      const p=PRESETS.find(x=>x.id===sel.value);
+      if(p){this.sim.loadPreset(p);this.showToast(`已载入：${p.name}`,'ok')}
+      sel.value='';
+    };
+  }
+  bindCanvasDrop(){
+    const canvas=document.getElementById('stage');
+    canvas.addEventListener('dragover',e=>{e.preventDefault();e.dataTransfer.dropEffect='copy'});
+    canvas.addEventListener('drop',e=>{
+      e.preventDefault();
+      const data=JSON.parse(e.dataTransfer.getData('text/plain'));
+      const rect=canvas.getBoundingClientRect();
+      const x=e.clientX-rect.left,y=e.clientY-rect.top;
+      if(data.kind==='reagent'){
+        const target=this.sim.findContainerAt(x,y);
+        if(target){this.sim.addReagentToContainer(target,data.id)}
+        else{const c=this.sim.spawnContainer('beaker',x-45,y-55);
+          this.sim.addReagentToContainer(c,data.id)}
+        this.sim.selectContainer(target||this.sim.containers[this.sim.containers.length-1]);
+        // 安全检查
+        this.sim.checkSafety(data.id);
+      } else if(data.kind==='instrument'){
+        const isTool=INSTRUMENTS[data.id].isTool;
+        if(isTool)this.sim.spawnTool(data.id,x-INSTRUMENTS[data.id].w/2,y-INSTRUMENTS[data.id].h/2);
+        else this.sim.spawnContainer(data.id,x-INSTRUMENTS[data.id].w/2,y-INSTRUMENTS[data.id].h/2);
+      }
+      document.getElementById('stageHint').style.display='none';
+    });
+  }
+  bindCanvasDrag(){
+    const canvas=document.getElementById('stage');
+    let dragObj=null,dragOff={x:0,y:0};
+    canvas.addEventListener('mousedown',e=>{
+      const rect=canvas.getBoundingClientRect();
+      const x=e.clientX-rect.left,y=e.clientY-rect.top;
+      const t=this.sim.findToolAt(x,y);
+      if(t){this.sim.selectTool(t);dragObj=t;dragOff={x:x-t.x,y:y-t.y};t.dragging=true;return}
+      const c=this.sim.findContainerAt(x,y);
+      if(c){this.sim.selectContainer(c);dragObj=c;dragOff={x:x-c.x,y:y-c.y};c.dragging=true}
+      else this.sim.selectContainer(null);
+    });
+    canvas.addEventListener('mousemove',e=>{
+      if(!dragObj)return;
+      const rect=canvas.getBoundingClientRect();
+      dragObj.x=e.clientX-rect.left-dragOff.x;dragObj.y=e.clientY-rect.top-dragOff.y;
+    });
+    const end=()=>{if(dragObj){dragObj.dragging=false;dragObj=null}};
+    canvas.addEventListener('mouseup',end);
+    canvas.addEventListener('mouseleave',end);
+  }
+  refreshPanel(){
+    const c=this.sim.selected;
+    const cb=id=>document.getElementById(id);
+    if(!c){
+      cb('contentsBox').innerHTML='<div class="empty-hint">未选中容器</div>';
+      cb('equationBox').innerHTML='<div class="empty-hint">无反应</div>';
+      cb('phenomBox').innerHTML='<div class="empty-hint">—</div>';
+      cb('dTemp').innerHTML='25<span class="u">℃</span>';
+      cb('dVol').innerHTML='0<span class="u">mL</span>';
+      cb('dPH').textContent='7.0';cb('dState').textContent='静置';
+      cb('panelTarget').textContent='—';cb('historyBox').innerHTML='';
+      return;
+    }
+    if(c instanceof ToolInstrument){
+      cb('panelTarget').textContent=c.spec.name;
+      cb('contentsBox').innerHTML=`<div class="empty-hint">${c.spec.name}（工具仪器）<br>${c.lit?'已点燃':'未点燃'}</div>`;
+      cb('equationBox').innerHTML='<div class="empty-hint">—</div>';
+      cb('phenomBox').innerHTML='<div class="empty-hint">—</div>';
+      cb('historyBox').innerHTML='';return;
+    }
+    cb('panelTarget').textContent=c.spec.name;
+    if(!c.contents.length&&!c.precipitates.length){
+      cb('contentsBox').innerHTML='<div class="empty-hint">空容器</div>';
+    } else {
+      let html='<div class="contents-list">';
+      for(const item of c.contents){
+        const s=SUBSTANCES[item.id];if(!s)continue;
+        html+=`<div class="content-item"><div class="dot" style="background:${s.color}"></div>
+          <div class="nm">${s.name}</div><div class="fm">${s.formula}</div>
+          <div class="ml">${item.moles.toFixed(3)}mol</div></div>`;
+      }
+      for(const p of c.precipitates){
+        html+=`<div class="content-item"><div class="dot" style="background:${p.color}"></div>
+          <div class="nm">↓ ${p.name||'沉淀'}</div><div class="ml">${p.amount.toFixed(3)}mol</div></div>`;
+      }
+      html+='</div>';cb('contentsBox').innerHTML=html;
+    }
+    cb('equationBox').innerHTML=c.lastReaction
+      ?`<div class="equation">${c.lastReaction.equation}</div>`
+      :'<div class="empty-hint">无反应</div>';
+    cb('phenomBox').innerHTML=`<div class="phenom">${c.lastPhenom||'静置中'}</div>`;
+    cb('dTemp').innerHTML=`${c.temperature.toFixed(1)}<span class="u">℃</span>`;
+    cb('dVol').innerHTML=`${c.volume.toFixed(1)}<span class="u">mL</span>`;
+    cb('dPH').textContent=c.pH.toFixed(1);
+    let state='静置';
+    if(c.heated)state='加热中';else if(c.stirring)state='搅拌中';else if(c.ignited)state='燃烧中';
+    cb('dState').textContent=state;
+    cb('historyBox').innerHTML=c.history.length?c.history.slice().reverse().map(h=>
+      `<div class="history-item"><span class="t">${h.t}</span>${h.name}<span class="eq">${h.eq}</span></div>`
+    ).join(''):'<div class="empty-hint">无反应记录</div>';
+  }
+  refreshToolbar(){
+    const overlay=document.getElementById('stageOverlay');
+    const sel=this.sim.selected;
+    overlay.innerHTML='';
+    const info=document.getElementById('selectedInfo');
+    if(sel instanceof Container){
+      info.classList.add('show');
+      info.innerHTML=`<div class="ttl">${sel.spec.name}</div>
+        <div>${sel.contents.length} 种物质 · ${sel.volume.toFixed(0)}mL · ${sel.temperature.toFixed(0)}℃</div>`;
+    } else {info.classList.remove('show')}
+    if(!sel)return;
+    if(sel instanceof Container){
+      const hasAlcoholLamp=this.sim.findHeatingToolFor(sel);
+      const btnHeat=this.mkBtn('🔥','加热',()=>{sel.heated=!sel.heated;this.refreshToolbar()});
+      if(!hasAlcoholLamp&&!sel.heated)btnHeat.disabled=true;
+      if(sel.heated)btnHeat.classList.add('active');
+      overlay.appendChild(btnHeat);
+      if(sel.spec.canStir){
+        const b=this.mkBtn('🌀','搅拌',()=>{sel.stirring=!sel.stirring;this.refreshToolbar()});
+        if(sel.stirring)b.classList.add('active');overlay.appendChild(b);
+      }
+      const bIgn=this.mkBtn('✋','点燃',()=>{
+        const hasFlammable=sel.contents.some(c=>SUBSTANCES[c.id]?.attrs?.flammable)||sel.has('h2')||sel.has('ethanol');
+        if(!hasFlammable){this.showToast('容器内无可燃物','warn');return}
+        sel.ignited=!sel.ignited;this.refreshToolbar();
+      });
+      if(sel.ignited)bIgn.classList.add('active');overlay.appendChild(bIgn);
+      const bPour=this.mkBtn('⬇','倾倒',()=>{
+        const target=this.sim.findContainerBelow(sel);
+        if(!target){this.showToast('附近无目标容器','warn');return}
+        if(sel===target){this.showToast('不能倒入自身','warn');return}
+        for(const c of sel.contents)target.addSubstance(c.id,c.moles);
+        sel.contents.length=0;this.showToast(`已倒入${target.spec.name}`,'ok');
+      });
+      overlay.appendChild(bPour);
+      overlay.appendChild(this.mkBtn('🗑','清空',()=>{
+        sel.clear();this.refreshPanel();this.refreshToolbar();this.showToast('容器已清空','ok');
+      }));
+    } else if(sel instanceof ToolInstrument){
+      if(sel.typeId==='alcohollamp'){
+        const b=this.mkBtn(sel.lit?'💨':'🔥',sel.lit?'熄灭':'点燃',()=>{
+          sel.lit=!sel.lit;this.refreshToolbar();
+        });
+        if(sel.lit)b.classList.add('active');overlay.appendChild(b);
+      }
+      overlay.appendChild(this.mkBtn('🗑','移除',()=>{
+        const idx=this.sim.tools.indexOf(sel);
+        if(idx>=0)this.sim.tools.splice(idx,1);
+        this.sim.selected=null;this.refreshToolbar();this.refreshPanel();
+      }));
+    }
+  }
+  mkBtn(icon,label,onclick){
+    const b=document.createElement('button');b.className='tool-btn';
+    b.innerHTML=`<span class="ic">${icon}</span><span>${label}</span>`;b.onclick=onclick;return b;
+  }
+  showToast(msg,kind='ok'){
+    const wrap=document.getElementById('toastWrap');
+    const t=document.createElement('div');t.className='toast '+kind;t.textContent=msg;
+    wrap.appendChild(t);setTimeout(()=>t.remove(),2800);
+  }
+  showModal(title,body,actions){
+    const layer=document.getElementById('modalLayer');
+    document.getElementById('modalTitle').textContent=title;
+    document.getElementById('modalBody').innerHTML=body;
+    document.getElementById('modalBox').classList.toggle('warn',title.includes('⚠')||title.includes('安全'));
+    const actWrap=document.getElementById('modalActions');actWrap.innerHTML='';
+    for(const a of actions){
+      const b=document.createElement('button');b.textContent=a.label;
+      if(a.kind)b.classList.add(a.kind);
+      b.onclick=()=>{layer.classList.remove('show');a.fn&&a.fn()};
+      actWrap.appendChild(b);
+    }
+    layer.classList.add('show');
+  }
+}
+
+/* ═══ PRESETS 20 个经典实验 ═══ */
+const PRESETS = [
+  {id:'p1',idx:1,name:'钠与水',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'h2o',0.5);s.addReagentToContainer(c,'na',0.1);
+    s.addReagentToContainer(c,'phenolphthalein',0.001);
+  }},
+  {id:'p2',idx:2,name:'铁置换铜',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'cuso4',0.1);s.addReagentToContainer(c,'fe',0.15);
+  }},
+  {id:'p3',idx:3,name:'碳酸钠与盐酸',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'na2co3',0.1);s.addReagentToContainer(c,'hcl',0.25);
+  }},
+  {id:'p4',idx:4,name:'氯化银沉淀',setup:(s)=>{
+    const c=s.spawnContainer('testtube',340,160);
+    s.addReagentToContainer(c,'agno3',0.05);s.addReagentToContainer(c,'hcl',0.06);
+  }},
+  {id:'p5',idx:5,name:'硫酸钡沉淀',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'bacl2',0.05);s.addReagentToContainer(c,'na2so4',0.05);
+  }},
+  {id:'p6',idx:6,name:'氢氧化铜（絮状）',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'cuso4',0.05);s.addReagentToContainer(c,'naoh',0.12);
+  }},
+  {id:'p7',idx:7,name:'氢氧化铁',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'fecl3',0.05);s.addReagentToContainer(c,'naoh',0.18);
+  }},
+  {id:'p8',idx:8,name:'酸碱中和（含指示剂）',setup:(s)=>{
+    const c=s.spawnContainer('flask',320,180);
+    s.addReagentToContainer(c,'naoh',0.1);s.addReagentToContainer(c,'phenolphthalein',0.001);
+    s.addReagentToContainer(c,'hcl',0.12);
+  }},
+  {id:'p9',idx:9,name:'过氧化氢催化分解',setup:(s)=>{
+    const c=s.spawnContainer('flask',320,180);
+    s.addReagentToContainer(c,'h2o2',0.5);s.addReagentToContainer(c,'mno2',0.05);
+  }},
+  {id:'p10',idx:10,name:'碳酸钙与盐酸',setup:(s)=>{
+    const c=s.spawnContainer('flask',320,180);
+    s.addReagentToContainer(c,'caco3',0.1);s.addReagentToContainer(c,'hcl',0.25);
+  }},
+  {id:'p11',idx:11,name:'镁条燃烧',setup:(s)=>{
+    const c=s.spawnContainer('evaporating',320,220);
+    s.addReagentToContainer(c,'mg',0.2);s.addReagentToContainer(c,'o2',0.15);
+    s.spawnTool('burningspoon',430,200);
+  }},
+  {id:'p12',idx:12,name:'铁在氧气中燃烧',setup:(s)=>{
+    const c=s.spawnContainer('gasjar',320,180);
+    s.addReagentToContainer(c,'o2',0.3);s.addReagentToContainer(c,'fe',0.1);
+  }},
+  {id:'p13',idx:13,name:'二氧化碳通入石灰水',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'caoh2',0.1);s.addReagentToContainer(c,'co2',0.12);
+  }},
+  {id:'p14',idx:14,name:'铜与浓硝酸',setup:(s)=>{
+    const c=s.spawnContainer('flask',320,180);
+    s.addReagentToContainer(c,'hno3_conc',0.2);s.addReagentToContainer(c,'cu',0.05);
+  }},
+  {id:'p15',idx:15,name:'乙醇燃烧',setup:(s)=>{
+    const c=s.spawnContainer('evaporating',320,220);
+    s.addReagentToContainer(c,'ethanol',0.2);s.addReagentToContainer(c,'o2',0.6);
+  }},
+  {id:'p16',idx:16,name:'高锰酸钾加热分解',setup:(s)=>{
+    const c=s.spawnContainer('testtube',340,140);
+    s.addReagentToContainer(c,'kmno4_s',0.2);
+    s.spawnTool('alcohollamp',350,300);s.tools[s.tools.length-1].lit=true;
+  }},
+  {id:'p17',idx:17,name:'碳酸氢钠与盐酸',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'nahco3',0.1);s.addReagentToContainer(c,'hcl',0.12);
+  }},
+  {id:'p18',idx:18,name:'氯化铁与氢氧化钠',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'fecl3',0.05);s.addReagentToContainer(c,'naoh',0.18);
+  }},
+  {id:'p19',idx:19,name:'氯化钡与硫酸钠',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'bacl2',0.05);s.addReagentToContainer(c,'na2so4',0.05);
+  }},
+  {id:'p20',idx:20,name:'浓硫酸稀释',setup:(s)=>{
+    const c=s.spawnContainer('beaker',320,200);
+    s.addReagentToContainer(c,'h2o',0.5);s.addReagentToContainer(c,'h2so4_conc',0.1);
+  }},
+];
+
+/* ═══ Simulator 总控 ═══ */
+class Simulator {
+  constructor(){
+    this.containers=[];this.tools=[];this.particles=new ParticleSystem();
+    this.engine=new ReactionEngine(this);this.renderer=new Renderer(this);
+    this.ui=new UI(this);this.selected=null;
+    this.lastTime=performance.now();this.uiTimer=0;
+  }
+  init(){
+    const canvas=document.getElementById('stage');
+    this.renderer.attach(canvas);
+    this.resize();
+    this.ui.init();
+    window.addEventListener('resize',()=>this.resize());
+    requestAnimationFrame(t=>this.tick(t));
+  }
+  resize(){
+    const wrap=document.querySelector('.stage-wrap');
+    const r=wrap.getBoundingClientRect();
+    this.renderer.resize(r.width,r.height);
+  }
+  spawnContainer(typeId,x,y){
+    const c=new Container(typeId,x,y);
+    this.containers.push(c);return c;
+  }
+  spawnTool(typeId,x,y){
+    const t=new ToolInstrument(typeId,x,y);this.tools.push(t);return t;
+  }
+  addReagentToContainer(c,id,moles){
+    if(moles===undefined){
+      const s=SUBSTANCES[id];
+      if(s.state==='solid')moles=CONFIG.DRAG_SOLID_MOL;
+      else if(s.state==='gas')moles=CONFIG.DRAG_GAS_MOL;
+      else{const conc=s.concentration||1;moles=CONFIG.DRAG_LIQUID_ML*conc/1000}
+    }
+    c.addSubstance(id,moles);
+    this.ui.refreshPanel();
+  }
+  checkSafety(newId){
+    if(!this.selected||!(this.selected instanceof Container))return;
+    const c=this.selected;
+    for(const item of c.contents){
+      if(item.id===newId)continue;
+      for(const rule of SAFETY_RULES){
+        if(rule.test(newId,item.id)||rule.test(item.id,newId)){
+          // 检查顺序：水入浓硫酸
+          if(newId==='h2o'&&item.id==='h2so4_conc'){
+            this.ui.showModal(rule.title,rule.msg,[{label:'我已了解',kind:'danger'}]);
+            this.ui.showToast('警告：水入浓硫酸！','warn');
+            return;
+          }
+        }
+      }
+    }
+  }
+  findContainerAt(x,y){
+    for(let i=this.containers.length-1;i>=0;i--){
+      const c=this.containers[i];
+      if(x>=c.x&&x<=c.x+c.w&&y>=c.y&&y<=c.y+c.h)return c;
+    }
+    return null;
+  }
+  findToolAt(x,y){
+    for(let i=this.tools.length-1;i>=0;i--){
+      const t=this.tools[i];
+      if(x>=t.x&&x<=t.x+t.w&&y>=t.y&&y<=t.y+t.h)return t;
+    }
+    return null;
+  }
+  findHeatingToolFor(container){
+    for(const t of this.tools){
+      if(t.typeId==='alcohollamp'&&t.lit){
+        const dx=Math.abs((t.x+t.w/2)-(container.x+container.w/2));
+        const dy=container.y-(t.y+t.h);
+        if(dx<40&&dy>-15&&dy<50)return t;
+      }
+    }
+    return null;
+  }
+  findHeatedContainerNear(tool){
+    if(tool.typeId!=='thermometer')return null;
+    for(const c of this.containers){
+      const dx=Math.abs((tool.x+tool.w/2)-(c.x+c.w/2));
+      const dy=(tool.y+tool.h)-c.y;
+      if(dx<c.w/2&&dy>0&&dy<c.h)return c;
+    }
+    return null;
+  }
+  findContainerBelow(src){
+    let best=null,bestD=200;
+    for(const c of this.containers){
+      if(c===src)continue;
+      const dx=Math.abs((c.x+c.w/2)-(src.x+src.w/2));
+      const dy=c.y-(src.y+src.h);
+      if(dx<80&&dy>-20&&dy<120){
+        const d=Math.abs(dy)+dx*0.5;
+        if(d<bestD){bestD=d;best=c}
+      }
+    }
+    return best;
+  }
+  selectContainer(c){
+    for(const x of this.containers)x.selected=false;
+    for(const x of this.tools)x.selected=false;
+    if(c)c.selected=true;
+    this.selected=c;
+    this.ui.refreshPanel();this.ui.refreshToolbar();
+  }
+  selectTool(t){
+    for(const x of this.containers)x.selected=false;
+    for(const x of this.tools)x.selected=false;
+    if(t)t.selected=true;
+    this.selected=t;
+    this.ui.refreshPanel();this.ui.refreshToolbar();
+  }
+  loadPreset(p){
+    this.containers.length=0;this.tools.length=0;
+    this.particles.active.length=0;this.selected=null;
+    p.setup(this);
+    if(this.containers.length)this.selectContainer(this.containers[0]);
+    this.ui.refreshPanel();this.ui.refreshToolbar();
+    document.getElementById('stageHint').style.display='none';
+  }
+  tick(t){
+    const dt=Math.min(0.05,(t-this.lastTime)/1000);
+    this.lastTime=t;
+    // 推进反应
+    for(const c of this.containers){
+      // 加热
+      if(c.heated){
+        const heater=this.findHeatingToolFor(c);
+        if(heater||c.heated){
+          c.temperature+=CONFIG.HEAT_PER_SEC*dt;
+          // 加热产气
+          if(c.volume>0&&Math.random()<dt*3){
+            this.renderer.spawnSteam(c,1);
+          }
+        }
+      } else {
+        // 散热
+        if(c.temperature>CONFIG.ROOM_TEMP){
+          c.temperature-=(c.temperature-CONFIG.ROOM_TEMP)*CONFIG.COOLING_RATE*dt;
+          if(c.temperature<CONFIG.ROOM_TEMP+0.1)c.temperature=CONFIG.ROOM_TEMP;
+        }
+      }
+      // 反应
+      if(c.contents.length)this.engine.advance(c,dt);
+      // 沉淀沉降
+      if(c.precipitates.length&&c.particles.length){
+        // 已由粒子系统处理
+      }
+    }
+    this.particles.update(dt);
+    this.renderer.render();
+    // UI 刷新
+    this.uiTimer+=dt;
+    if(this.uiTimer>0.18){
+      this.uiTimer=0;
+      if(this.selected)this.ui.refreshPanel();
+    }
+    requestAnimationFrame(t=>this.tick(t));
+  }
+}
+
+/* ═══ 启动 ═══ */
+const sim = new Simulator();
+window.addEventListener('DOMContentLoaded',()=>sim.init());
+if(document.readyState!=='loading')sim.init();
+
+</script>
+</body>
+</html>
