@@ -37,10 +37,9 @@ class SamsaraState:
             "current_realm": "hell",
             "current_level": 0,
             "skill_points": 0,
-            "karma": 0,
             "karma_max": 150,
             "karma_single_max": 80,
-            "detection": 0.0,
+            "realm_detections": {r: 0.0 for r in REALMS},
             "skills": {},
             "current_turn": 0,
             "turn_limit": 20,
@@ -52,6 +51,7 @@ class SamsaraState:
             "sandbox_unlocked": [],
             "sandbox_mode": False,
             "realm_progress": {r: {"completed": False, "levels_passed": 0} for r in REALMS},
+            "level_karma": 0,
             "last_modified": datetime.now().isoformat(),
         }
         for k, v in defaults.items():
@@ -90,7 +90,7 @@ class SamsaraState:
         return copy.deepcopy(self._data)
 
     def reset_level_state(self):
-        self._data["karma"] = 0
+        self._data["level_karma"] = 0
         self._data["current_turn"] = 0
         self._data["cheat_count"] = 0
         self._data["overdraft_count"] = 0
@@ -146,27 +146,55 @@ class SamsaraState:
 
     def add_karma(self, amount):
         max_karma = self._data["karma_max"]
-        self._data["karma"] = min(self._data["karma"] + amount, max_karma)
+        self._data["level_karma"] = min(self._data["level_karma"] + amount, max_karma)
         self._save()
-        return self._data["karma"]
+        return self._data["level_karma"]
 
     def consume_karma(self, amount):
-        current = self._data["karma"]
-        self._data["karma"] -= amount
+        current = self._data["level_karma"]
+        self._data["level_karma"] -= amount
         self._save()
-        return current - self._data["karma"], self._data["karma"] < 0
+        return current - self._data["level_karma"], self._data["level_karma"] < 0
 
     def refund_karma(self, amount):
         max_karma = self._data["karma_max"]
-        self._data["karma"] = min(self._data["karma"] + amount, max_karma)
+        self._data["level_karma"] = min(self._data["level_karma"] + amount, max_karma)
         self._save()
+
+    def get_karma(self):
+        return self._data.get("level_karma", 0)
 
     def set_detection(self, value):
-        self._data["detection"] = value
+        realm = self._data.get("current_realm", "hell")
+        if "realm_detections" not in self._data:
+            self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        self._data["realm_detections"][realm] = value
         self._save()
 
+    def get_detection(self):
+        realm = self._data.get("current_realm", "hell")
+        if "realm_detections" not in self._data:
+            self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        return self._data["realm_detections"].get(realm, 0.0)
+
     def increment_detection(self, delta):
-        self._data["detection"] = min(self._data["detection"] + delta, 100.0)
+        realm = self._data.get("current_realm", "hell")
+        if "realm_detections" not in self._data:
+            self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        self._data["realm_detections"][realm] = min(
+            self._data["realm_detections"].get(realm, 0.0) + delta, 100.0
+        )
+        self._save()
+
+    def get_realm_detection(self, realm: str) -> float:
+        if "realm_detections" not in self._data:
+            self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        return self._data["realm_detections"].get(realm, 0.0)
+
+    def set_realm_detection(self, realm: str, value: float):
+        if "realm_detections" not in self._data:
+            self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        self._data["realm_detections"][realm] = value
         self._save()
 
     def increment_turn(self):
@@ -289,10 +317,9 @@ class SamsaraState:
             "current_realm": "hell",
             "current_level": 0,
             "skill_points": preserved_skill_points,
-            "karma": 0,
             "karma_max": self._data.get("karma_max", 150),
             "karma_single_max": self._data.get("karma_single_max", 80),
-            "detection": 0.0,
+            "realm_detections": {r: 0.0 for r in REALMS},
             "skills": preserved_skills,
             "current_turn": 0,
             "turn_limit": 20,
@@ -304,6 +331,7 @@ class SamsaraState:
             "sandbox_unlocked": preserved_sandbox,
             "sandbox_mode": False,
             "realm_progress": preserved_realm_progress,
+            "level_karma": 0,
             "last_modified": datetime.now().isoformat(),
         }
         self._save()

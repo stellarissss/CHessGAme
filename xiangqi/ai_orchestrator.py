@@ -28,6 +28,7 @@ from prompts import (
 )
 from schema_validator import validate_board_state, validate_pieces, validate_rules, validate_ui_config, validate_board
 from json_patch_utils import apply_patch, generate_diff, is_valid_patch
+from karma_assessor import KarmaAssessor
 
 
 # 静态文件目录
@@ -73,6 +74,8 @@ class AIOrchestrator:
         self.current_thinking = False
         self.thinking_stage = ""  # "intent" | "code" | ""
         
+        self.karma_assessor = KarmaAssessor(api_key=api_key, game_type="xiangqi")
+        
         self.token_stats = {
             "total_prompt_tokens": 0,
             "total_completion_tokens": 0,
@@ -94,6 +97,7 @@ class AIOrchestrator:
 
     def set_api_key(self, api_key: str):
         self.api_key = api_key
+        self.karma_assessor.set_api_key(api_key)
 
     def _record_token_usage(self, usage: dict):
         """记录一次API调用的token消耗（供外部模块如 ChessAI 回调使用）
@@ -311,10 +315,26 @@ class AIOrchestrator:
         # 加载当前配置
         configs = context.get("configs", {})
 
-        # 步骤1：意图解析
+        # 步骤1：意图解析 + 业力评估（并行处理）
         self.thinking_stage = "intent"
+        game_type = "xiangqi"
+        board_summary = self._get_board_summary(configs.get("board_state", {}))
+        skill_modifiers = context.get("skill_modifiers", {})
+
         try:
-            intent, intent_time, intent_raw = await self._parse_intent_with_log(command, context)
+            intent_task = self._parse_intent_with_log(command, context)
+            karma_task = self.karma_assessor.assess(
+                instruction=command,
+                intent_class="",
+                board_summary=board_summary,
+                skill_modifiers=skill_modifiers,
+            )
+
+            intent_result, estimated_karma_cost = await asyncio.gather(
+                intent_task, karma_task
+            )
+
+            intent, intent_time, intent_raw = intent_result
             log_entry["intent_analysis"] = {
                 "success": True,
                 "elapsed_time": intent_time,
@@ -355,30 +375,24 @@ class AIOrchestrator:
         # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
         cost_energy = max(0, min(10, int(intent.get("cost_energy", 0) or 0)))
 
-        game_type = "xiangqi"
-        board_summary = self._get_board_summary(configs.get("board_state", {}))
-
-        estimated_karma_cost = 0
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(
-                    "http://localhost:8000/api/karma/assess",
-                    json={
-                        "game_type": game_type,
-                        "instruction": command,
-                        "intent_class": classification,
-                        "board_summary": board_summary,
-                    }
+        # 如果业力评估时还不知道分类，重新用正确的分类评估一次
+        # （并行调用时分类还未知，所以需要补充评估）
+        if classification and estimated_karma_cost > 0:
+            try:
+                estimated_karma_cost = await self.karma_assessor.assess(
+                    instruction=command,
+                    intent_class=classification,
+                    board_summary=board_summary,
+                    skill_modifiers=skill_modifiers,
                 )
-                assess_result = resp.json()
-                estimated_karma_cost = assess_result.get("estimated_cost", 0)
-        except Exception as e:
-            estimated_karma_cost = 0
+            except Exception:
+                pass
 
         log_entry["karma_assessment"] = {
             "cost": estimated_karma_cost,
             "intent_class": classification,
             "game_type": game_type,
+            "parallel": True,
         }
 
         # 不可行请求

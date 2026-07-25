@@ -83,7 +83,7 @@ class KarmaSystem:
         return amount
 
     def consume(self, amount: int, allow_overdraft: bool = True) -> tuple[int, bool, float]:
-        current_karma = self.state.get("karma", 0)
+        current_karma = self.state.get_karma()
         max_single = self.state.get("karma_single_max", 80)
         modifiers = self.state.get_skill_modifiers()
         max_single += modifiers["karma_single_max_bonus"]
@@ -94,7 +94,7 @@ class KarmaSystem:
         actual_consumed, is_overdraft = self.state.consume_karma(amount)
         overdraft_amount = 0.0
         if is_overdraft:
-            overdraft_amount = abs(self.state.get("karma", 0))
+            overdraft_amount = abs(self.state.get_karma())
         return actual_consumed, is_overdraft, overdraft_amount
 
     def refund(self, amount: int) -> None:
@@ -105,10 +105,10 @@ class KarmaSystem:
     def get_state(self) -> dict:
         modifiers = self.state.get_skill_modifiers()
         return {
-            "current": self.state.get("karma", 0),
+            "current": self.state.get_karma(),
             "max": self.state.get("karma_max", 150) + modifiers["karma_max_bonus"],
             "single_max": self.state.get("karma_single_max", 80) + modifiers["karma_single_max_bonus"],
         }
 
     def can_cheat(self) -> bool:
-        return self.state.get("karma", 0) >= 0
+        return self.state.get_karma() >= 0
