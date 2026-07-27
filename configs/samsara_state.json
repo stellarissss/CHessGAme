@@ -2,18 +2,24 @@
   "version": 1,
   "current_realm": "hell",
   "current_level": 0,
-  "skill_points": 3,
-  "karma": 0,
+  "skill_points": 0,
   "karma_max": 150,
   "karma_single_max": 80,
-  "detection": 0.0,
+  "realm_detections": {
+    "hell": 0.0,
+    "hungry": 0.0,
+    "animal": 0.0,
+    "human": 0.0,
+    "asura": 0.0,
+    "heaven": 0.0
+  },
   "skills": {
     "karma_capacity_t1": {
-      "unlocked_at": "2026-07-24T00:00:00Z",
+      "unlocked_at": "2026-07-25T00:00:00Z",
       "tier": 1
     },
     "stealth_t1": {
-      "unlocked_at": "2026-07-24T00:00:00Z",
+      "unlocked_at": "2026-07-25T00:00:00Z",
       "tier": 1
     }
   },
@@ -22,12 +28,12 @@
   "cheat_count": 0,
   "overdraft_count": 0,
   "no_cheat_this_level": true,
-  "total_levels_completed": 2,
+  "total_levels_completed": 0,
   "bosses_defeated": [],
   "realm_progress": {
     "hell": {
       "completed": false,
-      "levels_passed": 1
+      "levels_passed": 0
     },
     "hungry": {
       "completed": false,
@@ -39,7 +45,7 @@
     },
     "human": {
       "completed": false,
-      "levels_passed": 1
+      "levels_passed": 0
     },
     "asura": {
       "completed": false,
@@ -50,7 +56,8 @@
       "levels_passed": 0
     }
   },
-  "last_modified": "2026-07-24T23:02:41.081034",
+  "level_karma": 0,
+  "last_modified": "2026-07-25T00:00:00Z",
   "sandbox_unlocked": [],
   "sandbox_mode": false
 }

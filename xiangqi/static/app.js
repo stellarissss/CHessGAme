@@ -2729,6 +2729,7 @@ class XiangqiBoard extends HTMLElement {
         this.checkApiKey();
         this.loadTokenStats();
         this.loadSamsaraState();
+        this.startKarmaPolling();
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
     }
@@ -2765,6 +2766,38 @@ class XiangqiBoard extends HTMLElement {
                 objective: { type: 'checkmate', description: '将死对方' }
             };
             this.updateSamsaraUI();
+        }
+    }
+
+    async loadLocalKarmaDetection() {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/karma_detection`);
+            const data = await resp.json();
+            if (data.success) {
+                this.samsaraState = {
+                    ...this.samsaraState,
+                    karma: data.karma?.current ?? 0,
+                    karma_max: data.karma?.max ?? 150,
+                    detection: data.detection ?? 0,
+                };
+                this.updateSamsaraUI();
+            }
+        } catch (e) {
+            // 本地API可能不可用，忽略错误
+        }
+    }
+
+    startKarmaPolling() {
+        if (this._karmaPollingTimer) return;
+        this._karmaPollingTimer = setInterval(() => {
+            this.loadLocalKarmaDetection();
+        }, 5000);
+    }
+
+    stopKarmaPolling() {
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
         }
     }
 
@@ -3632,13 +3665,33 @@ class XiangqiBoard extends HTMLElement {
                     }
 
                     // 使用后端返回的状态更新 UI
-                    if (data.karma_state) {
+                    if (data.karma_detection_state) {
+                        const kd = data.karma_detection_state;
+                        this.samsaraState = {
+                            ...this.samsaraState,
+                            karma: kd.karma?.current ?? kd.karma ?? 0,
+                            karma_max: kd.karma?.max ?? kd.karma_max ?? 150,
+                            detection: kd.detection?.current ?? kd.detection ?? 0,
+                        };
+                        this.updateSamsaraUI();
+                        
+                        if (data.detection?.detected) {
+                            this.showDetectionReset(data.detection.message || '你被天道识破了！');
+                        }
+                    } else if (data.karma_state) {
                         this.samsaraState = {
                             ...this.samsaraState,
                             karma: data.karma_state.current,
                             karma_max: data.karma_state.max
                         };
+                        if (data.detection !== undefined) {
+                            this.samsaraState.detection = data.detection.current ?? data.detection;
+                        }
                         this.updateSamsaraUI();
+                        
+                        if (data.detection?.detected) {
+                            this.showDetectionReset(data.detection.message || '你被天道识破了！');
+                        }
                     } else {
                         // 刷新状态
                         await this.loadSamsaraState();

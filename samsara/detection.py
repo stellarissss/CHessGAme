@@ -13,7 +13,7 @@ class DetectionSystem:
         C = modifiers["detection_coefficient"]
         alpha = modifiers["detection_alpha"]
         delta = C * (overdraft_amount ** alpha)
-        if modifiers["mist_fog"] and self.state.get("detection", 0) > 70:
+        if modifiers["mist_fog"] and self.state.get_detection() > 70:
             if random.random() < 0.3:
                 return 0.0
         return delta
@@ -24,17 +24,17 @@ class DetectionSystem:
 
     def handle_overdraft(self, overdraft_amount: float) -> dict:
         if overdraft_amount <= 0:
-            return {"detected": False, "delta": 0.0, "current": self.state.get("detection", 0)}
+            return {"detected": False, "delta": 0.0, "current": self.state.get_detection()}
         modifiers = self.state.get_skill_modifiers()
         if modifiers["first_overdraft_skip"]:
             modifiers["first_overdraft_skip"] = False
-            return {"detected": False, "delta": 0.0, "current": self.state.get("detection", 0), "skip": True}
+            return {"detected": False, "delta": 0.0, "current": self.state.get_detection(), "skip": True}
         delta = self.calculate_delta(overdraft_amount)
         if delta <= 0:
-            return {"detected": False, "delta": 0.0, "current": self.state.get("detection", 0)}
+            return {"detected": False, "delta": 0.0, "current": self.state.get_detection()}
         self.state.increment_detection(delta)
         self.state.record_overdraft()
-        current = self.state.get("detection", 0)
+        current = self.state.get_detection()
         detected = self.check(current)
         if detected:
             if modifiers["golden_escape"]:
