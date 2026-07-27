@@ -27,7 +27,10 @@ app = FastAPI(title="六道轮回 API", version="1.0.0")
 
 @app.get("/api/state")
 async def get_samsara_state():
-    return state.get_full_state()
+    full_state = state.get_full_state()
+    full_state["karma"] = state.get_karma()
+    full_state["detection"] = state.get_detection()
+    return full_state
 
 
 @app.get("/api/karma")
@@ -98,7 +101,7 @@ async def refund_karma(request: Request):
 
 @app.get("/api/detection")
 async def get_detection():
-    return {"detection": state.get("detection", 0), "state": state.get_full_state()}
+    return {"detection": state.get_detection(), "state": state.get_full_state()}
 
 
 @app.get("/api/skills")

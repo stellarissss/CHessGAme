@@ -27,6 +27,7 @@ from ai_orchestrator import AIOrchestrator
 from rule_engine import RuleEngine
 from chess_ai import GomokuAI
 from mechanism_engine import MechanismEngine
+from ai_config import get_api_key
 
 CONFIGS_DIR = BASE_DIR / "configs"
 STATIC_DIR = BASE_DIR / "static"
@@ -41,7 +42,8 @@ class GameState:
 
     def __init__(self):
         self.configs: Dict[str, dict] = {}
-        self.ai_orchestrator = AIOrchestrator()
+        api_key = get_api_key()
+        self.ai_orchestrator = AIOrchestrator(api_key=api_key)
         self.rule_engine: Optional[RuleEngine] = None
         self.chess_ai: Optional[GomokuAI] = None
         self.mechanism_engine: Optional[MechanismEngine] = None
@@ -209,8 +211,28 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
     dry_run=1 时仅解析意图与评估 cost_energy，不写入配置（供 RPG cheat/assess 使用）。
     """
     try:
+        # 从 samsara 获取技能修饰符
+        skill_modifiers = {}
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                state_resp = await client.get(f"{SAMSARA_API_URL}/api/state")
+                if state_resp.status_code == 200:
+                    samsara_data = state_resp.json()
+                    # 同步本地业力和识破状态
+                    state.ai_orchestrator.karma_assessor.set_local_karma_state(
+                        karma=samsara_data.get("karma", 0),
+                        karma_max=samsara_data.get("karma_max", 150),
+                        single_max=samsara_data.get("karma_single_max", 80),
+                    )
+                    state.ai_orchestrator.karma_assessor.set_realm_detection(
+                        detection=samsara_data.get("detection", 0.0),
+                        realm=samsara_data.get("current_realm", "human"),
+                    )
+        except Exception:
+            pass
+
         result = await state.ai_orchestrator.process_command(
-            req.command, {"configs": state.configs}
+            req.command, {"configs": state.configs, "skill_modifiers": skill_modifiers}
         )
 
         # dry_run 模式下不应用配置变更，仅返回解析结果（含 cost_energy/classification）
@@ -226,24 +248,49 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
 
             # 只有非E类（搞笑类）才消耗业力
             if classification != "E" and estimated_karma_cost > 0:
+                # 本地业力消耗和识破处理
+                karma_assessor = state.ai_orchestrator.karma_assessor
+                consume_result = karma_assessor.consume_karma(
+                    amount=estimated_karma_cost,
+                    allow_overdraft=True,
+                    skill_modifiers=skill_modifiers,
+                )
+
+                detection_result = None
+                if consume_result.get("is_overdraft"):
+                    detection_result = karma_assessor.handle_overdraft(
+                        overdraft_amount=consume_result.get("overdraft_amount", 0),
+                        skill_modifiers=skill_modifiers,
+                    )
+
+                # 同步到 samsara
                 try:
                     async with httpx.AsyncClient(timeout=10.0) as client:
-                        # 消耗业力
-                        consume_resp = await client.post(
+                        # 同步业力状态
+                        await client.post(
                             f"{SAMSARA_API_URL}/api/karma/consume",
                             json={"amount": estimated_karma_cost, "allow_overdraft": True}
                         )
-                        consume_result = consume_resp.json()
-
                         # 记录作弊
                         await client.post(f"{SAMSARA_API_URL}/api/cheat/record")
-
-                        # 将消耗结果添加到返回值
-                        result["karma_consumed"] = consume_result.get("actual_consumed", 0)
-                        result["is_overdraft"] = consume_result.get("is_overdraft", False)
-                        result["karma_state"] = consume_result.get("karma", {})
                 except Exception as e:
-                    result["karma_error"] = str(e)
+                    result["karma_sync_error"] = str(e)
+
+                # 将消耗结果添加到返回值
+                result["karma_consumed"] = consume_result.get("actual_consumed", 0)
+                result["is_overdraft"] = consume_result.get("is_overdraft", False)
+                samsara_karma_max = 150
+                if 'samsara_data' in locals():
+                    samsara_karma_max = samsara_data.get("karma_max", 150)
+                result["karma_state"] = {
+                    "current": karma_assessor.get_local_karma(),
+                    "max": samsara_karma_max,
+                }
+                if detection_result:
+                    result["detection"] = detection_result
+
+                # 添加完整的业力和识破状态
+                result["karma_detection_state"] = karma_assessor.get_state(skill_modifiers)
 
         return result
     except Exception as e:
@@ -591,6 +638,62 @@ async def reset_configs():
 async def get_logs(count: int = 10):
     """获取AI对话日志"""
     return {"logs": state.ai_orchestrator.get_logs(count)}
+
+
+@app.get("/api/karma_detection")
+async def get_karma_detection():
+    """获取业力和识破状态"""
+    karma_assessor = state.ai_orchestrator.karma_assessor
+    return {
+        "success": True,
+        "karma": {
+            "current": karma_assessor.get_local_karma(),
+            "max": karma_assessor.get_local_karma_max(),
+        },
+        "detection": karma_assessor.get_realm_detection(),
+    }
+
+
+@app.post("/api/karma/recover")
+async def recover_karma(request: Request):
+    """业力回复（通过游戏事件）"""
+    body = await request.json()
+    event_type = body.get("event_type", "")
+    amount = body.get("amount", 0)
+    karma_assessor = state.ai_orchestrator.karma_assessor
+
+    # 从 samsara 获取技能修饰符
+    skill_modifiers = {}
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            skill_resp = await client.get(f"{SAMSARA_API_URL}/api/skills")
+            if skill_resp.status_code == 200:
+                skill_data = skill_resp.json()
+                skill_modifiers = skill_data.get("modifiers", {})
+    except Exception:
+        pass
+
+    actual = karma_assessor.recover_karma(amount, skill_modifiers)
+
+    # 同步到 samsara
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            await client.post(
+                f"{SAMSARA_API_URL}/api/karma/recover",
+                json={"game_type": "wuziqi", "event_type": event_type, "event_data": body}
+            )
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "amount": actual,
+        "karma": {
+            "current": karma_assessor.get_local_karma(),
+            "max": karma_assessor.get_local_karma_max(),
+        },
+        "detection": karma_assessor.get_realm_detection(),
+    }
 
 
 @app.get("/api/thinking_status")
