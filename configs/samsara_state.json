@@ -1,10 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
   "current_realm": "hell",
   "current_level": 0,
   "skill_points": 0,
-  "karma_max": 150,
-  "karma_single_max": 80,
+  "karma_max": 120,
+  "karma_single_max": 120,
+  "initial_karma": 50,
+  "realm_overshoot_carryover": 0,
   "realm_detections": {
     "hell": 0.0,
     "hungry": 0.0,
@@ -30,6 +32,8 @@
   "no_cheat_this_level": true,
   "total_levels_completed": 0,
   "bosses_defeated": [],
+  "sandbox_unlocked": [],
+  "sandbox_mode": false,
   "realm_progress": {
     "hell": {
       "completed": false,
@@ -56,8 +60,6 @@
       "levels_passed": 0
     }
   },
-  "level_karma": 0,
-  "last_modified": "2026-07-25T00:00:00Z",
-  "sandbox_unlocked": [],
-  "sandbox_mode": false
+  "level_karma": 50,
+  "last_modified": "2026-07-27T11:40:25.471668"
 }

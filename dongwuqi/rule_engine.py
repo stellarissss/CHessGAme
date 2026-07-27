@@ -74,10 +74,9 @@ class RuleEngine:
                 result.append(p)
         return result
 
-    def _is_in_trap(self, pos: List[int], board_state: dict) -> bool:
+    def _is_in_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
         """是否在任意一方的陷阱中（基于陷阱棋子判定）"""
-        return any(self._is_in_enemy_trap(pos, tp["side"], board_state)
-                   for tp in self._get_terrain_pieces_at(pos, board_state))
+        return bool(self._get_terrain_pieces_at(pos, board_state))
 
     def _is_in_enemy_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
         """是否在 side 的敌方陷阱中（即对方设置的陷阱棋子所在格）"""
@@ -539,7 +538,7 @@ class RuleEngine:
 
         if key == "in_trap":
             pos = _resolve_pos(value, "$dest")
-            return self._is_in_trap(pos, board_state)
+            return self._is_in_trap(pos, piece["side"], board_state)
 
         if key == "in_enemy_trap":
             pos = _resolve_pos(value, "$dest")

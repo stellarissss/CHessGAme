@@ -7,6 +7,9 @@ class ProgressionSystem:
 
     def resolve_level(self, won: bool, no_cheat: bool, boss_defeated: bool = False) -> dict:
         rewards = {"skill_points": 0, "bonus_reasons": []}
+        # 关卡结束（无论胜负）：计算本局业力溢出，叠加到本道下一局
+        overshoot = self.state.record_level_end()
+        rewards["overshoot_carryover"] = overshoot
         if not won:
             return rewards
 

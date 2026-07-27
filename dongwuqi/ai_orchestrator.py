@@ -370,13 +370,38 @@ class AIOrchestrator:
                 "log_id": len(self.logger.logs) - 1,
             }
 
-        classification = intent.get("classification", "")classification = intent.get("classification", "")
+        classification = intent.get("classification", "")
         log_entry["classification"] = classification
         # 提取 cost_energy（RPG 用，0-10 整数，clamp）
         # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
         cost_energy = max(0, min(10, int(intent.get("cost_energy", 0) or 0)))
 
         skill_modifiers = context.get("skill_modifiers", {})
+
+        # 技能树门控：检查分类是否已解锁
+        allowed_classifications = context.get("allowed_classifications")
+        if allowed_classifications is not None and classification and classification not in allowed_classifications:
+            skill_gate_map = {
+                "C+": "自定义棋子（需在技能树中解锁「作弊精通 → 自定义棋子」）",
+                "D": "前端修改（需在技能树中解锁「作弊精通 → 前端修改」）",
+            }
+            gate_reason = skill_gate_map.get(classification, f"分类 {classification} 未解锁")
+            log_entry["final_result"] = {
+                "type": "rejected",
+                "reason": f"技能树未解锁：{gate_reason}",
+            }
+            self.logger.add_log(log_entry)
+            self.current_thinking = False
+            self.thinking_stage = ""
+            return {
+                "success": False,
+                "type": "rejected",
+                "message": f"该操作被技能树拦截：{gate_reason}",
+                "classification": classification,
+                "cost_energy": cost_energy,
+                "estimated_karma_cost": 0,
+                "log_id": len(self.logger.logs) - 1,
+            }
 
         # 如果业力评估时还不知道分类，重新用正确的分类评估一次
         # （并行调用时分类还未知，所以需要补充评估）
@@ -397,6 +422,30 @@ class AIOrchestrator:
             "game_type": game_type,
             "parallel": True,
         }
+
+        # 业力上限拦截：评估超出单次上限的作弊直接拦截，不予执行（不增加业力）
+        # E类固定1点，永远不会被拦截
+        if classification != "E" and estimated_karma_cost > 0:
+            max_single = self.karma_assessor._local_karma_single_max + skill_modifiers.get("karma_single_max_bonus", 0)
+            if estimated_karma_cost > max_single:
+                log_entry["final_result"] = {
+                    "type": "rejected",
+                    "reason": f"业力评估 {estimated_karma_cost} 超出单次上限 {max_single}，拦截",
+                }
+                self.logger.add_log(log_entry)
+                self.current_thinking = False
+                self.thinking_stage = ""
+                return {
+                    "success": False,
+                    "type": "rejected",
+                    "message": f"作弊业力评估为 {estimated_karma_cost} 点，超出单次上限 {max_single} 点，天道拦截·不予执行",
+                    "classification": classification,
+                    "cost_energy": cost_energy,
+                    "estimated_karma_cost": estimated_karma_cost,
+                    "karma_blocked": True,
+                    "log_id": len(self.logger.logs) - 1,
+                }
+
         # 不可行请求
         if not intent.get("feasible", False):
             log_entry["final_result"] = {
@@ -552,6 +601,9 @@ class AIOrchestrator:
         elif action_type == "C":
             return await self._handle_action_c_with_log(action_intent, configs, log_entry)
         elif action_type == "C+":
+            # 修改现有棋子（如"把我的狼变成人"）走 C 类规则修改流程
+            if instruction.get("action") == "modify_existing_piece":
+                return await self._handle_action_c_with_log(action_intent, configs, log_entry)
             return await self._handle_action_cp_with_log(action_intent, configs, log_entry)
         elif action_type == "D":
             if instruction.get("target_sections"):
@@ -1287,7 +1339,8 @@ class AIOrchestrator:
         # 相关性检查：如果action与规则修改无关，拒绝处理
         c_actions = {"modify_rule", "change_move", "add_ability", "create_custom_piece",
                      "alter_movement", "modify_piece", "change_rule", "update_rule",
-                     "add_move", "remove_move", "change_capture", "modify_screens"}
+                     "add_move", "remove_move", "change_capture", "modify_screens",
+                     "modify_existing_piece"}
         if action_str and not any(act in action_str.lower() for act in c_actions):
             return {
                 "success": False,
@@ -1305,6 +1358,70 @@ class AIOrchestrator:
 5. 如果规则未变化，校验层会检测到并触发重试
 """
 
+        move_primitives_guide = """
+## 移动原语说明（修改 moves 字段时必须使用以下 JSON 原语）
+
+所有棋子的移动规则必须基于 jump 和 ray 两种原子原语组合生成。
+
+### jump - 跳跃移动
+格式:
+```json
+{
+  "kind": "jump",
+  "to": [dx, dy],
+  "block": [[bx, by], ...],
+  "land": "any|empty|enemy",
+  "sym": "none|rotate4|rotate4_mirror|mirror_x",
+  "where": [条件列表]
+}
+```
+- `to`: 目标相对坐标 [dx, dy]。支持特殊格式 `{"mode": "region", "region": "$full_board"}` 表示区域跳跃（如全图瞬移）
+- `block`: 阻挡坐标列表，相对坐标。如果任一 block 位置有棋子，则此移动不合法
+- `land`: 落子规则
+  - `"any"`: 可落在空格或敌方棋子（吃子）
+  - `"empty"`: 只能落在空格
+  - `"enemy"`: 只能落在敌方棋子（必须吃子）
+- `sym`: 对称展开模式
+  - `"none"`: 不展开（如 [1,0] 只表示右）
+  - `"rotate4"`: 四方向旋转（右/上/左/下）
+  - `"rotate4_mirror"`: 四方向旋转 + 镜像（共8方向）
+  - `"mirror_x"`: 左右镜像
+- `where`: 条件过滤数组（可选），支持以下条件：
+  - `{"not": {"in_water": {"pos": "$dest"}}}`: 目标不能在水域
+  - `{"not": {"in_own_den": {"pos": "$dest"}}}`: 目标不能是己方兽穴
+  - `{"not": {"in_enemy_trap": {"pos": "$dest"}}}`: 目标不能在敌方陷阱
+  - `{"in_region": {"region": "$full_board", "pos": "$dest"}}`: 目标必须在指定区域
+
+### ray - 射线移动（沿方向连续移动）
+格式:
+```json
+{
+  "kind": "ray",
+  "dir": [dx, dy],
+  "max": 最大步数,
+  "screens": 可跨越的棋子数,
+  "land": "any|empty|enemy",
+  "sym": "none|rotate4|rotate4_mirror|mirror_x",
+  "path_constraint": {"must_be": "water", "no_blocker": true},
+  "where": [条件列表]
+}
+```
+- `dir`: 方向向量 [dx, dy]
+- `max`: 最大移动步数，-1 表示无限
+- `screens`: 可跨越的棋子数（如车的直线移动 screens=0，炮的隔子吃 screens=1）
+- `path_constraint`: 路径约束（可选），用于跳河等特殊机制
+  - `must_be`: 路径必须满足的地形（如 "water"）
+  - `no_blocker`: 路径上是否允许有棋子阻挡
+
+### 复合移动示例
+- 普通四方向走一格（象/狮/虎等）:
+  `{"kind": "jump", "to": [1,0], "block": [], "land": "any", "sym": "rotate4", "where": [...]}`
+- 全图瞬移（如"人"棋子）:
+  `{"kind": "jump", "to": {"mode": "region", "region": "$full_board"}, "land": "any", "sym": "none", "where": [{"not": {"in_own_den": {"pos": "$dest"}}}]}`
+- 直线跳河（狮/虎）:
+  `{"kind": "ray", "dir": [1,0], "max": 4, "screens": 0, "land": "any", "sym": "rotate4", "path_constraint": {"must_be": "water", "no_blocker": true}, "where": [...]}`
+"""
+
         side_label = "红方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
@@ -1319,6 +1436,8 @@ class AIOrchestrator:
 - 约束: {json.dumps(instruction.get('constraints', []), ensure_ascii=False)}
 
 {rule_change_emphasis}
+
+{move_primitives_guide}
 
 ## 当前{side_label}{config_filename}完整内容
 ```json
@@ -1360,6 +1479,25 @@ class AIOrchestrator:
             board["game_status"].setdefault("custom_rules_active", []).append(
                 f"[{side_label}]{action_desc}"
             )
+
+        # modify_existing_piece 时同步修改 board_state 中的棋子实例
+        if action_str == "modify_existing_piece":
+            params = instruction.get("parameters", {})
+            old_type = params.get("piece_type_old") or params.get("old_type")
+            new_type = params.get("new_type")
+            new_name = params.get("new_name")
+            target_side = "red" if target_config_name == "pieces_red" else "black"
+            if old_type and new_type:
+                modified_count = 0
+                for p in board.get("pieces", []):
+                    if p.get("side") == target_side and p.get("type") == old_type and p.get("is_alive", True):
+                        p["type"] = new_type
+                        if new_name:
+                            p["name"] = new_name
+                        modified_count += 1
+                        break  # 只修改第一个匹配的棋子
+                if modified_count > 0:
+                    log_entry["board_state_sync"] = f"已将 {target_side} 的 {old_type} 棋子实例同步为 {new_type}"
 
         return {
             "success": True,
@@ -1416,6 +1554,70 @@ class AIOrchestrator:
         side_label = "红方" if target_config_name == "pieces_red" else "黑方"
         config_filename = f"{target_config_name}.json"
 
+        move_primitives_guide_cp = """
+## 移动原语说明（修改 moves 字段时必须使用以下 JSON 原语）
+
+所有棋子的移动规则必须基于 jump 和 ray 两种原子原语组合生成。
+
+### jump - 跳跃移动
+格式:
+```json
+{
+  "kind": "jump",
+  "to": [dx, dy],
+  "block": [[bx, by], ...],
+  "land": "any|empty|enemy",
+  "sym": "none|rotate4|rotate4_mirror|mirror_x",
+  "where": [条件列表]
+}
+```
+- `to`: 目标相对坐标 [dx, dy]。支持特殊格式 `{"mode": "region", "region": "$full_board"}` 表示区域跳跃（如全图瞬移）
+- `block`: 阻挡坐标列表，相对坐标。如果任一 block 位置有棋子，则此移动不合法
+- `land`: 落子规则
+  - `"any"`: 可落在空格或敌方棋子（吃子）
+  - `"empty"`: 只能落在空格
+  - `"enemy"`: 只能落在敌方棋子（必须吃子）
+- `sym`: 对称展开模式
+  - `"none"`: 不展开（如 [1,0] 只表示右）
+  - `"rotate4"`: 四方向旋转（右/上/左/下）
+  - `"rotate4_mirror"`: 四方向旋转 + 镜像（共8方向）
+  - `"mirror_x"`: 左右镜像
+- `where`: 条件过滤数组（可选），支持以下条件：
+  - `{"not": {"in_water": {"pos": "$dest"}}}`: 目标不能在水域
+  - `{"not": {"in_own_den": {"pos": "$dest"}}}`: 目标不能是己方兽穴
+  - `{"not": {"in_enemy_trap": {"pos": "$dest"}}}`: 目标不能在敌方陷阱
+  - `{"in_region": {"region": "$full_board", "pos": "$dest"}}`: 目标必须在指定区域
+
+### ray - 射线移动（沿方向连续移动）
+格式:
+```json
+{
+  "kind": "ray",
+  "dir": [dx, dy],
+  "max": 最大步数,
+  "screens": 可跨越的棋子数,
+  "land": "any|empty|enemy",
+  "sym": "none|rotate4|rotate4_mirror|mirror_x",
+  "path_constraint": {"must_be": "water", "no_blocker": true},
+  "where": [条件列表]
+}
+```
+- `dir`: 方向向量 [dx, dy]
+- `max`: 最大移动步数，-1 表示无限
+- `screens`: 可跨越的棋子数（如车的直线移动 screens=0，炮的隔子吃 screens=1）
+- `path_constraint`: 路径约束（可选），用于跳河等特殊机制
+  - `must_be`: 路径必须满足的地形（如 "water"）
+  - `no_blocker`: 路径上是否允许有棋子阻挡
+
+### 复合移动示例
+- 普通四方向走一格（象/狮/虎等）:
+  `{"kind": "jump", "to": [1,0], "block": [], "land": "any", "sym": "rotate4", "where": [...]}`
+- 全图瞬移（如"人"棋子）:
+  `{"kind": "jump", "to": {"mode": "region", "region": "$full_board"}, "land": "any", "sym": "none", "where": [{"not": {"in_own_den": {"pos": "$dest"}}}]}`
+- 直线跳河（狮/虎）:
+  `{"kind": "ray", "dir": [1,0], "max": 4, "screens": 0, "land": "any", "sym": "rotate4", "path_constraint": {"must_be": "water", "no_blocker": true}, "where": [...]}`
+"""
+
         user_prompt = f"""## 创建任务
 {next_prompt}
 
@@ -1424,6 +1626,8 @@ class AIOrchestrator:
 - 目标: {instruction.get('target', '')}
 - 参数: {json.dumps(params, ensure_ascii=False)}
 - 约束: {json.dumps(instruction.get('constraints', []), ensure_ascii=False)}
+
+{move_primitives_guide_cp}
 
 ## 当前 {side_label}{config_filename} 完整内容
 ```json

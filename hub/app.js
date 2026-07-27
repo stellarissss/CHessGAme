@@ -269,8 +269,6 @@ async function loadSamsaraState() {
     } catch (e) {
         console.error("Failed to load samsara state:", e);
         samsaraState = {
-            karma: 150,
-            max_karma: 150,
             detection_probability: 0,
             current_realm: "hell",
             skill_points: 0,
@@ -283,21 +281,16 @@ async function loadSamsaraState() {
 function updateSamsaraUI() {
     if (!samsaraState) return;
 
-    const karmaFill = document.getElementById("karma-fill");
-    const karmaValue = document.getElementById("karma-value");
+    // 业力是单局变量，仅在关卡内显示，主页不显示
     const detectionFill = document.getElementById("detection-fill");
     const detectionValue = document.getElementById("detection-value");
     const currentRealm = document.getElementById("current-realm");
     const skillPoints = document.getElementById("skill-points");
 
-    const karma = samsaraState.karma || 0;
-    const maxKarma = samsaraState.karma_max || 150;
     const detection = samsaraState.detection || 0;
     const realm = samsaraState.current_realm || "hell";
     const points = samsaraState.skill_points || 0;
 
-    if (karmaFill) karmaFill.style.width = `${(karma / maxKarma) * 100}%`;
-    if (karmaValue) karmaValue.textContent = `${karma}/${maxKarma}`;
     if (detectionFill) detectionFill.style.width = `${detection}%`;
     if (detectionValue) detectionValue.textContent = `${Math.round(detection)}%`;
     if (currentRealm) currentRealm.textContent = REALM_NAMES[realm] || realm;
