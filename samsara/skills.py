@@ -25,27 +25,27 @@ class SkillSystem:
             "branches": {
                 "karma_capacity": {
                     "name": "业力掌控",
-                    "description": "提升业力容量和回复效率",
+                    "description": "提升业力安全阈值与消业效率",
                     "icon": "💫",
                     "tiers": {
                         1: {
                             "id": "karma_capacity_t1",
-                            "name": "容量扩充",
-                            "description": "业力上限+30",
+                            "name": "安全阈值+20",
+                            "description": "业力安全阈值+20（120→140）",
                             "cost": 1,
                         },
                         2: {
                             "options": [
                                 {
                                     "id": "karma_capacity_t2a",
-                                    "name": "灵力吞吐",
-                                    "description": "单次业力使用上限+30",
+                                    "name": "单次上限+30",
+                                    "description": "单次作弊业力增加上限+30",
                                     "cost": 1,
                                 },
                                 {
                                     "id": "karma_capacity_t2b",
                                     "name": "业力潮汐",
-                                    "description": "所有业力回复事件+30%",
+                                    "description": "所有消业事件+30%",
                                     "cost": 1,
                                 },
                             ],
@@ -54,14 +54,14 @@ class SkillSystem:
                             "options": [
                                 {
                                     "id": "karma_capacity_t3a",
-                                    "name": "透支缓冲",
-                                    "description": "透支非线性指数从1.8降至1.4",
+                                    "name": "缓冲",
+                                    "description": "识破非线性指数从1.5降至1.3",
                                     "cost": 1,
                                 },
                                 {
                                     "id": "karma_capacity_t3b",
-                                    "name": "业力池",
-                                    "description": "每局开局业力从50开始",
+                                    "name": "净身",
+                                    "description": "初始业力从50降至25",
                                     "cost": 1,
                                 },
                             ],
@@ -76,7 +76,7 @@ class SkillSystem:
                         1: {
                             "id": "stealth_t1",
                             "name": "藏锋",
-                            "description": "透支惩罚系数从0.5降至0.35",
+                            "description": "识破惩罚系数从0.1降至0.07",
                             "cost": 1,
                         },
                         2: {
@@ -160,8 +160,8 @@ class SkillSystem:
                                 },
                                 {
                                     "id": "cheat_mastery_t3b",
-                                    "name": "保险",
-                                    "description": "修改被拒绝时，额外退还20%业力",
+                                    "name": "深层作弊",
+                                    "description": "单次作弊业力增加上限+40",
                                     "cost": 1,
                                 },
                             ],

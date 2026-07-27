@@ -375,6 +375,33 @@ class AIOrchestrator:
         # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
         cost_energy = max(0, min(10, int(intent.get("cost_energy", 0) or 0)))
 
+        skill_modifiers = context.get("skill_modifiers", {})
+
+        # 技能树门控：检查分类是否已解锁
+        allowed_classifications = context.get("allowed_classifications")
+        if allowed_classifications is not None and classification and classification not in allowed_classifications:
+            skill_gate_map = {
+                "C+": "自定义棋子（需在技能树中解锁「作弊精通 → 自定义棋子」）",
+                "D": "前端修改（需在技能树中解锁「作弊精通 → 前端修改」）",
+            }
+            gate_reason = skill_gate_map.get(classification, f"分类 {classification} 未解锁")
+            log_entry["final_result"] = {
+                "type": "rejected",
+                "reason": f"技能树未解锁：{gate_reason}",
+            }
+            self.logger.add_log(log_entry)
+            self.current_thinking = False
+            self.thinking_stage = ""
+            return {
+                "success": False,
+                "type": "rejected",
+                "message": f"该操作被技能树拦截：{gate_reason}",
+                "classification": classification,
+                "cost_energy": cost_energy,
+                "estimated_karma_cost": 0,
+                "log_id": len(self.logger.logs) - 1,
+            }
+
         # 如果业力评估时还不知道分类，重新用正确的分类评估一次
         # （并行调用时分类还未知，所以需要补充评估）
         if classification and estimated_karma_cost > 0:
@@ -394,6 +421,29 @@ class AIOrchestrator:
             "game_type": game_type,
             "parallel": True,
         }
+
+        # 业力上限拦截：评估超出单次上限的作弊直接拦截，不予执行（不增加业力）
+        # E类固定1点，永远不会被拦截
+        if classification != "E" and estimated_karma_cost > 0:
+            max_single = self.karma_assessor._local_karma_single_max + skill_modifiers.get("karma_single_max_bonus", 0)
+            if estimated_karma_cost > max_single:
+                log_entry["final_result"] = {
+                    "type": "rejected",
+                    "reason": f"业力评估 {estimated_karma_cost} 超出单次上限 {max_single}，拦截",
+                }
+                self.logger.add_log(log_entry)
+                self.current_thinking = False
+                self.thinking_stage = ""
+                return {
+                    "success": False,
+                    "type": "rejected",
+                    "message": f"作弊业力评估为 {estimated_karma_cost} 点，超出单次上限 {max_single} 点，天道拦截·不予执行",
+                    "classification": classification,
+                    "cost_energy": cost_energy,
+                    "estimated_karma_cost": estimated_karma_cost,
+                    "karma_blocked": True,
+                    "log_id": len(self.logger.logs) - 1,
+                }
 
         # 不可行请求
         if not intent.get("feasible", False):

@@ -506,71 +506,118 @@ body {
     display: flex;
     justify-content: center;
     gap: 32px;
-    padding: 20px 32px;
-    background: rgba(18, 18, 22, 0.65);
-    border: 1px solid rgba(212, 175, 55, 0.15);
-    border-radius: 16px;
-    backdrop-filter: blur(12px);
-    margin-bottom: 32px;
+    padding: 24px 36px;
+    background: rgba(18, 18, 22, 0.75);
+    border: 1px solid rgba(212, 175, 55, 0.2);
+    border-radius: 18px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    margin-bottom: 36px;
     flex-wrap: wrap;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .status-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    min-width: 100px;
+    gap: 8px;
+    min-width: 110px;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.status-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(212, 175, 55, 0.2);
+    transform: translateY(-2px);
 }
 
 .status-icon {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.3));
 }
 
 .status-label {
     font-family: var(--font-tech);
     font-size: 10px;
     color: var(--text-muted);
-    letter-spacing: 0.15em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
 }
 
 .status-bar {
-    width: 80px;
-    height: 6px;
+    width: 90px;
+    height: 8px;
     background: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
+    position: relative;
+}
+
+.status-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 .status-fill {
     height: 100%;
-    border-radius: 3px;
-    transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    border-radius: 4px;
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+}
+
+.status-fill::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent);
 }
 
 .karma-fill {
-    background: linear-gradient(90deg, #4ade80, #22c55e);
+    background: linear-gradient(90deg, #22c55e, #4ade80, #86efac);
+    box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
 }
 
 .detection-fill {
     background: linear-gradient(90deg, #fbbf24, #f97316, #ef4444);
+    box-shadow: 0 0 12px rgba(249, 115, 22, 0.4);
 }
 
 .status-value {
     font-family: var(--font-tech);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: var(--paper);
+    text-shadow: 0 0 8px rgba(243, 233, 210, 0.2);
 }
 
 .realm-value {
     color: var(--gold);
-    font-size: 14px;
+    font-size: 16px;
+    font-family: var(--font-display);
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
 }
 
 .skill-value {
     color: #a78bfa;
+    text-shadow: 0 0 12px rgba(167, 139, 250, 0.4);
 }
 
 /* ═══ 技能树按钮 ═══ */
@@ -578,29 +625,52 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
-    margin: 0 auto 32px;
-    padding: 14px 32px;
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(99, 102, 241, 0.1));
-    border: 1px solid rgba(139, 92, 246, 0.4);
+    gap: 12px;
+    margin: 0 auto 36px;
+    padding: 16px 40px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.15));
+    border: 1px solid rgba(139, 92, 246, 0.5);
     border-radius: 999px;
     color: var(--paper);
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 500;
     cursor: pointer;
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    backdrop-filter: blur(8px);
+    transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.skill-tree-btn::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.skill-tree-btn:hover::before {
+    opacity: 1;
 }
 
 .skill-tree-btn:hover {
-    background: linear-gradient(135deg, rgba(139, 92, 246, 0.35), rgba(99, 102, 241, 0.2));
-    border-color: rgba(139, 92, 246, 0.7);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(139, 92, 246, 0.2);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(99, 102, 241, 0.25));
+    border-color: rgba(139, 92, 246, 0.8);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 36px rgba(139, 92, 246, 0.25);
+}
+
+.skill-tree-btn:active {
+    transform: translateY(-1px);
 }
 
 .skill-icon {
-    font-size: 1.3rem;
+    font-size: 1.5rem;
+    filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.4));
 }
 
 /* ═══ 技能树模态框 ═══ */
@@ -892,7 +962,7 @@ body {
 .level-name {
     font-size: 18px;
     font-weight: 600;
-    color: var(--text);
+    color: var(--text-main);
 }
 
 .level-type {

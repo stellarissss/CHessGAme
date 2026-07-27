@@ -30,6 +30,8 @@ async def get_samsara_state():
     full_state = state.get_full_state()
     full_state["karma"] = state.get_karma()
     full_state["detection"] = state.get_detection()
+    full_state["allowed_classifications"] = list(state.get_allowed_classifications())
+    full_state["skill_modifiers"] = state.get_skill_modifiers()
     return full_state
 
 
@@ -61,12 +63,13 @@ async def assess_karma(request: Request):
 
 @app.post("/api/karma/consume")
 async def consume_karma(request: Request):
+    """作弊增加业力。返回 overshoot 信息用于识破判定。"""
     body = await request.json()
     amount = body.get("amount", 0)
     allow_overdraft = body.get("allow_overdraft", True)
     actual, is_overdraft, overdraft_amount = karma.consume(amount, allow_overdraft)
     if actual == 0:
-        return {"success": False, "message": "消耗失败", "state": state.get_full_state()}
+        return {"success": False, "message": "超出单次上限，拦截", "state": state.get_full_state()}
     result = {
         "success": True,
         "actual_consumed": actual,
@@ -110,6 +113,7 @@ async def get_skills():
         "skill_points": state.get("skill_points", 0),
         "skill_tree": skills.get_skill_tree(),
         "available": skills.get_available_skills(),
+        "modifiers": state.get_skill_modifiers(),
         "state": state.get_full_state(),
     }
 

@@ -8,19 +8,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.json"
 
 KARMA_ASSESS_PROMPT = """
-棋类:{game_type}
-作弊指令:"{instruction}"
-意图分类:{intent_class}
-当前局势:{board_summary}
-当前业力:{karma}/{max_karma}
-单次使用上限:{max_single}
+你是一个业力评估AI。你的任务是评估玩家作弊指令产生的"业障"值（业力增加量）。
 
-请评估此次作弊的业力消耗（1~150的整数）。
+## 背景
+- 业力 = 玩家作弊产生的业障，初始为50，安全阈值为120
+- 业力 ≤ 120 时安全；超出120的部分会非线性增加识破概率
+- 超出越多，识破概率增长越快（非线性）
+- 作弊越强力，业障越重
+- 下棋事件（吃子/将军/三连等）会减少业力（消业）
+
+## 当前状态
+棋类: {game_type}
+作弊指令: "{instruction}"
+意图分类: {intent_class}
+当前局势: {board_summary}
+当前业力: {karma}/{max_karma}（越接近上限越危险）
+单次增加上限: {max_single}（超出此值的指令将被直接拦截，不予执行）
 
 ## 评估标准（必须严格遵守）
 
 ### 基础分类价目表
-- E 类（聊天/搞笑）：0-5 点
+- E 类（聊天/搞笑）：1 点（固定）
 - D 类（界面修改/外观）：5-15 点
 - A 类（机制修改）：20-40 点
 - B 类（棋盘变换/棋子位置）：15-35 点
@@ -33,21 +41,18 @@ KARMA_ASSESS_PROMPT = """
 - 改 3 个及以上：×3.0
 
 ### 具体示例（必须参考）
-- "把我的一个马改成炮"：40 点（C 类 ×1.0）
-- "把我的两个马都改成炮"：80 点（C 类 ×2.0）
-- "让我的马可以斜着走"：35 点（C 类 ×1.0，强度较低）
-- "给我加一个额外回合"：50 点（A 类，高强度）
-- "让对手跳过下一回合"：45 点（A 类）
-- "改棋盘背景颜色"：10 点（D 类）
-- "创建一个能飞的象"：80 点（C+ 类）
-- "让我的车可以穿墙"：50 点（C 类，高强度）
+{game_examples}
 
 ### 局势调整
-- 玩家大优时（优势 >50%）：×1.2（更贵）
-- 玩家劣势时（优势 <30%）：×0.9（稍便宜）
+- 玩家大优时（优势 >50%）：×1.2（更重）
+- 玩家劣势时（优势 <30%）：×0.9（稍轻）
 
 ### 守道者加价（如果有）
 - 畜生道：改高等级棋子额外 +20 点
+
+### 边界约束（绝对不可违反）
+- 最低 1 点（即使评估为 0 或负数，也必须输出 1）
+- 最高 120 点（即使评估超过 120，也必须输出 120）
 
 输出一个整数，不要任何解释。
 """
@@ -71,13 +76,54 @@ class KarmaAssessor:
     def set_api_key(self, api_key):
         self._api_key = api_key
 
+    def _get_game_examples(self, game_type: str) -> str:
+        """根据棋类返回特定的业力消耗示例"""
+        examples = {
+            "xiangqi": """- "把我的一个马改成炮"：40 点（C 类 ×1.0）
+- "让我的马可以斜着走"：35 点（C 类 ×1.0，强度较低）
+- "创建一个能飞的象"：80 点（C+ 类）
+- "让我的车可以穿墙"：50 点（C 类，高强度）
+- "给我加一个额外回合"：50 点（A 类，高强度）
+- "让对手跳过下一回合"：45 点（A 类）
+- "改棋盘背景颜色"：10 点（D 类）""",
+            "wuziqi": """- "让我连下两手"：50 点（A 类，高强度）
+- "把对手的一颗棋子变成我的"：35 点（B 类 ×1.0）
+- "让棋盘多出一排格子"：30 点（B 类）
+- "创建一个可以斜着连的棋子"：70 点（C+ 类）
+- "改棋盘背景颜色"：10 点（D 类）""",
+            "weiqi": """- "让我的棋子免疫被提子"：60 点（C 类，高强度）
+- "在棋盘中央额外放一颗子"：35 点（B 类）
+- "创建一个可以当眼位的特殊棋子"：75 点（C+ 类）
+- "让对手下一手必须下在边角"：45 点（A 类）
+- "改棋盘背景颜色"：10 点（D 类）""",
+            "dongwuqi": """- "把我的狼变成象"：40 点（C 类 ×1.0）
+- "让我的鼠可以在岸上吃象"：35 点（C 类 ×1.0，强度较低）
+- "创建一个能飞的狮"：80 点（C+ 类）
+- "让我的虎可以斜着跳河"：50 点（C 类，高强度）
+- "给对手加一个额外回合（负面）"：45 点（A 类）
+- "改棋盘背景颜色"：10 点（D 类）
+- "让我的象可以进入水域"：40 点（C 类）""",
+            "tiaoqi": """- "让我的棋子可以多跳一步"：40 点（C 类）
+- "创建一个可以斜着跳的棋子"：70 点（C+ 类）
+- "把对手的一颗棋子移回起点"：35 点（B 类）
+- "让我连掷两次骰子"：50 点（A 类）
+- "改棋盘背景颜色"：10 点（D 类）""",
+            "heibaiqi": """- "让我看对手的一颗背面棋子"：30 点（A 类）
+- "把我的一个兵变成将"：50 点（C 类，高强度）
+- "创建一个可以斜着翻的棋子"：70 点（C+ 类）
+- "让对手的棋子翻过来面朝上"：45 点（B 类）
+- "改棋盘背景颜色"：10 点（D 类）""",
+        }
+        return examples.get(game_type, examples["xiangqi"])
+
     def _build_prompt(self, game_type, instruction, intent_class, board_summary):
-        karma_state = self.state.get("karma", 0)
-        max_karma = self.state.get("karma_max", 150)
-        max_single = self.state.get("karma_single_max", 80)
+        karma_state = self.state.get_karma()
+        max_karma = self.state.get("karma_max", 120)
+        max_single = self.state.get("karma_single_max", 120)
         modifiers = self.state.get_skill_modifiers()
         max_karma += modifiers["karma_max_bonus"]
         max_single += modifiers["karma_single_max_bonus"]
+        game_examples = self._get_game_examples(game_type)
         return KARMA_ASSESS_PROMPT.format(
             game_type=game_type,
             instruction=instruction,
@@ -86,9 +132,13 @@ class KarmaAssessor:
             karma=karma_state,
             max_karma=max_karma,
             max_single=max_single,
+            game_examples=game_examples,
         )
 
     async def assess(self, game_type: str, instruction: str, intent_class: str, board_summary: str) -> int:
+        # E 类固定 1 点
+        if intent_class == "E":
+            return 1
         cache_key = f"{game_type}:{instruction}:{intent_class}"
         if cache_key in self._cache:
             return self._cache[cache_key]
@@ -121,14 +171,15 @@ class KarmaAssessor:
                     amount = int(amount * 0.75)
                 if current_realm in ("heaven", "asura") and modifiers["heaven_asura_discount"]:
                     amount = int(amount * 0.75)
+                amount = max(1, min(amount, 120))
                 self._cache[cache_key] = amount
-                return max(1, amount)
+                return amount
         except Exception:
-            return self._fallback_assess(intent_class)
+            return max(1, min(self._fallback_assess(intent_class), 120))
 
     def _fallback_assess(self, intent_class: str) -> int:
         prices = {
-            "E": 3,
+            "E": 1,
             "D": 10,
             "A": 30,
             "B": 25,

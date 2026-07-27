@@ -33,12 +33,14 @@ class SamsaraState:
 
     def _init_defaults(self):
         defaults = {
-            "version": 1,
+            "version": 2,
             "current_realm": "hell",
             "current_level": 0,
             "skill_points": 0,
-            "karma_max": 150,
-            "karma_single_max": 80,
+            "karma_max": 120,
+            "karma_single_max": 120,
+            "initial_karma": 50,
+            "realm_overshoot_carryover": 0,
             "realm_detections": {r: 0.0 for r in REALMS},
             "skills": {},
             "current_turn": 0,
@@ -51,13 +53,26 @@ class SamsaraState:
             "sandbox_unlocked": [],
             "sandbox_mode": False,
             "realm_progress": {r: {"completed": False, "levels_passed": 0} for r in REALMS},
-            "level_karma": 0,
+            "level_karma": 50,
             "last_modified": datetime.now().isoformat(),
         }
         for k, v in defaults.items():
             if k not in self._data:
                 self._data[k] = v
-        
+
+        # 迁移：v1→v2 业障模型
+        if self._data.get("karma_max") == 150:
+            self._data["karma_max"] = 120
+        if self._data.get("karma_single_max") == 80:
+            self._data["karma_single_max"] = 120
+        if "initial_karma" not in self._data:
+            self._data["initial_karma"] = 50
+        if "realm_overshoot_carryover" not in self._data:
+            self._data["realm_overshoot_carryover"] = 0
+        if self._data.get("version", 1) < 2:
+            self._data["version"] = 2
+            self._data["level_karma"] = self._data["initial_karma"]
+
         if not self._data["skills"]:
             self._data["skills"] = {
                 "karma_capacity_t1": {
@@ -90,11 +105,34 @@ class SamsaraState:
         return copy.deepcopy(self._data)
 
     def reset_level_state(self):
-        self._data["level_karma"] = 0
+        """关卡开始：业力 = 初始值 + 本道溢出叠加"""
+        modifiers = self.get_skill_modifiers()
+        reduction = modifiers.get("initial_karma_reduction", 0)
+        base = max(0, self._data.get("initial_karma", 50) - reduction)
+        carryover = self._data.get("realm_overshoot_carryover", 0)
+        self._data["level_karma"] = base + carryover
         self._data["current_turn"] = 0
         self._data["cheat_count"] = 0
         self._data["overdraft_count"] = 0
         self._data["no_cheat_this_level"] = True
+        self._save()
+
+    def record_level_end(self):
+        """关卡结束（胜利/失败）：计算本局溢出量，叠加到本道下一局。
+        溢出量 = max(0, level_karma - karma_max)。胜负都叠加。
+        """
+        threshold = self._data.get("karma_max", 120)
+        modifiers = self.get_skill_modifiers()
+        threshold += modifiers.get("karma_max_bonus", 0)
+        current = self._data.get("level_karma", 0)
+        overshoot = max(0, current - threshold)
+        self._data["realm_overshoot_carryover"] = overshoot
+        self._save()
+        return overshoot
+
+    def clear_overshoot_carryover(self):
+        """清零本道溢出叠加（换道/被识破时调用）"""
+        self._data["realm_overshoot_carryover"] = 0
         self._save()
 
     def advance_level(self):
@@ -102,8 +140,10 @@ class SamsaraState:
         self._save()
 
     def set_realm(self, realm):
+        """切换道：清零溢出叠加（章节=道，换道不携带业力溢出）"""
         self._data["current_realm"] = realm
         self._data["current_level"] = 0
+        self._data["realm_overshoot_carryover"] = 0
         self._save()
 
     def add_skill_point(self, count=1):
@@ -144,22 +184,33 @@ class SamsaraState:
         self._data["overdraft_count"] += 1
         self._save()
 
-    def add_karma(self, amount):
-        max_karma = self._data["karma_max"]
-        self._data["level_karma"] = min(self._data["level_karma"] + amount, max_karma)
+    def increase_karma(self, amount):
+        """增加业力（作弊产生业障）。可超过安全阈值，超出部分触发识破。"""
+        self._data["level_karma"] += amount
+        threshold = self._data.get("karma_max", 120)
+        overshoot = max(0, self._data["level_karma"] - threshold)
         self._save()
-        return self._data["level_karma"]
+        return amount, overshoot > 0, float(overshoot)
 
-    def consume_karma(self, amount):
-        current = self._data["level_karma"]
-        self._data["level_karma"] -= amount
+    def decrease_karma(self, amount):
+        """减少业力（下棋消业/退还）。最小为0。"""
+        old = self._data["level_karma"]
+        self._data["level_karma"] = max(0, old - amount)
+        actual = old - self._data["level_karma"]
         self._save()
-        return current - self._data["level_karma"], self._data["level_karma"] < 0
+        return actual
 
     def refund_karma(self, amount):
-        max_karma = self._data["karma_max"]
-        self._data["level_karma"] = min(self._data["level_karma"] + amount, max_karma)
-        self._save()
+        """退还业力（作弊失败时全额退还）。"""
+        self.decrease_karma(amount)
+
+    # 向后兼容
+    def add_karma(self, amount):
+        return self.increase_karma(amount)
+
+    def consume_karma(self, amount):
+        actual = self.decrease_karma(amount)
+        return actual, False
 
     def get_karma(self):
         return self._data.get("level_karma", 0)
@@ -227,15 +278,15 @@ class SamsaraState:
             "karma_max_bonus": 0,
             "karma_single_max_bonus": 0,
             "karma_recover_multiplier": 1.0,
-            "detection_coefficient": 0.5,
-            "detection_alpha": 1.8,
+            "detection_coefficient": 0.1,
+            "detection_alpha": 1.5,
             "first_overdraft_skip": False,
             "consecutive_avoid": False,
             "golden_escape": False,
             "mist_fog": False,
             "efficiency_fraud": False,
             "free_cheat_count": 0,
-            "refund_bonus": 0.0,
+            "initial_karma_reduction": 0,
             "hell_hungry_discount": False,
             "heaven_asura_discount": False,
             "boss_skill_reduction": False,
@@ -245,17 +296,17 @@ class SamsaraState:
         }
         skills = self._data.get("skills", {})
         if "karma_capacity_t1" in skills:
-            modifiers["karma_max_bonus"] += 30
+            modifiers["karma_max_bonus"] += 20
         if "karma_capacity_t2a" in skills:
             modifiers["karma_single_max_bonus"] += 30
         if "karma_capacity_t2b" in skills:
             modifiers["karma_recover_multiplier"] = 1.3
         if "karma_capacity_t3a" in skills:
-            modifiers["detection_alpha"] = 1.4
+            modifiers["detection_alpha"] = 1.3
         if "karma_capacity_t3b" in skills:
-            self._data["karma"] = 50
+            modifiers["initial_karma_reduction"] = 25
         if "stealth_t1" in skills:
-            modifiers["detection_coefficient"] = 0.35
+            modifiers["detection_coefficient"] = 0.07
         if "stealth_t2a" in skills:
             modifiers["first_overdraft_skip"] = True
         if "stealth_t2b" in skills:
@@ -269,7 +320,7 @@ class SamsaraState:
         if "cheat_mastery_t3a" in skills:
             modifiers["free_cheat_count"] += 1
         if "cheat_mastery_t3b" in skills:
-            modifiers["refund_bonus"] = 0.2
+            modifiers["karma_single_max_bonus"] += 40
         if "realm_insight_t1a" in skills:
             modifiers["hell_hungry_discount"] = True
         if "realm_insight_t1b" in skills:
@@ -302,6 +353,20 @@ class SamsaraState:
     def is_sandbox_mode(self) -> bool:
         return self._data.get("sandbox_mode", False)
 
+    def get_allowed_classifications(self) -> set:
+        """返回当前技能树解锁的所有作弊分类
+
+        基础分类(E/F/A/B/C)始终可用；
+        C+(自定义棋子)需要 cheat_mastery_t1a；
+        D(前端修改)需要 cheat_mastery_t1b。
+        """
+        allowed = {"E", "F", "A", "B", "C"}
+        if self.is_skill_unlocked("cheat_mastery_t1a", 1):
+            allowed.add("C+")
+        if self.is_skill_unlocked("cheat_mastery_t1b", 1):
+            allowed.add("D")
+        return allowed
+
     def reset_on_detection(self):
         """被识破后重置所有进度，但保留技能树、技能点、Boss记录、已通关道标记、成就"""
         preserved_skills = self._data.get("skills", {})
@@ -317,8 +382,10 @@ class SamsaraState:
             "current_realm": "hell",
             "current_level": 0,
             "skill_points": preserved_skill_points,
-            "karma_max": self._data.get("karma_max", 150),
-            "karma_single_max": self._data.get("karma_single_max", 80),
+            "karma_max": self._data.get("karma_max", 120),
+            "karma_single_max": self._data.get("karma_single_max", 120),
+            "initial_karma": self._data.get("initial_karma", 50),
+            "realm_overshoot_carryover": 0,
             "realm_detections": {r: 0.0 for r in REALMS},
             "skills": preserved_skills,
             "current_turn": 0,
@@ -331,7 +398,7 @@ class SamsaraState:
             "sandbox_unlocked": preserved_sandbox,
             "sandbox_mode": False,
             "realm_progress": preserved_realm_progress,
-            "level_karma": 0,
+            "level_karma": self._data.get("initial_karma", 50),
             "last_modified": datetime.now().isoformat(),
         }
         self._save()
