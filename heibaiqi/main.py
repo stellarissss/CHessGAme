@@ -50,7 +50,7 @@ class GameState:
 
     def __init__(self):
         self.configs: Dict[str, dict] = {}
-                api_key = get_api_key()
+        api_key = get_api_key()
         self.ai_orchestrator = AIOrchestrator(api_key=api_key)
         self.rule_engine: Optional[RuleEngine] = None
         self.chess_ai: Optional[ChessAI] = None

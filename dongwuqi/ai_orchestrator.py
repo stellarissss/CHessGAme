@@ -370,7 +370,7 @@ class AIOrchestrator:
                 "log_id": len(self.logger.logs) - 1,
             }
 
-        classification = intent.get("classification", "")classification = intent.get("classification", "")
+        classification = intent.get("classification", "")
         log_entry["classification"] = classification
         # 提取 cost_energy（RPG 用，0-10 整数，clamp）
         # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
