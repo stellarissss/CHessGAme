@@ -156,7 +156,7 @@ class DongwuqiBoard extends HTMLElement {
                     <div class="samsara-bar-container">
                         <div class="samsara-bar-fill karma-fill" id="karma-fill"></div>
                     </div>
-                    <span class="samsara-value" id="karma-value">0/150</span>
+                    <span class="samsara-value" id="karma-value">50/120</span>
                 </div>
             </div>
             <div class="samsara-item detection-item">
@@ -3197,8 +3197,8 @@ class DongwuqiBoard extends HTMLElement {
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
-                karma: 150,
-                karma_max: 150,
+                karma: 50,
+                karma_max: 120,
                 detection: 0,
                 current_turn: 0,
                 turn_limit: 20,
@@ -3213,11 +3213,12 @@ class DongwuqiBoard extends HTMLElement {
             const resp = await fetch(`${this.apiBase}/api/karma_detection`);
             const data = await resp.json();
             if (data.success) {
+                // 合并而非覆盖，避免丢失其他字段导致 UI 闪烁
                 this.samsaraState = {
                     ...this.samsaraState,
-                    karma: data.karma?.current ?? 0,
-                    karma_max: data.karma?.max ?? 150,
-                    detection: data.detection ?? 0,
+                    karma: data.karma?.current ?? this.samsaraState?.karma ?? 50,
+                    karma_max: data.karma?.max ?? this.samsaraState?.karma_max ?? 120,
+                    detection: data.detection ?? this.samsaraState?.detection ?? 0,
                 };
                 this.updateSamsaraUI();
             }
@@ -3265,11 +3266,11 @@ class DongwuqiBoard extends HTMLElement {
 
     updateSamsaraUI() {
         const state = this.samsaraState || {};
-        const karma = state.karma || 0;
-        const maxKarma = state.karma_max || 150;
-        const detection = state.detection || 0;
-        const currentTurn = state.current_turn || 0;
-        const maxTurns = state.turn_limit || 20;
+        const karma = state.karma ?? 50;
+        const maxKarma = state.karma_max ?? 120;
+        const detection = state.detection ?? 0;
+        const currentTurn = state.current_turn ?? 0;
+        const maxTurns = state.turn_limit ?? 20;
         const objective = state.objective || { description: '吃掉对方鼠' };
 
         const karmaFill = this.shadowRoot.getElementById('karma-fill');
@@ -3341,7 +3342,10 @@ class DongwuqiBoard extends HTMLElement {
                 body: JSON.stringify({ event_type: eventType, game_type: 'dongwuqi', details })
             });
             const data = await resp.json();
-            this.samsaraState = data.state;
+            // 合并而非覆盖，保留 objective / turn_limit 等字段
+            if (data.state) {
+                this.samsaraState = { ...this.samsaraState, ...data.state };
+            }
             this.updateSamsaraUI();
             return data;
         } catch (e) {
@@ -3357,7 +3361,9 @@ class DongwuqiBoard extends HTMLElement {
                 body: JSON.stringify({ game_type: 'dongwuqi' })
             });
             const data = await resp.json();
-            this.samsaraState = data.state;
+            if (data.state) {
+                this.samsaraState = { ...this.samsaraState, ...data.state };
+            }
             this.updateSamsaraUI();
             return data;
         } catch (e) {
@@ -4086,9 +4092,9 @@ class DongwuqiBoard extends HTMLElement {
                         const kd = data.karma_detection_state;
                         this.samsaraState = {
                             ...this.samsaraState,
-                            karma: kd.karma?.current ?? kd.karma ?? 0,
-                            karma_max: kd.karma?.max ?? kd.karma_max ?? 150,
-                            detection: kd.detection?.current ?? kd.detection ?? 0,
+                            karma: kd.karma?.current ?? kd.karma ?? this.samsaraState?.karma ?? 50,
+                            karma_max: kd.karma?.max ?? kd.karma_max ?? this.samsaraState?.karma_max ?? 120,
+                            detection: kd.detection?.current ?? kd.detection ?? this.samsaraState?.detection ?? 0,
                         };
                         this.updateSamsaraUI();
                         
@@ -4098,11 +4104,11 @@ class DongwuqiBoard extends HTMLElement {
                     } else if (data.karma_state) {
                         this.samsaraState = {
                             ...this.samsaraState,
-                            karma: data.karma_state.current,
-                            karma_max: data.karma_state.max
+                            karma: data.karma_state.current ?? this.samsaraState?.karma ?? 50,
+                            karma_max: data.karma_state.max ?? this.samsaraState?.karma_max ?? 120
                         };
                         if (data.detection !== undefined) {
-                            this.samsaraState.detection = data.detection.current ?? data.detection;
+                            this.samsaraState.detection = data.detection.current ?? data.detection ?? this.samsaraState?.detection ?? 0;
                         }
                         this.updateSamsaraUI();
                         
