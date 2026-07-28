@@ -2,7 +2,7 @@
   "version": 2,
   "current_realm": "hell",
   "current_level": 0,
-  "skill_points": 0,
+  "skill_points": 19,
   "karma_max": 120,
   "karma_single_max": 120,
   "initial_karma": 50,
@@ -17,15 +17,15 @@
   },
   "skills": {
     "karma_capacity_t1": {
-      "unlocked_at": "2026-07-25T00:00:00Z",
+      "unlocked_at": "2026-07-27T12:16:41.666699",
       "tier": 1
     },
     "stealth_t1": {
-      "unlocked_at": "2026-07-25T00:00:00Z",
+      "unlocked_at": "2026-07-27T12:16:41.666699",
       "tier": 1
     }
   },
-  "current_turn": 0,
+  "current_turn": 1,
   "turn_limit": 20,
   "cheat_count": 0,
   "overdraft_count": 0,
@@ -60,6 +60,6 @@
       "levels_passed": 0
     }
   },
-  "level_karma": 50,
-  "last_modified": "2026-07-27T11:40:25.471668"
+  "level_karma": 70,
+  "last_modified": "2026-07-27T12:16:41.666703"
 }

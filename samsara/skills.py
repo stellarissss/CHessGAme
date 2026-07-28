@@ -253,6 +253,11 @@ class SkillSystem:
         return result
 
     def unlock_skill(self, skill_id, tier) -> bool:
+        # 前端可能传字符串，统一转为 int
+        try:
+            tier = int(tier)
+        except (TypeError, ValueError):
+            return False
         branch_id = skill_id.split("_t")[0]
         branch = self.skill_tree["branches"].get(branch_id)
         if not branch:

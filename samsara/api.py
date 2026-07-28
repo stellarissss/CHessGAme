@@ -25,14 +25,24 @@ turn_limit = TurnLimitSystem(state)
 app = FastAPI(title="六道轮回 API", version="1.0.0")
 
 
+def _frontend_state() -> dict:
+    """返回带前端字段的完整状态。
+    前端 updateSamsaraUI 读取 karma / karma_max / detection，
+    但 get_full_state() 只含 level_karma / realm_detections。
+    在此补齐，避免动作触发后业力显示归零。
+    """
+    full = state.get_full_state()
+    full["karma"] = state.get_karma()
+    full["karma_max"] = state.get("karma_max", 120)
+    full["detection"] = state.get_detection()
+    full["allowed_classifications"] = list(state.get_allowed_classifications())
+    full["skill_modifiers"] = state.get_skill_modifiers()
+    return full
+
+
 @app.get("/api/state")
 async def get_samsara_state():
-    full_state = state.get_full_state()
-    full_state["karma"] = state.get_karma()
-    full_state["detection"] = state.get_detection()
-    full_state["allowed_classifications"] = list(state.get_allowed_classifications())
-    full_state["skill_modifiers"] = state.get_skill_modifiers()
-    return full_state
+    return _frontend_state()
 
 
 @app.get("/api/karma")
@@ -47,7 +57,7 @@ async def recover_karma(request: Request):
     event_type = body.get("event_type", "")
     event_data = body.get("event_data", {})
     amount = karma.recover(game_type, event_type, event_data)
-    return {"success": True, "amount": amount, "karma": karma.get_state(), "state": state.get_full_state()}
+    return {"success": True, "amount": amount, "karma": karma.get_state(), "state": _frontend_state()}
 
 
 @app.post("/api/karma/assess")
@@ -69,14 +79,14 @@ async def consume_karma(request: Request):
     allow_overdraft = body.get("allow_overdraft", True)
     actual, is_overdraft, overdraft_amount = karma.consume(amount, allow_overdraft)
     if actual == 0:
-        return {"success": False, "message": "超出单次上限，拦截", "state": state.get_full_state()}
+        return {"success": False, "message": "超出单次上限，拦截", "state": _frontend_state()}
     result = {
         "success": True,
         "actual_consumed": actual,
         "is_overdraft": is_overdraft,
         "overdraft_amount": overdraft_amount,
         "karma": karma.get_state(),
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
     if is_overdraft:
         detection_result = detection.handle_overdraft(overdraft_amount)
@@ -91,7 +101,7 @@ async def karma_event(request: Request):
     event_type = body.get("event_type", "")
     details = body.get("details", {})
     amount = karma.recover(game_type, event_type, details)
-    return {"success": True, "amount": amount, "state": state.get_full_state()}
+    return {"success": True, "amount": amount, "state": _frontend_state()}
 
 
 @app.post("/api/karma/refund")
@@ -99,12 +109,12 @@ async def refund_karma(request: Request):
     body = await request.json()
     amount = body.get("amount", 0)
     karma.refund(amount)
-    return {"success": True, "karma": karma.get_state(), "state": state.get_full_state()}
+    return {"success": True, "karma": karma.get_state(), "state": _frontend_state()}
 
 
 @app.get("/api/detection")
 async def get_detection():
-    return {"detection": state.get_detection(), "state": state.get_full_state()}
+    return {"detection": state.get_detection(), "state": _frontend_state()}
 
 
 @app.get("/api/skills")
@@ -114,7 +124,7 @@ async def get_skills():
         "skill_tree": skills.get_skill_tree(),
         "available": skills.get_available_skills(),
         "modifiers": state.get_skill_modifiers(),
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
 
 
@@ -129,7 +139,7 @@ async def unlock_skill(request: Request):
     skill_id = body.get("skill_id", "")
     tier = body.get("tier", 1)
     success = skills.unlock_skill(skill_id, tier)
-    return {"success": success, "skill_points": state.get("skill_points", 0), "state": state.get_full_state()}
+    return {"success": success, "skill_points": state.get("skill_points", 0), "state": _frontend_state()}
 
 
 @app.get("/api/levels")
@@ -138,7 +148,7 @@ async def get_levels():
         "current_level": levels.get_current_level(),
         "total_levels": levels.get_total_levels(),
         "realms": levels.get_all_realms_progress(),
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
 
 
@@ -160,7 +170,7 @@ async def start_level(request: Request):
         level = levels.load_level()
     turn_limit.reset(level.get("turn_limit", 40 if level.get("game_type") == "weiqi" else 20))
     bosses.reset_boss_skills()
-    return {"success": True, "level": level, "state": state.get_full_state()}
+    return {"success": True, "level": level, "state": _frontend_state()}
 
 
 @app.post("/api/levels/advance")
@@ -170,7 +180,7 @@ async def advance_level():
         state.reset_level_state()
         turn_limit.reset(40 if result["new_level"].get("game_type") == "weiqi" else 20)
         bosses.reset_boss_skills()
-    result["state"] = state.get_full_state()
+    result["state"] = _frontend_state()
     return result
 
 
@@ -180,7 +190,7 @@ async def get_objectives():
     objective = level.get("objective") if level else None
     if not objective:
         objective = {"type": "checkmate"}
-    return {"objective": objective, "state": state.get_full_state()}
+    return {"objective": objective, "state": _frontend_state()}
 
 
 @app.post("/api/objectives/check")
@@ -190,7 +200,7 @@ async def check_objective(request: Request):
     level = levels.get_current_level()
     objective = level.get("objective") if level else {"type": "checkmate"}
     result = objectives.check(objective, game_state)
-    return {"success": True, "objective": objective, "result": result, "state": state.get_full_state()}
+    return {"success": True, "objective": objective, "result": result, "state": _frontend_state()}
 
 
 @app.post("/api/turn/tick")
@@ -201,7 +211,7 @@ async def tick_turn():
         "current_turn": state.get("current_turn", 0),
         "remaining_turns": turn_limit.get_remaining(),
         "is_over": is_over,
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
 
 
@@ -211,7 +221,7 @@ async def get_turn_status():
         "current_turn": state.get("current_turn", 0),
         "turn_limit": state.get("turn_limit", 20),
         "remaining_turns": turn_limit.get_remaining(),
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
 
 
@@ -225,19 +235,19 @@ async def increment_turn(request: Request):
         "current_turn": state.get("current_turn", 0),
         "remaining_turns": turn_limit.get_remaining(),
         "is_over": is_over,
-        "state": state.get_full_state(),
+        "state": _frontend_state(),
     }
 
 
 @app.post("/api/turn/reset")
 async def reset_turn():
     turn_limit.reset()
-    return {"success": True, "state": state.get_full_state()}
+    return {"success": True, "state": _frontend_state()}
 
 
 @app.get("/api/boss")
 async def get_boss():
-    return {"boss": bosses.get_current_boss(), "state": state.get_full_state()}
+    return {"boss": bosses.get_current_boss(), "state": _frontend_state()}
 
 
 @app.post("/api/boss/trigger")
@@ -245,7 +255,7 @@ async def trigger_boss_skill(request: Request):
     body = await request.json()
     cheat_count = body.get("cheat_count", 0)
     result = bosses.trigger_boss_skill(cheat_count)
-    result["state"] = state.get_full_state()
+    result["state"] = _frontend_state()
     return result
 
 
@@ -259,13 +269,13 @@ async def resolve_level(request: Request):
     if won:
         advance_result = progression.advance_realm()
         rewards["realm_advance"] = advance_result
-    return {"success": True, "rewards": rewards, "state": state.get_full_state()}
+    return {"success": True, "rewards": rewards, "state": _frontend_state()}
 
 
 @app.post("/api/progression/retreat")
 async def retreat_realm():
     result = progression.retreat_realm()
-    result["state"] = state.get_full_state()
+    result["state"] = _frontend_state()
     return result
 
 
@@ -274,7 +284,7 @@ async def record_cheat():
     state.record_cheat()
     cheat_count = state.get("cheat_count", 0)
     boss_result = bosses.trigger_boss_skill(cheat_count)
-    return {"success": True, "cheat_count": cheat_count, "boss_trigger": boss_result, "state": state.get_full_state()}
+    return {"success": True, "cheat_count": cheat_count, "boss_trigger": boss_result, "state": _frontend_state()}
 
 
 @app.post("/api/reset")
@@ -282,7 +292,7 @@ async def reset_samsara():
     state.set("current_realm", "hell")
     state.set("current_level", 0)
     state.reset_level_state()
-    return {"success": True, "state": state.get_full_state()}
+    return {"success": True, "state": _frontend_state()}
 
 
 @app.get("/api/realms")
@@ -297,7 +307,7 @@ async def get_realm_levels(realm: str):
     result = levels.get_realm_levels(realm)
     if not result:
         return {"success": False, "message": f"未知道: {realm}"}
-    result["state"] = state.get_full_state()
+    result["state"] = _frontend_state()
     return {"success": True, **result}
 
 
@@ -314,10 +324,10 @@ async def start_sandbox(request: Request):
     level = levels.load_sandbox()
     turn_limit.reset(level.get("turn_limit", 20))
     bosses.reset_boss_skills()
-    return {"success": True, "level": level, "state": state.get_full_state()}
+    return {"success": True, "level": level, "state": _frontend_state()}
 
 
 @app.post("/api/detection/reset")
 async def reset_on_detection():
     state.reset_on_detection()
-    return {"success": True, "message": "天道识破 · 妄改天规者，罚入轮回", "state": state.get_full_state()}
+    return {"success": True, "message": "天道识破 · 妄改天规者，罚入轮回", "state": _frontend_state()}
