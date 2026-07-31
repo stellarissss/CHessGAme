@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>棋圣 · 六道轮回</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .title-mode-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 32px;
+            max-width: 880px;
+            margin: 0 auto 48px;
+            opacity: 0;
+            transform: translateY(24px);
+            animation: fadeInUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+        }
+        @media (max-width: 720px) {
+            .title-mode-grid { grid-template-columns: 1fr; }
+        }
+        .mode-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 48px 28px 40px;
+            border-radius: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-main);
+            overflow: hidden;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                        border-color 0.3s, box-shadow 0.3s;
+        }
+        .mode-card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at 50% 0%, var(--mode-glow, rgba(212,175,55,0.16)), transparent 70%);
+            opacity: 0.7;
+            pointer-events: none;
+            transition: opacity 0.4s;
+        }
+        .mode-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--mode-accent, var(--gold));
+            box-shadow: 0 32px 90px rgba(0,0,0,0.7), 0 0 50px var(--mode-glow, rgba(212,175,55,0.25));
+        }
+        .mode-card:hover::before { opacity: 1; }
+        .mode-icon {
+            font-size: 64px;
+            margin-bottom: 18px;
+            line-height: 1;
+            filter: drop-shadow(0 4px 20px var(--mode-glow, rgba(212,175,55,0.4)));
+        }
+        .mode-name {
+            font-family: var(--font-display);
+            font-size: 34px;
+            color: var(--mode-accent, var(--gold));
+            margin: 0 0 8px;
+            letter-spacing: 0.08em;
+            text-shadow: 0 0 24px var(--mode-glow, rgba(212,175,55,0.3));
+        }
+        .mode-sub {
+            font-family: var(--font-tech);
+            font-size: 11px;
+            color: var(--gold-dim);
+            letter-spacing: 0.32em;
+            text-transform: uppercase;
+            margin-bottom: 18px;
+        }
+        .mode-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            line-height: 1.9;
+            max-width: 280px;
+            font-weight: 300;
+        }
+        .mode-enter {
+            margin-top: 24px;
+            padding: 9px 28px;
+            border: 1px solid var(--mode-accent, var(--gold));
+            border-radius: 4px;
+            color: var(--mode-accent, var(--gold));
+            font-family: var(--font-body);
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            transition: background 0.25s, color 0.25s;
+        }
+        .mode-card:hover .mode-enter {
+            background: var(--mode-accent, var(--gold));
+            color: var(--bg-deep);
+        }
+        /* 剧情模式 · 金 */
+        .mode-card.story { --mode-accent: var(--gold); --mode-glow: rgba(212,175,55,0.22); }
+        /* 沙盒模式 · 玉 */
+        .mode-card.sandbox { --mode-accent: var(--jade); --mode-glow: rgba(13,115,119,0.26); }
+        .mode-card.sandbox .mode-enter { border-color: var(--jade); color: var(--jade); }
+        .mode-card.sandbox:hover .mode-enter { background: var(--jade); color: var(--paper); }
+
+        .title-footer {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 12px;
+            line-height: 2;
+            opacity: 0;
+            animation: fadeInUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.6s forwards;
+        }
+        .title-footer .sep { color: var(--gold-dim); margin: 0 10px; }
+    </style>
+</head>
+<body>
+    <div class="ambient">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <main class="container">
+        <header class="hero">
+            <h1 class="hero-title">
+                <span class="title-main">棋圣 · 六道轮回</span>
+                <span class="title-sub">ChessSage · Samsara</span>
+            </h1>
+            <p class="hero-desc">
+                六重棋境，一念改规。业力为媒，规则为网，<br>
+                在轮回中修行，在棋局中悟道。
+            </p>
+            <div class="hero-meta">选择你的道路</div>
+        </header>
+
+        <section class="title-mode-grid">
+            <a href="/dialogue?mode=prologue" class="mode-card story">
+                <div class="mode-icon">📜</div>
+                <h2 class="mode-name">剧情模式</h2>
+                <div class="mode-sub">Story Mode</div>
+                <p class="mode-desc">
+                    化身林夜，坠入六道轮回。<br>
+                    在棋局中直面愧疚、贪婪与心魔，<br>
+                    寻找你的答案，走向五种结局。
+                </p>
+                <span class="mode-enter">进入序章 ▶</span>
+            </a>
+
+            <a href="/sandbox" class="mode-card sandbox">
+                <div class="mode-icon">♟</div>
+                <h2 class="mode-name">沙盒模式</h2>
+                <div class="mode-sub">Sandbox Mode</div>
+                <p class="mode-desc">
+                    纯净六棋，自由对弈。<br>
+                    无业力、无识破、无结局束缚，<br>
+                    专注 AI 改规的棋类乐趣。
+                </p>
+                <span class="mode-enter">进入沙盒 ▶</span>
+            </a>
+        </section>
+
+        <footer class="title-footer">
+            <p>剧情模式含业力 / 识破 / 技能树 / 五种结局<span class="sep">·</span>沙盒模式为纯净棋类，与剧情完全隔离</p>
+            <p class="hero-meta">棋圣 ChessSage · v1.3</p>
+        </footer>
+    </main>
+</body>
+</html>

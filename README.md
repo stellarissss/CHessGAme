@@ -4,6 +4,8 @@
 
 以六种棋类为战斗场景、"AI 作弊改规"为核心玩法的 Roguelike 大游戏。玩家以自然语言驱动 AI 实时改写棋盘、棋子、规则、UI 与机制，在六道关卡中一路轮回，直到天道识破或悟道超脱。
 
+**v1.3 新增 RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
+
 ---
 
 ## 一、核心玩法
@@ -314,9 +316,17 @@ workspace/
 ├── requirements.txt
 │
 ├── hub/                         # 六道众生总坛（轮回之门）
-│   ├── index.html               # 首页（六道转轮 + 关卡选择 + 技能树）
+│   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
 │   ├── achievements.html        # 成就殿堂
-│   ├── app.js                   # 前端逻辑（不显示业力，仅显示识破/境界/技能点）
+│   ├── dialogue.html            # RPG 剧情对话系统（v1.3）
+│   ├── dialogue.js              # 打字机/立绘/选择面板逻辑
+│   ├── memory_album.html        # 记忆相册（v1.3）
+│   ├── memory_album.js          # 记忆碎片展示逻辑
+│   ├── ending.html              # 结局展示（v1.3）
+│   ├── ending.js                # 结局判定与展示逻辑
+│   ├── heaven_boss.html         # 天道 Boss 战（v1.3）
+│   ├── heaven_boss.js           # Boss 战对话与进入逻辑
+│   ├── app.js                   # 前端逻辑（含 RPG 总览加载）
 │   └── style.css
 │
 ├── shared/                      # 共享模块
@@ -326,19 +336,26 @@ workspace/
 │
 ├── samsara/                     # 六道轮回核心引擎
 │   ├── api.py                   # FastAPI 路由（业力/识破/技能/关卡/进度）
-│   ├── state.py                 # 轮回元状态管理（含 carryover 机制）
+│   ├── state.py                 # 轮回元状态管理（含 carryover + RPG 字段）
 │   ├── karma.py                 # 业力系统（业障模型）
 │   ├── karma_assessor.py        # samsara 端 AI 业力评估
-│   ├── detection.py             # 识破概率系统（C×O^α 公式）
+│   ├── detection.py             # 识破概率系统（概率判定式 v1.3）
 │   ├── bosses.py                # Boss 技能系统
 │   ├── skills.py                # 技能树系统
 │   ├── progression.py           # 升降道与技能点获取
 │   ├── levels.py                # 关卡管理
 │   ├── objectives.py            # 11 种目标判定
-│   └── turn_limit.py            # 回合限制系统
+│   ├── turn_limit.py            # 回合限制系统
+│   ├── story_api.py             # RPG 剧情 API（v1.3 新增）
+│   ├── choices.py               # 选择系统（alignment 变化）
+│   ├── memory_fragments.py      # 记忆碎片系统
+│   ├── endings.py               # 五种结局判定
+│   └── heaven_boss.py           # 天道 Boss 战模块
 │
 ├── configs/                     # 全局配置
-│   ├── samsara_state.json       # 轮回存档（含 realm_overshoot_carryover）
+│   ├── samsara_state.json       # 轮回存档（含 RPG 字段）
+│   ├── story.json               # RPG 剧情数据（序章/六道/结局/祈求）
+│   ├── tiandao_boss.json        # 天道 Boss 战配置
 │   ├── boss_definitions.json    # Boss 定义
 │   ├── skill_tree.json          # 技能树
 │   ├── karma_events.json        # 业力事件映射（各棋类消业数值）
@@ -455,9 +472,106 @@ workspace/
 
 ---
 
-## 十二、更多文档
+## 十二、RPG 剧情系统（v1.3）
+
+v1.3 在原有棋类 Roguelike 基础上叠加了完整的剧情 RPG 层。主角**林夜**是一名作弊成性的高中生，被吸入六道轮回后，在每道的棋局中直面自己的心魔。
+
+### 剧情背景
+
+林夜靠作弊赢了好友陈默无数次。某天一阵眩晕，他坠入六道轮回。在这里，他发现了更方便的作弊方式——**真心祈求**时天道会回应（对应游戏中的 AI 修改）。但每次祈求都暗藏代价：天道可能**识破**他作弊成性的本质。
+
+### 核心机制
+
+#### 真心祈求（AI 修改的剧情化）
+
+- 玩家使用 AI 修改（ChatAI 输出后）即视为一次"真心祈求"
+- 每次祈求后，系统用当前识破概率进行**随机结算**：`random()*100 < detection` 命中即被识破
+- 被识破后：识破概率锁死为 0，但识破结局路径已确定
+- 通关六道后，若曾祈求过，进入隐藏的**天道 Boss 战**
+
+#### Alignment 系统（道心倾向）
+
+| 属性 | 说明 |
+|:-----|:-----|
+| `enlightenment` 悟道值 | 诚实面对、拒绝作弊时增加 |
+| `corruption` 堕落值 | 逃避、沉沦、拥抱作弊时增加 |
+| `rationality` 理性值 | 人道独立累计 |
+| `emotion` 情感值 | 人道独立累计 |
+
+每道 Boss 战后有"道选择"，决定 alignment 走向，最终影响结局判定。
+
+#### 记忆碎片
+
+- 每道全程无作弊通关（`no_cheat_full_clear`）可解锁一段林夜的过去记忆
+- 集齐全部 6 个记忆碎片是**真我结局**的必要条件
+- 记忆碎片在"记忆相册"页面查看
+
+### 五种结局
+
+| 结局 | 类型 | 条件 |
+|:-----|:----:|:-----|
+| 悟道结局·破茧成蝶 | good | 悟道值领先 3+ + 选悟道 + 业力<100 + 无祈求 |
+| 堕落结局·永堕轮回 | bad | 堕落值领先 3+ + 选堕落 + 业力>200 + 无祈求 |
+| 轮回结局·继续修行 | neutral | 悟道≈堕落 + 选轮回 + 业力 100-200 + 无祈求 |
+| 真我结局·与自己和解 | true | 全记忆碎片 + 悟道值≥9 + 无祈求 + 无作弊 |
+| 识破结局·天道审判 | worst | 使用过祈求 + 天道 Boss 战胜利 |
+
+### 天道 Boss 战
+
+通关六道后，若使用过真心祈求，进入与天道的最终对决：
+
+- **棋类**：传统象棋，正常规则
+- **禁止作弊**：输入框画红叉，无法输入
+- **天道特殊**：无士，士位全部替换为车（共 4 车）
+- **难度**：nightmare（搜索深度 6）
+- **胜利** → 触发识破结局（最坏结局）
+- **失败** → 无限重试，无法退出
+
+### RPG 页面入口
+
+| 页面 | 路径 | 说明 |
+|:-----|:-----|:-----|
+| 序章/剧情对话 | `/dialogue?mode=prologue` | 序章 + 各道关卡对话 |
+| 记忆相册 | `/memory-album` | 六道记忆碎片展示 |
+| 结局展示 | `/ending` | 自动判定或指定结局 |
+| 天道 Boss 战 | `/heaven-boss` | 最终审判（条件满足时开放） |
+
+### RPG API（挂载于 `/samsara/story/*`）
+
+| 方法 | 路径 | 说明 |
+|:----:|:-----|:-----|
+| GET | `/api/rpg/overview` | RPG 系统总览（Hub 入口展示用） |
+| GET | `/api/story` | 获取完整剧情数据 |
+| GET | `/api/story/prologue` | 获取序章数据 |
+| GET | `/api/story/realm/{realm}` | 获取某道剧情数据 |
+| GET | `/api/story/realm/{realm}/level/{level}` | 获取某关对话与选择 |
+| GET | `/api/story/ending/{ending_id}` | 获取结局详情 |
+| GET | `/api/choices/{realm}/{level}` | 获取选择面板 |
+| POST | `/api/choices/apply` | 应用玩家选择（alignment 变化） |
+| GET | `/api/memory` | 获取记忆碎片状态 |
+| GET | `/api/memory/{realm}` | 获取某道记忆碎片 |
+| POST | `/api/memory/{realm}/unlock` | 尝试解锁记忆碎片 |
+| GET | `/api/endings` | 获取所有结局状态 |
+| POST | `/api/endings/determine` | 综合判定结局 |
+| GET | `/api/endings/preview` | 获取当前结局预览 |
+| GET | `/api/heaven-boss` | 获取天道 Boss 战信息 |
+| POST | `/api/heaven-boss/enter` | 进入 Boss 战 |
+| POST | `/api/heaven-boss/win` | Boss 战胜利 |
+| POST | `/api/heaven-boss/lose` | Boss 战失败（重试） |
+| POST | `/api/prayer` | 真心祈求（AI 修改后调用，触发识破判定） |
+| GET | `/api/prayer/status` | 获取祈求状态 |
+| GET | `/api/story/progress` | 获取剧情进度 |
+| POST | `/api/story/progress` | 更新剧情进度 |
+| POST | `/api/story/mark-prologue-seen` | 标记序章已观看 |
+
+---
+
+## 十三、更多文档
 
 - [整体设计书 v2.0](六道轮回_整体设计书_v2.0.md) — 完整设计与机制详解
+- [整体设计书 v3.0](六道轮回_整体设计书_v3.0.md) — v3.0 含 RPG 扩展
+- [RPG 化执行方案 v1.0](RPG化执行方案_v1.0.md) — RPG 开发规划
+- [剧情实现草案 v1.3](轻RPG化剧情实现草案_v1.3.md) — 完整剧情设计
 
 ---
 

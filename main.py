@@ -196,6 +196,22 @@ GAMES = [
      "description": "夹吃翻转的 Othello，大模型赋予地狱般的自定义规则。", "port": 8005},
 ]
 
+# 沙盒模式棋类（纯净版，无业力/识破/成就/RPG 集成，与 RPG 完全隔离）
+SANDBOX_GAMES = [
+    {"id": "xiangqi",  "name": "纯净象棋",   "icon": "♜", "sub": "楚河汉界 · 自由对弈",
+     "description": "纯净象棋，AI 改规无业力束缚。", "port": 8010},
+    {"id": "wuziqi",   "name": "纯净五子棋", "icon": "⚫", "sub": "五连登仙 · 自由对弈",
+     "description": "纯净五子棋，连珠成线无拘束。", "port": 8011},
+    {"id": "weiqi",    "name": "纯净围棋",   "icon": "⚪", "sub": "混沌气局 · 自由对弈",
+     "description": "纯净围棋，十九路自由改写。", "port": 8012},
+    {"id": "dongwuqi", "name": "纯净动物棋", "icon": "🐘", "sub": "斗兽丛林 · 自由对弈",
+     "description": "纯净动物棋，鼠象狮各显神通。", "port": 8013},
+    {"id": "tiaoqi",   "name": "纯净跳棋",   "icon": "⬢", "sub": "六角星途 · 自由对弈",
+     "description": "纯净跳棋，连跳奔袭无止境。", "port": 8014},
+    {"id": "heibaiqi", "name": "纯净黑白棋", "icon": "☯", "sub": "阴阳翻转 · 自由对弈",
+     "description": "纯净黑白棋，夹吃翻转自定义。", "port": 8015},
+]
+
 REALMS = {
     "hell": {"name": "地狱道", "icon": "☯", "game": "heibaiqi", "description": "黑白棋 · 阴阳翻转"},
     "hungry": {"name": "饿鬼道", "icon": "👹", "game": "tiaoqi", "description": "跳棋 · 六角星途"},
@@ -291,11 +307,28 @@ def build_hub_app():
         app.mount("/shared", StaticFiles(directory=str(SHARED_DIR)), name="shared_static")
 
     @app.get("/")
-    async def index():
+    async def title_page():
+        # 标题页（双模式入口：剧情模式 / 沙盒模式）
+        html_path = HUB_DIR / "title.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>标题页未找到</h1>", status_code=404)
+
+    @app.get("/hub")
+    async def hub_index():
+        # RPG 总坛（剧情模式主界面）
         html_path = HUB_DIR / "index.html"
         if html_path.exists():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>六道众生总坛文件未找到</h1>", status_code=404)
+
+    @app.get("/sandbox")
+    async def sandbox_page():
+        # 沙盒总坛（纯净棋类入口，与 RPG 隔离）
+        html_path = HUB_DIR / "sandbox.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>沙盒总坛未找到</h1>", status_code=404)
 
     @app.get("/achievements")
     async def achievements_page():
@@ -303,6 +336,35 @@ def build_hub_app():
         if html_path.exists():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>成就殿堂未找到</h1>", status_code=404)
+
+    # ── RPG 页面路由（v1.3） ──
+    @app.get("/dialogue")
+    async def dialogue_page():
+        html_path = HUB_DIR / "dialogue.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>剧情对话页未找到</h1>", status_code=404)
+
+    @app.get("/memory-album")
+    async def memory_album_page():
+        html_path = HUB_DIR / "memory_album.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>记忆相册页未找到</h1>", status_code=404)
+
+    @app.get("/ending")
+    async def ending_page():
+        html_path = HUB_DIR / "ending.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>结局页未找到</h1>", status_code=404)
+
+    @app.get("/heaven-boss")
+    async def heaven_boss_page():
+        html_path = HUB_DIR / "heaven_boss.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>天道Boss战页未找到</h1>", status_code=404)
 
     @app.get("/api/games")
     async def list_games():
@@ -312,6 +374,17 @@ def build_hub_app():
                 "url": f"http://localhost:{game['port']}/",
             }
             for game in GAMES
+        ]
+
+    @app.get("/api/sandbox/games")
+    async def list_sandbox_games():
+        # 沙盒模式棋类列表（纯净版，与 RPG 隔离）
+        return [
+            {
+                **game,
+                "url": f"http://localhost:{game['port']}/",
+            }
+            for game in SANDBOX_GAMES
         ]
 
     @app.get("/api/health")
@@ -451,7 +524,7 @@ def main():
 
     processes = []
 
-    # 1. 启动六个棋类服务
+    # 1a. 启动六个 RPG 棋类服务（端口 8000-8005）
     for game in GAMES:
         script_path = WORKSPACE_ROOT / game["id"] / "main.py"
         if script_path.exists():
@@ -460,6 +533,16 @@ def main():
                 processes.append((game["name"], proc))
         else:
             log_warn(f"  跳过 {game['name']}: 未找到 {script_path}")
+
+    # 1b. 启动六个沙盒棋类服务（端口 8010-8015，纯净模式，与 RPG 隔离）
+    for game in SANDBOX_GAMES:
+        script_path = WORKSPACE_ROOT / "sandbox" / game["id"] / "main.py"
+        if script_path.exists():
+            proc = start_process(f"[沙盒]{game['name']}", script_path, game["port"])
+            if proc:
+                processes.append((f"[沙盒]{game['name']}", proc))
+        else:
+            log_warn(f"  跳过 [沙盒]{game['name']}: 未找到 {script_path}")
 
     # 2. 在后台线程启动总坛服务
     hub_thread = threading.Thread(
@@ -482,16 +565,31 @@ def main():
     print(_c("cyan", "\n" + "=" * 58))
     log_info("  服务启动完成！")
     print(_c("cyan", "  " + "=" * 56))
-    log_info(f"  六道众生总坛: {hub_url}")
-    print(_c("dim", "\n  各棋类入口:"))
+    log_info(f"  六道众生标题页: {hub_url}")
+    print(_c("dim", "\n  RPG 棋类入口（剧情模式）:"))
     for game in GAMES:
         print(_c("green", f"    {game['name']}: http://localhost:{game['port']}/"))
+    print(_c("dim", "\n  沙盒棋类入口（纯净模式）:"))
+    for game in SANDBOX_GAMES:
+        print(_c("green", f"    [沙盒]{game['name']}: http://localhost:{game['port']}/"))
     print(_c("yellow", "\n  按 Ctrl+C 停止所有服务"))
     print(_c("cyan", "  " + "=" * 56))
+
+    # 进程健康守护：记录已告警过的进程退出状态，避免重复刷屏
+    _alerted_exits = {i: False for i in range(len(processes))}
+    _health_tick = 0
 
     try:
         while True:
             time.sleep(1)
+            _health_tick += 1
+            # 每 30 秒轮询一次子进程存活状态（仅告警不重启，避免覆盖副作用重置棋盘状态）
+            if _health_tick % 30 == 0:
+                for idx, (name, proc) in enumerate(processes):
+                    rc = proc.poll()
+                    if rc is not None and not _alerted_exits[idx]:
+                        log_error(f"  ⚠ 进程异常退出: {name} (退出码 {rc})，请检查日志或手动重启")
+                        _alerted_exits[idx] = True
     except KeyboardInterrupt:
         print()
         log_warn("\n  正在停止所有服务...")
