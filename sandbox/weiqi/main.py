@@ -10,9 +10,13 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 BASE_DIR = Path(__file__).resolve().parent
-WORKSPACE_ROOT = BASE_DIR.parent
-SHARED_DIR = WORKSPACE_ROOT / "shared"
-if str(SHARED_DIR) not in sys.path:
+# 向上查找 shared/ 目录（兼容 sandbox/ 嵌套层级：RPG 在上一级，沙盒在上两级）
+SHARED_DIR = None
+for _root in (BASE_DIR.parent, BASE_DIR.parent.parent):
+    if (_root / "shared").is_dir():
+        SHARED_DIR = _root / "shared"
+        break
+if SHARED_DIR and str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query

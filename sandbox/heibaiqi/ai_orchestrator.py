@@ -15,9 +15,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 
-# 自动注入 shared/ 到 sys.path（兼容直接执行与被 main.py 导入两种场景）
-_SHARED = Path(__file__).resolve().parent.parent / "shared"
-if _SHARED.exists() and str(_SHARED) not in sys.path:
+# 自动注入 shared/ 到 sys.path（兼容直接执行、被 main.py 导入、sandbox 嵌套三种场景）
+_SHARED = None
+_self_dir = Path(__file__).resolve().parent
+for _root in (_self_dir.parent, _self_dir.parent.parent):
+    if (_root / "shared").is_dir():
+        _SHARED = _root / "shared"
+        break
+if _SHARED and str(_SHARED) not in sys.path:
     sys.path.insert(0, str(_SHARED))
 
 from prompts import (
