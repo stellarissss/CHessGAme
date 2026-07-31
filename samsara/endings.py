@@ -1,4 +1,4 @@
-"""结局系统（v1.3）
+"""结局系统（v1.4）
 
 五种结局判定：
 1. enlightenment  悟道结局·破茧成蝶（good）
@@ -11,8 +11,14 @@
   exposed（识破路径 + Boss 战胜） >
   true_me（全记忆碎片 + 悟道线 + 无作弊 + 无祈求） >
   enlightenment / corruption / samsara（根据 alignment 与最终选择）
+
+get_ending_data() 现会注入 runtime 字段（如 prayer_count）
+并替换对白中的 `{prayer_count}` 占位符，确保 story.json 中的占位符被
+忠实替换为实际数值。
 """
+import copy
 import json
+import re
 from pathlib import Path
 from .state import SamsaraState
 
@@ -34,8 +40,48 @@ class EndingSystem:
         return {}
 
     def get_ending_data(self, ending_id: str) -> dict:
-        """获取结局剧情数据"""
-        return self._story.get("endings", {}).get(ending_id, {})
+        """获取结局剧情数据。
+
+        返回 deep-copy 后的结局数据，并注入 runtime 字段：
+        - `prayer_count`：当前玩家累计祈求次数（用于替换对白占位符）。
+
+        所有对白文本（dialogues_before / dialogues / epilogue_dialogues）
+        中的 `{prayer_count}` 占位符会被替换为实际数值，确保 story.json
+        写的对白被忠实渲染。
+        """
+        data = self._story.get("endings", {}).get(ending_id, {})
+        if not data:
+            return {}
+
+        # 深拷贝，避免污染 story.json 缓存
+        data = copy.deepcopy(data)
+
+        # 注入 runtime 字段（供前端使用）
+        prayer_count = self.state.get_prayer_count()
+        data["prayer_count"] = prayer_count
+
+        # 替换对白文本中的 {prayer_count} 占位符
+        placeholders = {"prayer_count": str(prayer_count)}
+        for key in ("dialogues_before", "dialogues", "epilogue_dialogues"):
+            dialogues = data.get(key)
+            if not isinstance(dialogues, list):
+                continue
+            for d in dialogues:
+                if not isinstance(d, dict):
+                    continue
+                text = d.get("text")
+                if not isinstance(text, str):
+                    continue
+                d["text"] = self._substitute_placeholders(text, placeholders)
+        return data
+
+    @staticmethod
+    def _substitute_placeholders(text: str, placeholders: dict) -> str:
+        """将文本中的 {key} 占位符替换为实际值（仅替换已知 key）。"""
+        def repl(m):
+            key = m.group(1)
+            return placeholders.get(key, m.group(0))
+        return re.sub(r"\{(\w+)\}", repl, text)
 
     def get_all_endings_status(self) -> dict:
         """返回所有结局的解锁状态"""
@@ -220,17 +266,23 @@ class EndingSystem:
         return self.state.get_prayer_count() >= 1
 
     def get_ending_preview(self) -> dict:
-        """返回当前状态下的结局预览（不锁定）"""
+        """返回当前状态下的结局预览（不锁定）。
+
+        结局显示名从 story.json.endings.{id}.name 读取，确保与剧情权威源一致。
+        """
         align = self.state.get_alignment()
         prayer_count = self.state.get_prayer_count()
         all_realms = self.state.all_realms_completed()
         all_frags = self.state.all_memory_fragments_collected()
 
+        def ending_name(eid: str) -> str:
+            return self._story.get("endings", {}).get(eid, {}).get("name", eid)
+
         if prayer_count > 0:
             if all_realms:
                 return {
                     "predicted": "exposed",
-                    "name": "识破结局·天道审判",
+                    "name": ending_name("exposed"),
                     "condition": "六道通关 + 使用过祈求 → 天道Boss战 → 识破结局",
                 }
             return {
@@ -242,7 +294,7 @@ class EndingSystem:
         if all_frags and align.get("enlightenment", 0) >= 9:
             return {
                 "predicted": "true_me",
-                "name": "真我结局·与自己和解",
+                "name": ending_name("true_me"),
                 "condition": "全记忆碎片 + 悟道值≥9 + 无祈求",
             }
 
@@ -251,17 +303,17 @@ class EndingSystem:
         if e - c >= 3:
             return {
                 "predicted": "enlightenment",
-                "name": "悟道结局·破茧成蝶",
+                "name": ending_name("enlightenment"),
                 "condition": f"悟道值({e}) - 堕落值({c}) ≥ 3 + 无祈求",
             }
         if c - e >= 3:
             return {
                 "predicted": "corruption",
-                "name": "堕落结局·永堕轮回",
+                "name": ending_name("corruption"),
                 "condition": f"堕落值({c}) - 悟道值({e}) ≥ 3 + 无祈求",
             }
         return {
             "predicted": "samsara",
-            "name": "轮回结局·继续修行",
+            "name": ending_name("samsara"),
             "condition": f"悟道值({e}) ≈ 堕落值({c}) + 无祈求",
         }

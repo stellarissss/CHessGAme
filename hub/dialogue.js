@@ -1,6 +1,16 @@
 /**
- * 剧情对话系统（v1.3）
+ * 剧情对话系统（v1.6）
  * 功能：打字机效果、立绘切换、选择面板、祈求低语、识破警告
+ *
+ * v1.6 变更：立绘动画改回 AI 关键帧插值连续动画帧（24FPS，48帧/2秒循环）。
+ * 白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧为 48 张
+ * 连续帧（boy/chenmo 全表情），rembg 抠图为透明 PNG。帧间过渡自然、
+ * 角色一致性最佳（同源图），幅度由 AI 生成自然微动控制。
+ *
+ * Boss 关卡流程：Boss 关卡（type=boss，含 dialogues_before
+ * + dialogues_after + choices）按以下顺序执行：
+ *   dialogues_before → 进入棋局（新 tab）→ 棋局胜利后点击"继续"
+ *   → dialogues_after → 显示道选择 → 完成
  */
 (function() {
     'use strict';
@@ -9,13 +19,21 @@
     let currentRealm = null;
     let currentLevel = null;
     let levelData = null;
+    let realmData = null;        // 当前道的完整数据（含 game_type）
     let dialogueQueue = [];
     let dialogueIndex = 0;
     let isTyping = false;
     let typeTimer = null;
-    let currentPhase = 'dialogues'; // dialogues / dialogues_before / dialogues_after
+    let currentPhase = 'dialogues'; // dialogues / dialogues_before / dialogues_after / choice_response
     let choicesShown = false;
     let storyData = null;
+
+    // 立绘动画：24FPS 帧序列（48帧/2秒循环），由 Seedance 图生视频抽帧生成。
+    // updatePortraits 探测 _f1.png 存在则启动 24FPS 循环，否则用静态抠图 PNG。
+    const ANIM_FPS = 24;
+    const ANIM_FRAME_COUNT = 48;
+    let portraitAnimTimer = null;
+    const portraitFrameCache = {};
 
     // ── URL 参数解析 ──
     function getParams() {
@@ -73,13 +91,14 @@
             levelData = data.data;
             storyData = data.state;
 
-            // 更新顶部信息
+            // 更新顶部信息（同时获取当前道完整数据，含 game_type）
             const realmResp = await fetch(`${API_BASE}/api/story/realm/${realm}`);
-            const realmData = await realmResp.json();
-            document.getElementById('realm-name').textContent = realmData.data?.name || realm;
+            const realmJson = await realmResp.json();
+            realmData = realmJson.data || {};
+            document.getElementById('realm-name').textContent = realmData.name || realm;
             document.getElementById('level-title').textContent = `· ${levelData.title || ''}`;
 
-            setBackground(realmData.data?.background);
+            setBackground(realmData.background);
 
             // 根据关卡类型决定对话流
             dialogueQueue = [];
@@ -190,6 +209,9 @@
 
     // ── 更新立绘 ──
     function updatePortraits(dialogue) {
+        // 停止上一轮立绘动画
+        stopPortraitAnim();
+
         const container = document.getElementById('dialogue-characters');
         container.innerHTML = '';
 
@@ -201,12 +223,14 @@
         const jpgName = dialogue.portrait;
         // 优先使用抠图后的透明 PNG，回退到 JPG
         const pngName = jpgName.replace(/\.jpg$/i, '.png');
+        const stem = jpgName.replace(/\.jpg$/i, '');  // 如 boy_happy
 
         const img = document.createElement('img');
         img.className = 'character-portrait speaking';
         img.alt = dialogue.speaker;
-        img.dataset.pngUrl = `/shared/assets/characters/${folder}/${pngName}`;
-        img.dataset.jpgUrl = `/shared/assets/characters/${folder}/${jpgName}`;
+        const baseUrl = `/shared/assets/characters/${folder}`;
+        img.dataset.pngUrl = `${baseUrl}/${pngName}`;
+        img.dataset.jpgUrl = `${baseUrl}/${jpgName}`;
         img.src = img.dataset.pngUrl;
 
         // PNG 加载失败 → 回退到 JPG
@@ -221,6 +245,55 @@
         });
 
         container.appendChild(img);
+        // 启动 24FPS 帧动画（探测 _f1.png 存在则循环播放 48 帧，否则静态）
+        startPortraitAnimation(img, baseUrl, stem);
+    }
+
+    // ── 停止立绘动画 ──
+    function stopPortraitAnim() {
+        if (portraitAnimTimer) {
+            clearInterval(portraitAnimTimer);
+            portraitAnimTimer = null;
+        }
+    }
+
+    // ── 立绘 24FPS 帧动画 ──
+    // 探测首帧 _f1.png：存在则预加载全部帧，等所有帧 settle（load/error）后，
+    // 仅循环已成功加载的帧。这样 48 帧动画全速 24FPS；仅 6 帧的旧动画也能
+    // 平滑循环（而非在第 6 帧后卡住）。无动画帧则保持静态抠图 PNG。
+    function startPortraitAnimation(img, baseUrl, stem) {
+        const firstFrameUrl = `${baseUrl}/${stem}_f1.png`;
+        const probe = new Image();
+        probe.onload = async () => {
+            let frames = portraitFrameCache[stem];
+            if (!frames) {
+                frames = [];
+                for (let i = 1; i <= ANIM_FRAME_COUNT; i++) {
+                    const f = new Image();
+                    f.src = `${baseUrl}/${stem}_f${i}.png`;
+                    frames.push(f);
+                }
+                portraitFrameCache[stem] = frames;
+            }
+            img.src = probe.src;  // 切到动画首帧
+            // 等所有帧 settle（成功加载或失败）
+            await Promise.all(frames.map(f =>
+                f.complete ? Promise.resolve() : new Promise(res => {
+                    f.addEventListener('load', res, { once: true });
+                    f.addEventListener('error', res, { once: true });
+                })
+            ));
+            // 仅循环已成功加载的帧（≥2 帧才启动动画，否则保持静态首帧）
+            const loaded = frames.filter(f => f.naturalWidth > 0);
+            if (loaded.length < 2) return;
+            let frameIdx = 0;
+            portraitAnimTimer = setInterval(() => {
+                frameIdx = (frameIdx + 1) % loaded.length;
+                img.src = loaded[frameIdx].src;
+            }, 1000 / ANIM_FPS);
+        };
+        // probe.onerror：无动画帧，保持静态抠图 PNG（img.src 已设为 pngUrl）
+        probe.src = firstFrameUrl;
     }
 
     // ── 获取角色立绘路径 ──
@@ -255,13 +328,9 @@
     // ── 对话队列结束处理 ──
     function onDialogueQueueEnd() {
         if (currentPhase === 'dialogues_before' && levelData) {
-            // Boss 战前对话结束 → 显示选择或进入游戏
-            if (levelData.choices && levelData.choices.length > 0) {
-                showChoices();
-            } else {
-                // 无选择，进入游戏
-                enterGame();
-            }
+            // Boss 战前对话结束 → 显示"进入棋局"控制面板
+            // 不直接显示 choices（choices 应在 dialogues_after 之后显示）
+            showBossBattleEntry();
             return;
         }
 
@@ -269,22 +338,27 @@
             // 普通对话结束
             if (levelData.choices && levelData.choices.length > 0) {
                 showChoices();
-            } else if (levelData.dialogues_after) {
-                // 有后置对话（Boss 战后）
-                // 先进入游戏，游戏结束后再显示
-                enterGame();
-            } else {
+            } else if (levelData.guide_whisper) {
                 // 检查是否有 guide_whisper
-                if (levelData.guide_whisper) {
-                    showWhisper(levelData.guide_whisper);
-                }
-                // 完成
+                showWhisper(levelData.guide_whisper, () => onLevelComplete());
+            } else {
                 onLevelComplete();
             }
             return;
         }
 
         if (currentPhase === 'dialogues_after') {
+            // Boss 战后对话结束 → 显示道选择（若有）或完成
+            if (levelData.choices && levelData.choices.length > 0) {
+                showChoices();
+            } else {
+                onLevelComplete();
+            }
+            return;
+        }
+
+        if (currentPhase === 'choice_response') {
+            // 选择后的响应对话结束 → 完成（不再回到 choices，避免循环）
             onLevelComplete();
             return;
         }
@@ -293,6 +367,54 @@
         if (!currentRealm) {
             markPrologueSeen();
         }
+    }
+
+    // ── Boss 战入口面板（dialogues_before 播完后显示） ──
+    function showBossBattleEntry() {
+        document.getElementById('dialogue-box').style.display = 'none';
+
+        // 移除可能已存在的旧面板
+        const oldPanel = document.getElementById('boss-entry-panel');
+        if (oldPanel) oldPanel.remove();
+
+        const panel = document.createElement('div');
+        panel.id = 'boss-entry-panel';
+        panel.className = 'choice-panel active';
+        panel.style.margin = '0 40px 20px';
+        panel.innerHTML = `
+            <div class="choice-prompt">Boss 战 · 准备就绪</div>
+            <div class="choice-options">
+                <div class="choice-option" id="boss-start-btn">
+                    <span class="choice-option-text">⚔ 进入棋局（新标签页）</span>
+                    <span class="choice-option-hint">点击开始 Boss 战</span>
+                </div>
+                <div class="choice-option" id="boss-continue-btn" style="border-left:3px solid var(--accent-gold);">
+                    <span class="choice-option-text">✓ 棋局已胜利，继续剧情</span>
+                    <span class="choice-option-hint">Boss 战胜利后点击</span>
+                </div>
+            </div>
+        `;
+        document.querySelector('.dialogue-scene').appendChild(panel);
+
+        document.getElementById('boss-start-btn').addEventListener('click', () => {
+            // 在新 tab 打开棋类游戏，保留当前 dialogue 页面以继续 dialogues_after
+            enterGame(true);
+        });
+        document.getElementById('boss-continue-btn').addEventListener('click', () => {
+            panel.remove();
+            // 切换到 dialogues_after 阶段
+            if (levelData.dialogues_after && levelData.dialogues_after.length > 0) {
+                dialogueQueue = [...levelData.dialogues_after];
+                currentPhase = 'dialogues_after';
+                dialogueIndex = 0;
+                showNextDialogue();
+            } else if (levelData.choices && levelData.choices.length > 0) {
+                // 无 dialogues_after，直接显示 choices
+                showChoices();
+            } else {
+                onLevelComplete();
+            }
+        });
     }
 
     // ── 显示选择面板 ──
@@ -363,25 +485,19 @@
             document.getElementById('choice-panel').classList.remove('active');
             choicesShown = false;
 
-            // 显示选择后的响应对话
-            if (result.response) {
-                dialogueQueue = [result.response];
-                currentPhase = 'dialogues';
-                dialogueIndex = 0;
-                showNextDialogue();
-                return;
-            }
-
             // 如果直接触发结局
             if (result.ending) {
                 window.location.href = `/ending?ending=${result.ending}`;
                 return;
             }
 
-            // 检查是否有后续对话（Boss 战后）
-            if (levelData.dialogues_after) {
-                dialogueQueue = [...levelData.dialogues_after];
-                currentPhase = 'dialogues_after';
+            // 显示选择后的响应对话（若有）。
+            // 使用 choice_response 阶段：响应对话结束后直接完成，
+            // 不再回到 choices（否则含 choices 的关卡会循环重显选择）。
+            // Boss 关卡的 dialogues_after 已在 choices 之前播放，此处不再重播。
+            if (result.response) {
+                dialogueQueue = [result.response];
+                currentPhase = 'choice_response';
                 dialogueIndex = 0;
                 showNextDialogue();
                 return;
@@ -395,28 +511,32 @@
 
     // ── 选择完成 ──
     function onChoicesComplete() {
-        if (levelData.dialogues_after) {
-            dialogueQueue = [...levelData.dialogues_after];
-            currentPhase = 'dialogues_after';
-            dialogueIndex = 0;
-            showNextDialogue();
-        } else {
-            onLevelComplete();
-        }
+        // Boss 关卡的 dialogues_after 已在 choices 之前播放，普通关卡无 dialogues_after，
+        // 因此选择完成后直接进入关卡完成流程。
+        onLevelComplete();
     }
 
     // ── 进入游戏（棋局） ──
-    function enterGame() {
+    // useNewTab=true → 在新 tab 打开（Boss 关卡用，保留当前 dialogue 页面）
+    // useNewTab=false / 默认 → 当前页面跳转（普通关卡用）
+    function enterGame(useNewTab = false) {
         if (!levelData) return;
-        const gameType = levelData.game_type || storyData?.current_realm;
-        // 跳转到对应棋类游戏
+        // game_type 优先级：levelData.game_type → realmData.game_type → currentRealm
+        const gameType = levelData.game_type || (realmData && realmData.game_type) || currentRealm;
         const gamePorts = {
             heibaiqi: 8005, tiaoqi: 8004, dongwuqi: 8003,
             xiangqi: 8000, weiqi: 8002, wuziqi: 8001,
         };
         const port = gamePorts[gameType];
-        if (port) {
-            window.location.href = `http://${window.location.hostname}:${port}/`;
+        if (!port) {
+            console.error('未知的 game_type:', gameType);
+            return;
+        }
+        const gameUrl = `http://${window.location.hostname}:${port}/`;
+        if (useNewTab) {
+            window.open(gameUrl, '_blank', 'noopener');
+        } else {
+            window.location.href = gameUrl;
         }
     }
 

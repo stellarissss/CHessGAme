@@ -67,7 +67,7 @@
     }
   },
   "level_karma": 70,
-  "last_modified": "2026-07-28T23:01:23.341718",
+  "last_modified": "2026-07-31T23:42:04.767033",
   "alignment": {
     "enlightenment": 0,
     "corruption": 0,
@@ -93,7 +93,7 @@
   "endings_unlocked": {
     "enlightenment": false,
     "corruption": false,
-    "samsara": false,
+    "samsara": true,
     "true_me": false,
     "exposed": false
   },

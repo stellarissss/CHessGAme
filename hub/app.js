@@ -448,7 +448,7 @@ async function init() {
     loadRpgOverview();
 }
 
-// ═══ RPG 总览加载（v1.3） ═══
+// ═══ RPG 总览加载 ═══
 async function loadRpgOverview() {
     try {
         const resp = await fetch("/samsara/story/api/rpg/overview");

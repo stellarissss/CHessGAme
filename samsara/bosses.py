@@ -6,12 +6,23 @@ from .state import SamsaraState
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIGS_DIR = BASE_DIR / "configs"
 BOSS_DEFINITIONS_FILE = CONFIGS_DIR / "boss_definitions.json"
+STORY_FILE = CONFIGS_DIR / "story.json"
 
 
 class BossSystem:
     def __init__(self, state: SamsaraState):
         self.state = state
         self.bosses = self._load_bosses()
+        # 守道者 name 为剧情字段，以 story.json 为权威源覆盖
+        self._overlay_story_names()
+
+    def _load_story(self) -> dict:
+        if STORY_FILE.exists():
+            try:
+                return json.loads(STORY_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {}
 
     def _load_bosses(self):
         if BOSS_DEFINITIONS_FILE.exists():
@@ -20,6 +31,18 @@ class BossSystem:
             except (json.JSONDecodeError, OSError):
                 pass
         return self._get_default_bosses()
+
+    def _overlay_story_names(self):
+        """从 story.json.realms.{realm}.guardian.name 覆盖守道者名，
+        确保剧情角色名由 story.json 统一控制（机械字段仍取 boss_definitions.json）。
+        """
+        story = self._load_story()
+        realms = story.get("realms", {})
+        for realm, boss in self.bosses.items():
+            guardian = realms.get(realm, {}).get("guardian", {})
+            gname = guardian.get("name")
+            if gname:
+                boss["name"] = gname
 
     def _get_default_bosses(self):
         return {

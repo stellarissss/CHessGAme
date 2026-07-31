@@ -1,4 +1,4 @@
-"""剧情 API 路由（v1.3）
+"""剧情 API 路由（v1.4）
 
 整合所有 RPG 系统：
 - 剧情数据（序章/六道对话/结局）
@@ -30,7 +30,7 @@ endings = EndingSystem(state)
 heaven_boss = HeavenBossSystem(state)
 detection = DetectionSystem(state)
 
-app = FastAPI(title="六道轮回 · 剧情API", version="1.3.0")
+app = FastAPI(title="六道轮回 · 剧情API", version="1.4.0")
 
 
 def _load_story() -> dict:

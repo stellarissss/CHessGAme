@@ -23,8 +23,8 @@ levels = LevelSystem(state)
 objectives = ObjectiveSystem(state)
 turn_limit = TurnLimitSystem(state)
 
-app = FastAPI(title="六道轮回 API", version="1.3.0")
-# 挂载剧情 API（v1.3 RPG 系统）
+app = FastAPI(title="六道轮回 API", version="1.4.0")
+# 挂载剧情 API（RPG 系统）
 app.mount("/story", story_app)
 
 
@@ -333,4 +333,4 @@ async def start_sandbox(request: Request):
 @app.post("/api/detection/reset")
 async def reset_on_detection():
     state.reset_on_detection()
-    return {"success": True, "message": "天道识破 · 妄改天规者，罚入轮回", "state": _frontend_state()}
+    return {"success": True, "message": detection.get_reset_message(), "state": _frontend_state()}

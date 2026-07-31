@@ -1,6 +1,11 @@
 /**
- * 天道 Boss 战前端逻辑（v1.3）
+ * 天道 Boss 战前端逻辑（v1.4）
  * 流程：检查进入条件 → 播放入场对话 → 展示规则 → 进入象棋对局
+ *
+ * 对白源从 configs/tiandao_boss.json.dialogues 迁移到
+ * configs/story.json.tiandao.boss_dialogues。后端 HeavenBossSystem
+ * 通过 dialogues_on_enter / dialogues_mid / dialogues_on_win / dialogues_on_lose
+ * 字段返回，前端直接消费这些字段（不再读 config.dialogues）。
  */
 (function() {
     'use strict';
@@ -34,9 +39,10 @@
                 document.getElementById('attempts').textContent = `已尝试 ${attempts} 次`;
             }
 
-            // 播放入场对话
-            const config = data.config || {};
-            const dialogues = (config.dialogues || {}).on_enter || [];
+            // 播放入场对话（优先使用 story.json.tiandao.boss_dialogues.on_enter）
+            const dialogues = Array.isArray(data.dialogues_on_enter)
+                ? data.dialogues_on_enter
+                : [];
             if (dialogues.length > 0) {
                 dialogueQueue = dialogues;
                 dialogueIndex = 0;

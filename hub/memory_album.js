@@ -1,5 +1,5 @@
 /**
- * 记忆相册系统（v1.3）
+ * 记忆相册系统（v1.4）
  */
 (function() {
     'use strict';
@@ -91,6 +91,20 @@
                 <div class="detail-narration">${frag.narration}</div>
                 <div class="detail-dialogues">${dialoguesHtml}</div>
             `;
+            // 顶部插入 CG 视频循环播放（若有 cg 字段）
+            if (frag.cg) {
+                const cgBase = frag.cg.replace(/\.(jpg|jpeg|png)$/i, '');
+                const video = document.createElement('video');
+                video.className = 'detail-cg-video';
+                video.src = `/shared/assets/cg/videos/${cgBase}.mp4`;
+                video.autoplay = true;
+                video.muted = true;
+                video.loop = true;
+                video.playsInline = true;
+                video.preload = 'auto';
+                content.insertBefore(video, content.firstChild);
+                video.play().catch(() => {});
+            }
             document.getElementById('detail-overlay').classList.add('active');
         } catch (e) {
             console.error('加载详情失败:', e);

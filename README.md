@@ -4,7 +4,7 @@
 
 以六种棋类为战斗场景、"AI 作弊改规"为核心玩法的 Roguelike 大游戏。玩家以自然语言驱动 AI 实时改写棋盘、棋子、规则、UI 与机制，在六道关卡中一路轮回，直到天道识破或悟道超脱。
 
-**v1.3 新增 RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
+**RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
 ---
 
@@ -77,7 +77,7 @@
 - **关卡开始**：`level_karma = max(0, 初始值 - 净身减免) + 本道溢出叠加`
 - **关卡结束**（胜负都执行）：`溢出叠加 = max(0, 关卡结束业力 - 安全阈值)`
 - **换道**：溢出叠加清零，新章节重新从初始值开始
-- **被识破**：溢出叠加清零，业力重置为初始值
+- **被识破**：业力锁死为 0、识破概率锁死为 0，进入"识破结局"分支（详见 §三/§十二）；通关六道后触发天道 Boss 战
 
 ### 退还机制
 
@@ -115,7 +115,7 @@
 ### 触发判定
 
 每次业力溢出后，系统随机 roll（0-100），若 roll < 当前识破概率则被识破：
-- **被识破**：所有非永久进度重置，但保留技能树、技能点、Boss 击败记录、已通关道、成就
+- **被识破**：业力锁死为 0、识破概率锁死为 0，保留全部进度（技能树/技能点/Boss 记录/已通关道/成就/记忆碎片/结局），进入"识破结局"分支；通关六道后强制触发天道 Boss 战
 - **金蝉脱壳**：识破后识破概率回退到触发前的 50%，免死一次
 
 ---
@@ -318,13 +318,13 @@ workspace/
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
 │   ├── achievements.html        # 成就殿堂
-│   ├── dialogue.html            # RPG 剧情对话系统（v1.3）
+│   ├── dialogue.html            # RPG 剧情对话系统
 │   ├── dialogue.js              # 打字机/立绘/选择面板逻辑
-│   ├── memory_album.html        # 记忆相册（v1.3）
+│   ├── memory_album.html        # 记忆相册
 │   ├── memory_album.js          # 记忆碎片展示逻辑
-│   ├── ending.html              # 结局展示（v1.3）
+│   ├── ending.html              # 结局展示
 │   ├── ending.js                # 结局判定与展示逻辑
-│   ├── heaven_boss.html         # 天道 Boss 战（v1.3）
+│   ├── heaven_boss.html         # 天道 Boss 战
 │   ├── heaven_boss.js           # Boss 战对话与进入逻辑
 │   ├── app.js                   # 前端逻辑（含 RPG 总览加载）
 │   └── style.css
@@ -339,14 +339,14 @@ workspace/
 │   ├── state.py                 # 轮回元状态管理（含 carryover + RPG 字段）
 │   ├── karma.py                 # 业力系统（业障模型）
 │   ├── karma_assessor.py        # samsara 端 AI 业力评估
-│   ├── detection.py             # 识破概率系统（概率判定式 v1.3）
+│   ├── detection.py             # 识破概率系统（概率判定式）
 │   ├── bosses.py                # Boss 技能系统
 │   ├── skills.py                # 技能树系统
 │   ├── progression.py           # 升降道与技能点获取
 │   ├── levels.py                # 关卡管理
 │   ├── objectives.py            # 11 种目标判定
 │   ├── turn_limit.py            # 回合限制系统
-│   ├── story_api.py             # RPG 剧情 API（v1.3 新增）
+│   ├── story_api.py             # RPG 剧情 API
 │   ├── choices.py               # 选择系统（alignment 变化）
 │   ├── memory_fragments.py      # 记忆碎片系统
 │   ├── endings.py               # 五种结局判定
@@ -354,8 +354,8 @@ workspace/
 │
 ├── configs/                     # 全局配置
 │   ├── samsara_state.json       # 轮回存档（含 RPG 字段）
-│   ├── story.json               # RPG 剧情数据（序章/六道/结局/祈求）
-│   ├── tiandao_boss.json        # 天道 Boss 战配置
+│   ├── story.json               # RPG 剧情权威源（序章/六道/结局/祈求/天道Boss对白/识破判词/资产映射）
+│   ├── tiandao_boss.json        # 天道 Boss 战机械配置（棋子/规则/AI，对白已迁至 story.json）
 │   ├── boss_definitions.json    # Boss 定义
 │   ├── skill_tree.json          # 技能树
 │   ├── karma_events.json        # 业力事件映射（各棋类消业数值）
@@ -472,9 +472,9 @@ workspace/
 
 ---
 
-## 十二、RPG 剧情系统（v1.3）
+## 十二、RPG 剧情系统
 
-v1.3 在原有棋类 Roguelike 基础上叠加了完整的剧情 RPG 层。主角**林夜**是一名作弊成性的高中生，被吸入六道轮回后，在每道的棋局中直面自己的心魔。
+在原有棋类 Roguelike 基础上叠加了完整的剧情 RPG 层。主角**林夜**是一名作弊成性的高中生，被吸入六道轮回后，在每道的棋局中直面自己的心魔。
 
 ### 剧情背景
 
@@ -562,16 +562,28 @@ v1.3 在原有棋类 Roguelike 基础上叠加了完整的剧情 RPG 层。主�
 | GET | `/api/prayer/status` | 获取祈求状态 |
 | GET | `/api/story/progress` | 获取剧情进度 |
 | POST | `/api/story/progress` | 更新剧情进度 |
-| POST | `/api/story/mark-prologue-seen` | 标记序章已观看 |
+| POST | /api/story/mark-prologue-seen | 标记序章已观看 |
+
+### 资产与前端升级
+
+> 本节记录对资产管线与前端表现的 7 项升级，均已落地到代码与资产目录。剧情权威源为 `configs/story.json`（含 `_meta`、`tiandao.boss_dialogues`、`endings[*].cg_video`、`realms[*].memory_fragment.cg_video`、`protagonist.animation`、`real_world_characters.陈默.animation` 等资产映射字段）；`configs/tiandao_boss.json` 现仅保留机械配置。
+
+1. **rembg ML 抠图（含 alpha 二值化）**：`shared/assets/cutout_rembg.py`（rembg U2Net 语义分割），替代旧 `cutout_all.py`（颜色距离算法）；`cutout_all.py` 保留作回退。`requirements.txt` 已加 `rembg>=2.0.50`。v1.5 新增 alpha 二值化（阈值 128 + 1.2px 边缘羽化）修复 rembg 软蒙版在头发/衣服/皮肤等区域半透明的问题。
+2. **类 Galgame 对话框**：`hub/dialogue.html` 内联 CSS 调整——`.dialogue-box` 背景 `rgba(20,20,30,0.25)`（75% 透明）+ `backdrop-filter: blur(8px)`、`margin: 0 40px 0`（紧贴下边沿）、`min-height: 200px`；`.character-portrait` `height: 82vh` 对齐底部；对话框 z-index:2 盖在立绘 z-index:1 之上，遮挡立绘下半身。
+3. **BGM 8 首清单**：新建 `shared/assets/audio/bgm/BGM清单.md`，共 8 首（序章 + 六道各一首 + 天道 Boss 战 1 首），文件名 `bgm_prologue/bgm_hell/bgm_hungry/bgm_animal/bgm_human/bgm_asura/bgm_heaven/bgm_tiandao_boss.mp3`。
+4. **6 张像素画 UI**：新建 `shared/assets/ui/` 目录，含 6 张 AI 生成像素画 JPG（非 SVG）：`ui_dharma_wheel.jpg`（佛法转轮）、`ui_realm_icon_sheet.jpg`（六道图标表）、`ui_particle_star.jpg`（金色星光粒子）、`ui_particle_ember.jpg`（暗红余烬粒子）、`ui_particle_black_white.jpg`（黑白粒子）、`ui_portrait_frame.jpg`（立绘边框）。
+5. **陈默形象统一**：可爱 + 温和并存，固定 CANON——齐肩黑色短发左侧别小发夹、柔和杏眼、白衬衫深蓝校服外套红色领结、胸前小棋子胸针。重新生成并抠图 9 张图：7 张陈默立绘（portrait/smile/thinking/surprised/silent/awkward/playing）+ `flipper_as_chenmo.png`（Boss 化陈默，带裂痕幻象特效）+ `cg/covers/cg_memory_hungry.jpg`（记忆 CG）。
+6. **CSS transform 立绘动画**：v1.5 起立绘动画从 6 帧 PNG 切换（12FPS，幅度大）改为 CSS @keyframes transform 驱动（`portrait-idle` 3.5s ±1.5px / `portrait-speak` 2.8s ±2px+±0.3°，60fps 无缝循环，幅度精确可控）。旧 48 帧 PNG（`{prefix}_{emotion}_f{1-6}.png`）保留但不再使用。CSS 在 `hub/dialogue.html`。
+7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
 
 ---
 
 ## 十三、更多文档
 
-- [整体设计书 v2.0](六道轮回_整体设计书_v2.0.md) — 完整设计与机制详解
-- [整体设计书 v3.0](六道轮回_整体设计书_v3.0.md) — v3.0 含 RPG 扩展
-- [RPG 化执行方案 v1.0](RPG化执行方案_v1.0.md) — RPG 开发规划
-- [剧情实现草案 v1.3](轻RPG化剧情实现草案_v1.3.md) — 完整剧情设计
+- [整体设计书 v3.1](六道轮回_整体设计书_v3.1.md) — 完整设计与机制详解（含 RPG 扩展 + 天道终战）
+- [RPG 化执行方案 v1.1](RPG化执行方案_v1.1.md) — RPG 开发规划
+- [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
+- [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
 
 ---
 

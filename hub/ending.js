@@ -1,5 +1,5 @@
 /**
- * 结局展示系统（v1.3）
+ * 结局展示系统（v1.4）
  */
 (function() {
     'use strict';
@@ -80,9 +80,17 @@
             epilogueEl.style.display = 'none';
         }
 
-        // 背景
+        // 背景（静态图作为视频缺失时的回退）
         if (ending.background) {
             document.getElementById('ending-scene').style.backgroundImage = `url(/shared/assets/backgrounds/${ending.background})`;
+        }
+        // CG 视频循环播放（优先）；无视频时回退到静态 CG 图
+        const video = document.getElementById('ending-cg-video');
+        if (ending.cg) {
+            const cgBase = ending.cg.replace(/\.(jpg|jpeg|png)$/i, '');
+            const videoSrc = `/shared/assets/cg/videos/${cgBase}.mp4`;
+            video.src = videoSrc;
+            video.play().catch(() => {});
         }
     }
 

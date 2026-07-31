@@ -54,7 +54,7 @@ class SamsaraState:
             "sandbox_mode": False,
             "realm_progress": {r: {"completed": False, "levels_passed": 0, "no_cheat_full_clear": False} for r in REALMS},
             "level_karma": 50,
-            # ── RPG 字段（v1.3 新增） ──
+            # ── RPG 字段 ──
             "alignment": {
                 "enlightenment": 0,   # 悟道值
                 "corruption": 0,      # 堕落值
@@ -412,7 +412,7 @@ class SamsaraState:
         return allowed
 
     def reset_on_detection(self):
-        """v1.3：被识破后不再重置进度，而是标记被识破状态。
+        """被识破后不再重置进度，而是标记被识破状态。
         识破概率锁死在0，通关六道后触发天道Boss战。
         """
         self._data["detection_state"] = {
@@ -426,7 +426,7 @@ class SamsaraState:
         self._save()
 
     # ══════════════════════════════════════════════════════════════
-    # RPG 字段访问方法（v1.3 新增）
+    # RPG 字段访问方法
     # ══════════════════════════════════════════════════════════════
 
     def get_alignment(self) -> dict:

@@ -1,4 +1,4 @@
-"""识破系统（v1.3 概率判定式）
+"""识破系统（v1.4 概率判定式）
 
 机制说明：
 - 识破概率是一个概率值（0-100），随业障溢出累积上升
@@ -6,14 +6,46 @@
     random() * 100 < current_detection  →  命中即被识破
 - 被识破后：识破概率锁死为 0，通关六道后触发天道 Boss 战
 - 锁死为 0 时，永不命中（但识破结局路径已确定）
+
+识破判词文本从 configs/story.json.detection 读取（judgment_text /
+reset_message），确保剧情文案由 story.json 统一控制。
 """
+import json
 import random
+from pathlib import Path
 from .state import SamsaraState
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+STORY_FILE = BASE_DIR / "configs" / "story.json"
+
+_DEFAULT_JUDGMENT_TEXT = "天道识破 · 你不是渴求胜利的战士，是作弊成性的怪物。"
+_DEFAULT_RESET_MESSAGE = "天道识破 · 妄改天规者，罚入轮回"
 
 
 class DetectionSystem:
     def __init__(self, state: SamsaraState):
         self.state = state
+        self._story = self._load_story()
+
+    def _load_story(self) -> dict:
+        if STORY_FILE.exists():
+            try:
+                return json.loads(STORY_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {}
+
+    def get_judgment_text(self) -> str:
+        """识破命中时的判词（从 story.json.detection.judgment_text 读取）"""
+        return self._story.get("detection", {}).get(
+            "judgment_text", _DEFAULT_JUDGMENT_TEXT
+        )
+
+    def get_reset_message(self) -> str:
+        """/api/detection/reset 返回的判词（从 story.json.detection.reset_message 读取）"""
+        return self._story.get("detection", {}).get(
+            "reset_message", _DEFAULT_RESET_MESSAGE
+        )
 
     # ── 概率累积（业障溢出 → 识破概率上升） ──
 
@@ -73,7 +105,7 @@ class DetectionSystem:
                 "detected": True,
                 "current": 0.0,
                 "locked": True,
-                "message": "天道识破 · 你不是渴求胜利的战士，是作弊成性的怪物。",
+                "message": self.get_judgment_text(),
                 "prayer_count": self.state.get_prayer_count(),
                 "trigger_boss_on_complete": True,
             }
@@ -89,7 +121,7 @@ class DetectionSystem:
 
     def handle_overdraft(self, overdraft_amount: float) -> dict:
         """业障溢出时累积识破概率。
-        v1.3：不再在溢出时直接判定识破，改为累积概率。
+        不在溢出时直接判定识破，改为累积概率。
         实际判定在 check_on_prayer() 中进行（每次 AI 修改后）。
         但仍保留概率即时判定入口，以兼容旧调用链。
         """
@@ -126,7 +158,7 @@ class DetectionSystem:
         self.state.record_overdraft()
         current = self.state.get_detection()
 
-        # v1.3：溢出时也做一次概率判定（兼容旧链路）
+        # 溢出时也做一次概率判定（兼容旧链路）
         detected = self.check(current)
 
         if detected:
@@ -148,7 +180,7 @@ class DetectionSystem:
                     "delta": delta,
                     "current": 0.0,
                     "locked": True,
-                    "message": "天道识破 · 你不是渴求胜利的战士，是作弊成性的怪物。",
+                    "message": self.get_judgment_text(),
                     "trigger_boss_on_complete": True,
                 }
 

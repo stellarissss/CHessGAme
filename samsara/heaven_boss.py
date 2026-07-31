@@ -1,4 +1,4 @@
-"""天道 Boss 战模块（v1.3）
+"""天道 Boss 战模块（v1.4）
 
 隐藏 Boss 战：玩家通关六道后，若使用过真心祈求，进入与天道的象棋对决。
 - 棋类：传统象棋，正常规则
@@ -7,6 +7,11 @@
 - 难度：nightmare（搜索深度 6）
 - 胜利 → 触发识破结局
 - 失败 → 无限重试
+
+对白从 configs/tiandao_boss.json 迁移到 configs/story.json 的
+tiandao.boss_dialogues 字段。本模块现在同时读取两源——
+机械配置（棋子/规则/AI）从 tiandao_boss.json，对白从 story.json。
+资产字段（bgm/background）优先用 story.json.tiandao.boss_battle，回退 tiandao_boss.json。
 """
 import json
 from pathlib import Path
@@ -14,12 +19,15 @@ from .state import SamsaraState
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 BOSS_CONFIG_FILE = BASE_DIR / "configs" / "tiandao_boss.json"
+STORY_FILE = BASE_DIR / "configs" / "story.json"
 
 
 class HeavenBossSystem:
     def __init__(self, state: SamsaraState):
         self.state = state
-        self._config = self._load_config()
+        self._config = self._load_config()           # 机械配置（tiandao_boss.json）
+        self._story = self._load_story()              # 剧情数据（story.json）
+        self._tiandao = self._story.get("tiandao", {}) if self._story else {}
 
     def _load_config(self) -> dict:
         if BOSS_CONFIG_FILE.exists():
@@ -28,6 +36,22 @@ class HeavenBossSystem:
             except (json.JSONDecodeError, OSError):
                 pass
         return {}
+
+    def _load_story(self) -> dict:
+        if STORY_FILE.exists():
+            try:
+                return json.loads(STORY_FILE.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return {}
+
+    def _get_dialogues(self, key: str) -> list:
+        """从 story.json.tiandao.boss_dialogues 读取对白，回退到旧 tiandao_boss.json.dialogues"""
+        story_dlg = self._tiandao.get("boss_dialogues", {}).get(key, [])
+        if story_dlg:
+            return story_dlg
+        # 兼容回退：旧机械配置中残留的 dialogues 块
+        return self._config.get("dialogues", {}).get(key, [])
 
     def get_config(self) -> dict:
         return self._config
@@ -74,8 +98,8 @@ class HeavenBossSystem:
         return {
             "success": True,
             "config": self._config,
-            "dialogues_on_enter": self._config.get("dialogues", {}).get("on_enter", []),
-            "dialogues_mid": self._config.get("dialogues", {}).get("mid_battle", []),
+            "dialogues_on_enter": self._get_dialogues("on_enter"),
+            "dialogues_mid": self._get_dialogues("mid_battle"),
             "attempt_count": self.state.get_tiandao_boss_state().get("attempt_count", 1),
         }
 
@@ -97,12 +121,13 @@ class HeavenBossSystem:
             defeated=True,
             current_battle_active=False,
         )
+        boss_battle = self._tiandao.get("boss_battle", {})
         return {
             "success": True,
             "defeated": True,
-            "on_win_action": self._config.get("on_win", "trigger_ending_exposed"),
-            "dialogues_on_win": self._config.get("dialogues", {}).get("on_win", []),
-            "next": "ending_exposed",
+            "on_win_action": "trigger_ending_exposed",
+            "dialogues_on_win": self._get_dialogues("on_win"),
+            "next": boss_battle.get("victory_triggers_ending", "exposed"),
             "message": "天道Boss战胜利 → 触发识破结局",
         }
 
@@ -112,12 +137,13 @@ class HeavenBossSystem:
         self.state.update_tiandao_boss_state(
             current_battle_active=False,
         )
+        boss_battle = self._tiandao.get("boss_battle", {})
         return {
             "success": True,
             "defeated": False,
-            "on_lose_action": self._config.get("on_lose", "retry"),
-            "retry_limit": self._config.get("retry_limit", -1),
-            "dialogues_on_lose": self._config.get("dialogues", {}).get("on_lose", []),
+            "on_lose_action": boss_battle.get("on_lose_action", "retry"),
+            "retry_limit": boss_battle.get("retry_limit", -1),
+            "dialogues_on_lose": self._get_dialogues("on_lose"),
             "attempt_count": boss.get("attempt_count", 0),
             "can_retry": True,
             "message": "天道Boss战失败 → 无限重试",
@@ -134,16 +160,20 @@ class HeavenBossSystem:
         }
 
     def get_boss_info(self) -> dict:
-        """返回 Boss 基础信息（供前端展示）"""
+        """返回 Boss 基础信息（供前端展示）。
+
+        字段优先从 story.json.tiandao（含 boss_battle）取，回退到 tiandao_boss.json 机械配置。
+        """
+        boss_battle = self._tiandao.get("boss_battle", {})
         return {
-            "boss_id": self._config.get("boss_id", "tiandao"),
-            "boss_name": self._config.get("boss_name", "天道"),
-            "chess_type": self._config.get("chess_type", "xiangqi"),
-            "description": self._config.get("description", ""),
+            "boss_id": self._tiandao.get("id", self._config.get("boss_id", "tiandao")),
+            "boss_name": self._tiandao.get("name", self._config.get("boss_name", "天道")),
+            "chess_type": boss_battle.get("chess_type", self._config.get("chess_type", "xiangqi")),
+            "description": self._tiandao.get("description", self._config.get("description", "")),
             "difficulty": self._config.get("ai_config", {}).get("difficulty", "nightmare"),
-            "bgm": self._config.get("bgm", ""),
-            "background": self._config.get("background", ""),
-            "background_vortex": self._config.get("background_vortex", ""),
+            "bgm": boss_battle.get("bgm", self._config.get("bgm", "")),
+            "background": boss_battle.get("background", self._config.get("background", "")),
+            "background_vortex": boss_battle.get("background_vortex", self._config.get("background_vortex", "")),
             "victory_condition": self._config.get("victory_condition", {}),
             "defeat_condition": self._config.get("defeat_condition", {}),
             "note": self._config.get("initial_board", {}).get("note", ""),

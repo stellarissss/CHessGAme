@@ -292,7 +292,7 @@ def build_hub_app():
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
 
-    app = FastAPI(title="棋圣 · 六道众生", version="1.0.0")
+    app = FastAPI(title="棋圣 · 六道众生", version="1.4.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -337,7 +337,7 @@ def build_hub_app():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>成就殿堂未找到</h1>", status_code=404)
 
-    # ── RPG 页面路由（v1.3） ──
+    # ── RPG 页面路由 ──
     @app.get("/dialogue")
     async def dialogue_page():
         html_path = HUB_DIR / "dialogue.html"
