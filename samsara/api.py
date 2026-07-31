@@ -10,6 +10,7 @@ from .progression import ProgressionSystem
 from .levels import LevelSystem
 from .objectives import ObjectiveSystem
 from .turn_limit import TurnLimitSystem
+from .story_api import app as story_app
 
 state = SamsaraState()
 karma = KarmaSystem(state)
@@ -22,7 +23,9 @@ levels = LevelSystem(state)
 objectives = ObjectiveSystem(state)
 turn_limit = TurnLimitSystem(state)
 
-app = FastAPI(title="六道轮回 API", version="1.0.0")
+app = FastAPI(title="六道轮回 API", version="1.3.0")
+# 挂载剧情 API（v1.3 RPG 系统）
+app.mount("/story", story_app)
 
 
 def _frontend_state() -> dict:

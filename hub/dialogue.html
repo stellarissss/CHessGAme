@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>剧情对话 · 六道轮回</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --bg-card: rgba(20, 20, 30, 0.85);
+            --text-main: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent-gold: #d4af37;
+            --accent-blue: #4a90d9;
+            --accent-red: #c0392b;
+        }
+        body.dialogue-body {
+            margin: 0;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Noto Serif SC', serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+        .dialogue-scene {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            background-size: cover;
+            background-position: center;
+            transition: background-image 1.5s ease;
+        }
+        .dialogue-scene::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(10,10,15,0.4) 0%, rgba(10,10,15,0.1) 40%, rgba(10,10,15,0.9) 100%);
+            pointer-events: none;
+        }
+        .dialogue-characters {
+            position: absolute;
+            inset: 0 0 0 0;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 20px;
+            padding: 0 40px 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+        .character-portrait {
+            height: 78vh;
+            max-height: 820px;
+            width: auto;
+            max-width: 46vw;
+            object-fit: contain;
+            object-position: bottom center;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            filter: drop-shadow(0 8px 28px rgba(0,0,0,0.75));
+            transition: filter 0.4s ease, transform 0.4s ease, opacity 0.4s ease;
+            opacity: 0.7;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+        .character-portrait.speaking {
+            opacity: 1;
+            filter: drop-shadow(0 0 36px rgba(212,175,55,0.45)) drop-shadow(0 8px 28px rgba(0,0,0,0.75));
+        }
+        .character-portrait.narrator {
+            display: none;
+        }
+        @media (max-width: 900px) {
+            .character-portrait {
+                height: 62vh;
+                max-width: 80vw;
+            }
+        }
+        .dialogue-box {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212,175,55,0.2);
+            border-radius: 12px;
+            padding: 24px 32px;
+            margin: 0 40px 20px;
+            min-height: 160px;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+        }
+        .speaker-name {
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 22px;
+            color: var(--accent-gold);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .speaker-name .narrator-tag {
+            font-size: 14px;
+            color: var(--text-dim);
+            font-family: 'Noto Serif SC', serif;
+        }
+        .dialogue-text {
+            font-size: 18px;
+            line-height: 1.8;
+            color: var(--text-main);
+            min-height: 60px;
+        }
+        .dialogue-text .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 18px;
+            background: var(--accent-gold);
+            margin-left: 2px;
+            animation: blink 0.8s infinite;
+        }
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        .dialogue-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+        }
+        .dialogue-hint {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+        .dialogue-next-btn {
+            background: transparent;
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            padding: 6px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .dialogue-next-btn:hover {
+            background: var(--accent-gold);
+            color: var(--bg-dark);
+        }
+        .dialogue-next-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .choice-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(212,175,55,0.3);
+            border-radius: 12px;
+            padding: 20px 32px;
+            margin: 0 40px 20px;
+            position: relative;
+            z-index: 2;
+            display: none;
+        }
+        .choice-panel.active {
+            display: block;
+            animation: slideUp 0.4s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .choice-prompt {
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 18px;
+            color: var(--accent-gold);
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .choice-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .choice-option {
+            background: rgba(30, 30, 45, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 14px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .choice-option:hover {
+            border-color: var(--accent-gold);
+            background: rgba(212,175,55,0.1);
+            transform: translateX(4px);
+        }
+        .choice-option-text {
+            font-size: 16px;
+            flex: 1;
+        }
+        .choice-option-hint {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-left: 12px;
+        }
+        .choice-option.enlightenment { border-left: 3px solid var(--accent-blue); }
+        .choice-option.corruption { border-left: 3px solid var(--accent-red); }
+        .choice-option.rationality { border-left: 3px solid #9b59b6; }
+        .choice-option.emotion { border-left: 3px solid #e67e22; }
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            background: linear-gradient(to bottom, rgba(10,10,15,0.8), transparent);
+        }
+        .back-btn {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: color 0.2s;
+        }
+        .back-btn:hover { color: var(--accent-gold); }
+        .realm-indicator {
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 20px;
+            color: var(--accent-gold);
+        }
+        .level-title {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+        .exposure-warning {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(192, 57, 43, 0.9);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            font-size: 22px;
+            text-align: center;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 0 50px rgba(192,57,43,0.6);
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        .exposure-warning.show {
+            display: block;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 50px rgba(192,57,43,0.6); }
+            50% { box-shadow: 0 0 80px rgba(192,57,43,0.9); }
+        }
+        .prayer-overlay {
+            position: fixed;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(212,175,55,0.15) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        .prayer-overlay.active { opacity: 1; }
+        .whisper-text {
+            position: fixed;
+            bottom: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--accent-gold);
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 28px;
+            opacity: 0;
+            transition: opacity 1s;
+            z-index: 6;
+            text-shadow: 0 0 20px rgba(212,175,55,0.5);
+        }
+        .whisper-text.show { opacity: 0.8; }
+    </style>
+</head>
+<body class="dialogue-body">
+    <div class="top-bar">
+        <a href="/hub" class="back-btn">← 返回总坛</a>
+        <div>
+            <span class="realm-indicator" id="realm-name">加载中</span>
+            <span class="level-title" id="level-title"></span>
+        </div>
+    </div>
+
+    <div class="dialogue-scene" id="dialogue-scene">
+        <div class="prayer-overlay" id="prayer-overlay"></div>
+        <div class="dialogue-characters" id="dialogue-characters"></div>
+        <div class="dialogue-box" id="dialogue-box" style="display:none;">
+            <div class="speaker-name" id="speaker-name"></div>
+            <div class="dialogue-text" id="dialogue-text"></div>
+            <div class="dialogue-controls">
+                <span class="dialogue-hint" id="dialogue-hint">点击或空格继续</span>
+                <button class="dialogue-next-btn" id="dialogue-next-btn">继续 ▶</button>
+            </div>
+        </div>
+        <div class="choice-panel" id="choice-panel">
+            <div class="choice-prompt" id="choice-prompt"></div>
+            <div class="choice-options" id="choice-options"></div>
+        </div>
+    </div>
+
+    <div class="exposure-warning" id="exposure-warning">
+        <div>天道识破</div>
+        <div style="font-size:16px; margin-top:10px; opacity:0.9;" id="exposure-message"></div>
+    </div>
+
+    <div class="whisper-text" id="whisper-text"></div>
+
+    <script src="/static/dialogue.js"></script>
+</body>
+</html>

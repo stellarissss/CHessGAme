@@ -33,7 +33,7 @@ class SamsaraState:
 
     def _init_defaults(self):
         defaults = {
-            "version": 2,
+            "version": 3,
             "current_realm": "hell",
             "current_level": 0,
             "skill_points": 0,
@@ -52,8 +52,43 @@ class SamsaraState:
             "bosses_defeated": [],
             "sandbox_unlocked": [],
             "sandbox_mode": False,
-            "realm_progress": {r: {"completed": False, "levels_passed": 0} for r in REALMS},
+            "realm_progress": {r: {"completed": False, "levels_passed": 0, "no_cheat_full_clear": False} for r in REALMS},
             "level_karma": 50,
+            # ── RPG 字段（v1.3 新增） ──
+            "alignment": {
+                "enlightenment": 0,   # 悟道值
+                "corruption": 0,      # 堕落值
+                "rationality": 0,     # 理性值（人道独立累计）
+                "emotion": 0,         # 情感值（人道独立累计）
+            },
+            "detection_state": {
+                "is_detected": False,             # 是否被天道识破
+                "detection_locked": False,        # 识破概率是否锁死为0
+                "trigger_boss_on_complete": False,# 通关六道后是否触发天道Boss战
+                "exposure_path_triggered": False, # 是否已进入识破结局路径
+            },
+            "memory_fragments_unlocked": {
+                "hell": False, "hungry": False, "animal": False,
+                "human": False, "asura": False, "heaven": False,
+            },
+            "choices_made": [],                  # 玩家选择历史
+            "prayer_count": 0,                   # 真心祈求次数（使用AI修改次数）
+            "endings_unlocked": {
+                "enlightenment": False, "corruption": False, "samsara": False,
+                "true_me": False, "exposed": False,
+            },
+            "tiandao_boss_state": {
+                "defeated": False,        # 是否击败天道
+                "attempt_count": 0,       # 尝试次数
+                "current_battle_active": False,  # 当前是否正在Boss战中
+            },
+            "story_progress": {
+                "prologue_seen": False,
+                "current_dialogue_realm": None,
+                "current_dialogue_level": None,
+                "last_choice_made": None,
+            },
+            "playthrough_count": 1,
             "last_modified": datetime.now().isoformat(),
         }
         for k, v in defaults.items():
@@ -72,6 +107,15 @@ class SamsaraState:
         if self._data.get("version", 1) < 2:
             self._data["version"] = 2
             self._data["level_karma"] = self._data["initial_karma"]
+        # 迁移：v2→v3 RPG 字段
+        if self._data.get("version", 1) < 3:
+            self._data["version"] = 3
+        # 补齐 realm_progress 子字段（向后兼容）
+        for r in REALMS:
+            rp = self._data["realm_progress"].get(r, {})
+            if "no_cheat_full_clear" not in rp:
+                rp["no_cheat_full_clear"] = False
+            self._data["realm_progress"][r] = rp
 
         if not self._data["skills"]:
             self._data["skills"] = {
@@ -368,37 +412,159 @@ class SamsaraState:
         return allowed
 
     def reset_on_detection(self):
-        """被识破后重置所有进度，但保留技能树、技能点、Boss记录、已通关道标记、成就"""
-        preserved_skills = self._data.get("skills", {})
-        preserved_skill_points = self._data.get("skill_points", 0)
-        preserved_bosses = self._data.get("bosses_defeated", [])
-        preserved_sandbox = self._data.get("sandbox_unlocked", [])
-        preserved_realm_progress = self._data.get("realm_progress", {})
-        for r in REALMS:
-            if not preserved_realm_progress.get(r, {}).get("completed", False):
-                preserved_realm_progress[r] = {"completed": False, "levels_passed": 0}
-        self._data = {
-            "version": self._data.get("version", 1),
-            "current_realm": "hell",
-            "current_level": 0,
-            "skill_points": preserved_skill_points,
-            "karma_max": self._data.get("karma_max", 120),
-            "karma_single_max": self._data.get("karma_single_max", 120),
-            "initial_karma": self._data.get("initial_karma", 50),
-            "realm_overshoot_carryover": 0,
-            "realm_detections": {r: 0.0 for r in REALMS},
-            "skills": preserved_skills,
-            "current_turn": 0,
-            "turn_limit": 20,
-            "cheat_count": 0,
-            "overdraft_count": 0,
-            "no_cheat_this_level": True,
-            "total_levels_completed": self._data.get("total_levels_completed", 0),
-            "bosses_defeated": preserved_bosses,
-            "sandbox_unlocked": preserved_sandbox,
-            "sandbox_mode": False,
-            "realm_progress": preserved_realm_progress,
-            "level_karma": self._data.get("initial_karma", 50),
-            "last_modified": datetime.now().isoformat(),
+        """v1.3：被识破后不再重置进度，而是标记被识破状态。
+        识破概率锁死在0，通关六道后触发天道Boss战。
+        """
+        self._data["detection_state"] = {
+            "is_detected": True,
+            "detection_locked": True,
+            "trigger_boss_on_complete": True,
+            "exposure_path_triggered": True,
         }
+        for r in REALMS:
+            self._data["realm_detections"][r] = 0.0
+        self._save()
+
+    # ══════════════════════════════════════════════════════════════
+    # RPG 字段访问方法（v1.3 新增）
+    # ══════════════════════════════════════════════════════════════
+
+    def get_alignment(self) -> dict:
+        return self._data.setdefault("alignment", {
+            "enlightenment": 0, "corruption": 0, "rationality": 0, "emotion": 0,
+        })
+
+    def add_alignment(self, effect: dict):
+        """根据 effect dict 调整 alignment。
+        支持 key: enlightenment/corruption/rationality/emotion/karma_delta
+        """
+        align = self.get_alignment()
+        for key in ("enlightenment", "corruption", "rationality", "emotion"):
+            if key in effect:
+                align[key] = align.get(key, 0) + effect[key]
+        # karma_delta 影响单局业力（人道第3关情感选择会增加业力）
+        if "karma_delta" in effect and effect["karma_delta"]:
+            self.increase_karma(effect["karma_delta"])
+        self._save()
+
+    def get_detection_state(self) -> dict:
+        return self._data.setdefault("detection_state", {
+            "is_detected": False,
+            "detection_locked": False,
+            "trigger_boss_on_complete": False,
+            "exposure_path_triggered": False,
+        })
+
+    def is_detection_locked(self) -> bool:
+        return self.get_detection_state().get("detection_locked", False)
+
+    def is_exposure_path_triggered(self) -> bool:
+        return self.get_detection_state().get("exposure_path_triggered", False)
+
+    def get_memory_fragments_unlocked(self) -> dict:
+        return self._data.setdefault("memory_fragments_unlocked", {
+            r: False for r in REALMS
+        })
+
+    def unlock_memory_fragment(self, realm: str) -> bool:
+        frags = self.get_memory_fragments_unlocked()
+        if realm not in frags:
+            return False
+        if frags[realm]:
+            return False  # 已解锁
+        frags[realm] = True
+        self._save()
+        return True
+
+    def get_choices_made(self) -> list:
+        return self._data.setdefault("choices_made", [])
+
+    def record_choice(self, choice_record: dict):
+        self._data.setdefault("choices_made", []).append({
+            "timestamp": datetime.now().isoformat(),
+            **choice_record,
+        })
+        self._save()
+
+    def get_prayer_count(self) -> int:
+        return self._data.get("prayer_count", 0)
+
+    def increment_prayer(self) -> int:
+        self._data["prayer_count"] = self._data.get("prayer_count", 0) + 1
+        # 一旦祈求过，标记识破路径（即使概率锁死0，结局路径已确定）
+        ds = self.get_detection_state()
+        if not ds.get("exposure_path_triggered"):
+            ds["exposure_path_triggered"] = True
+            ds["trigger_boss_on_complete"] = True
+        self._save()
+        return self._data["prayer_count"]
+
+    def get_endings_unlocked(self) -> dict:
+        return self._data.setdefault("endings_unlocked", {
+            "enlightenment": False, "corruption": False, "samsara": False,
+            "true_me": False, "exposed": False,
+        })
+
+    def unlock_ending(self, ending_id: str) -> bool:
+        endings = self.get_endings_unlocked()
+        if ending_id not in endings:
+            return False
+        if endings[ending_id]:
+            return False
+        endings[ending_id] = True
+        self._save()
+        return True
+
+    def get_tiandao_boss_state(self) -> dict:
+        return self._data.setdefault("tiandao_boss_state", {
+            "defeated": False, "attempt_count": 0, "current_battle_active": False,
+        })
+
+    def update_tiandao_boss_state(self, **kwargs):
+        s = self.get_tiandao_boss_state()
+        s.update(kwargs)
+        self._save()
+
+    def get_story_progress(self) -> dict:
+        return self._data.setdefault("story_progress", {
+            "prologue_seen": False,
+            "current_dialogue_realm": None,
+            "current_dialogue_level": None,
+            "last_choice_made": None,
+        })
+
+    def update_story_progress(self, **kwargs):
+        p = self.get_story_progress()
+        p.update(kwargs)
+        self._save()
+
+    def mark_realm_no_cheat_clear(self, realm: str):
+        """标记某道全程无作弊通关（用于记忆碎片解锁条件）"""
+        rp = self._data["realm_progress"].get(realm, {})
+        rp["no_cheat_full_clear"] = True
+        self._data["realm_progress"][realm] = rp
+        self._save()
+
+    def is_realm_no_cheat_clear(self, realm: str) -> bool:
+        return self._data["realm_progress"].get(realm, {}).get("no_cheat_full_clear", False)
+
+    def all_realms_completed(self) -> bool:
+        """六道是否全部通关"""
+        return all(
+            self._data["realm_progress"].get(r, {}).get("completed", False)
+            for r in REALMS
+        )
+
+    def all_memory_fragments_collected(self) -> bool:
+        frags = self.get_memory_fragments_unlocked()
+        return all(frags.get(r, False) for r in REALMS)
+
+    def check_exposure_path(self) -> bool:
+        """检查是否应该触发识破路径（六道通关 + 祈求≥1次）"""
+        if not self.all_realms_completed():
+            return False
+        return self.get_prayer_count() >= 1
+
+    def increment_playthrough(self):
+        self._data["playthrough_count"] = self._data.get("playthrough_count", 1) + 1
         self._save()

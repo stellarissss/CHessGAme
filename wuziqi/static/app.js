@@ -2986,7 +2986,6 @@ export class WuziqiBoard extends HTMLElement {
         this.configs = await resp.json();
         this.boardState = this.configs.board_state;
         this.uiConfig = this.configs.ui_config;
-        console.log('[DEBUG] loadConfigs - board.appearance:', this.configs.board?.appearance);
 
         if (window.AchievementChecker) {
             AchievementChecker.checkAfterConfigLoad(this.configs, this.boardState, 'wuziqi');
@@ -3026,7 +3025,6 @@ export class WuziqiBoard extends HTMLElement {
         };
 
         const user = this.configs.board?.appearance || {};
-        console.log('[DEBUG] _getBoardLayoutConfig - user.appearance:', user);
 
         const merge = (def, usr) => {
             if (!usr || typeof usr !== 'object') return def;
@@ -3067,7 +3065,6 @@ export class WuziqiBoard extends HTMLElement {
         const height = geometry.height || 15;
 
         const bgColor = layoutConfig.appearance.background_color;
-        console.log('[DEBUG] renderBoard - background_color:', bgColor, 'from layoutConfig:', layoutConfig.appearance);
         container.style.backgroundColor = bgColor;
         this.style.setProperty('--board-bg', bgColor);
 
@@ -3685,7 +3682,6 @@ export class WuziqiBoard extends HTMLElement {
                     }
 
                     const gameStatus = this.boardState?.game_status;
-                    console.log('[DEBUG] sendCommand - game_status:', gameStatus);
                     if (gameStatus && gameStatus.state === 'ended') {
                         this._gameOverTimer = setTimeout(() => this.showGameOver(), 100);
                     }

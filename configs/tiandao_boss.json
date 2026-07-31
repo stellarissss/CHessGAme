@@ -1,0 +1,109 @@
+{
+  "version": "1.0",
+  "boss_id": "tiandao",
+  "boss_name": "天道",
+  "chess_type": "xiangqi",
+  "description": "六道轮回的最终审判者。玩家通关六道后，若使用过真心祈求，将进入此 Boss 战。",
+  "rules": {
+    "standard_xiangqi": true,
+    "custom_rules": [],
+    "cheat_enabled": false,
+    "input_box_state": "locked",
+    "input_box_visual": "red_cross",
+    "exposure_probability": 0,
+    "turn_limit": 0
+  },
+  "ai_config": {
+    "difficulty": "nightmare",
+    "search_depth": 6,
+    "use_alpha_beta": true,
+    "evaluation_weight": {
+      "material": 1.5,
+      "position": 1.2,
+      "king_safety": 1.0,
+      "mobility": 0.8
+    }
+  },
+  "pieces": {
+    "black": {
+      "general": 1,
+      "advisor": 0,
+      "elephant": 2,
+      "horse": 2,
+      "chariot": 4,
+      "cannon": 2,
+      "soldier": 5
+    },
+    "red": {
+      "general": 1,
+      "advisor": 2,
+      "elephant": 2,
+      "horse": 2,
+      "chariot": 2,
+      "cannon": 2,
+      "soldier": 5
+    }
+  },
+  "initial_board": {
+    "black_back_row": ["chariot", "horse", "elephant", "chariot", "general", "chariot", "elephant", "horse", "chariot"],
+    "red_back_row": ["chariot", "horse", "elephant", "advisor", "general", "advisor", "elephant", "horse", "chariot"],
+    "note": "天道无士，士位被车占据；玩家方为标准布局。天道总棋子数比标准多2车。"
+  },
+  "victory_condition": {
+    "type": "checkmate",
+    "target": "black_general"
+  },
+  "defeat_condition": {
+    "type": "checkmate",
+    "target": "red_general"
+  },
+  "on_win": "trigger_ending_exposed",
+  "on_lose": "retry",
+  "retry_limit": -1,
+  "bgm": "bgm_tiandao_boss.mp3",
+  "background": "bg_tiandao_court.jpg",
+  "background_vortex": "bg_tiandao_vortex.jpg",
+  "dialogues": {
+    "on_enter": [
+      {"speaker": "narrator", "portrait": null, "text": "六道通关。禅定者消散。林夜以为要回去了——"},
+      {"speaker": "林夜", "portrait": "boy_happy.jpg", "text": "……结束了。六道……结束了。"},
+      {"speaker": "narrator", "portrait": null, "text": "天空突然变暗。星光熄灭。一个巨大的、没有面孔的身影，从星空深处缓缓升起。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "结束了？"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "不。刚刚开始。"},
+      {"speaker": "林夜", "portrait": "boy_surprised.jpg", "text": "你……你是谁？！"},
+      {"speaker": "天道", "portrait": "tiandao_whisper.jpg", "text": "我是天道。你祈求的人。"},
+      {"speaker": "林夜", "portrait": "boy_surprised.jpg", "text": "祈求……你说祈求……"},
+      {"speaker": "天道", "portrait": "tiandao_whisper.jpg", "text": "你每次走投无路，就求我。求我改棋盘。求我让你赢。我每一次都应了。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "现在，该算账了。"},
+      {"speaker": "narrator", "portrait": null, "text": "棋盘从虚空中浮起，铺满整个地面。红方在下，黑方在上。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "来吧。最后一局。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "规则，是正常的象棋。你走先。"},
+      {"speaker": "narrator", "portrait": null, "text": "林夜试图输入作弊指令——输入框上出现一个红色的大叉，无法输入。"},
+      {"speaker": "林夜", "portrait": "boy_surprised.jpg", "text": "等等……我……我改不了了？！"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "在我面前，没有'改'。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "只有下棋。或者输。"}
+    ],
+    "mid_battle": [
+      {"speaker": "narrator", "portrait": null, "text": "天道落下一子——是一颗'车'。林夜注意到天道没有'士'。"},
+      {"speaker": "林夜", "portrait": "boy_thinking.jpg", "text": "……它没有士。但是……士的位置，全是车。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "看出来了？"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "我不需要防守。我就是规则。规则不需要被保护。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "你呢？你能不靠祈求，下完这局吗？"},
+      {"speaker": "林夜", "portrait": "boy_determined.jpg", "text": "……我能。"}
+    ],
+    "on_win": [
+      {"speaker": "narrator", "portrait": null, "text": "黑将倒下。林夜喘着粗气。"},
+      {"speaker": "林夜", "portrait": "boy_determined.jpg", "text": "我……我赢了……"},
+      {"speaker": "narrator", "portrait": null, "text": "天道没有消散。它换了个表情——如果无面的它有表情的话。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "……有意思。"}
+    ],
+    "on_lose": [
+      {"speaker": "narrator", "portrait": null, "text": "红将被吃。棋盘碎裂。林夜跪倒。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "不够。"},
+      {"speaker": "天道", "portrait": "tiandao_judge.jpg", "text": "再来。"},
+      {"speaker": "narrator", "portrait": null, "text": "棋盘重新摆好。一切重来。"},
+      {"speaker": "林夜", "portrait": "boy_determined.jpg", "text": "……再来就再来……"},
+      {"speaker": "林夜", "portrait": "boy_thinking.jpg", "text": "内心：……我赢不了。它太多车了。但是……我没有别的路了。"}
+    ]
+  }
+}

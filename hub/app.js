@@ -22,6 +22,9 @@ const REALM_NAMES = {
     heaven: "天道",
 };
 
+// 防泄漏：模块级定时器ID，render() 中复用
+let _statusIntervalId = null;
+
 const DEFAULT_GAMES = [
     {
         id: "xiangqi",
@@ -130,23 +133,26 @@ function render(games) {
 
     loadRealmProgress(games);
     updateStatuses(games);
-    setInterval(() => updateStatuses(games), 6000);
+    // 防泄漏：清理旧定时器后再启动新的（避免 render 重复调用导致多定时器叠加）
+    if (_statusIntervalId) clearInterval(_statusIntervalId);
+    _statusIntervalId = setInterval(() => updateStatuses(games), 6000);
 }
 
 async function loadRealmProgress(games) {
-    for (const game of games) {
+    // 并发发送六道进度请求（串行 6*RTT → 并发 max(RTT)，显著减少等待）
+    await Promise.all(games.map(async (game) => {
         try {
             const resp = await fetch(`/samsara/api/levels/realm/${game.realm}`);
-            if (!resp.ok) continue;
+            if (!resp.ok) return;
             const data = await resp.json();
             const el = document.getElementById(`progress-${game.realm}`);
-            if (!el) continue;
+            if (!el) return;
             const passed = data.levels_passed || 0;
             const total = data.total_levels || 0;
             const sandbox = data.sandbox_unlocked ? " · 沙盒已解锁" : "";
             el.innerHTML = `<span class="progress-text">关卡进度: ${passed}/${total}${sandbox}</span>`;
         } catch (e) {}
-    }
+    }));
 }
 
 async function showRealmLevels(game) {
@@ -242,9 +248,10 @@ async function startSandbox(game, url) {
 }
 
 async function updateStatuses(games) {
-    for (const game of games) {
+    // 并发检测6个服务状态（串行→并发，每轮检测从 ~18s 降到 ~3s）
+    await Promise.all(games.map(async (game) => {
         const dot = document.getElementById(`status-${game.id}`);
-        if (!dot) continue;
+        if (!dot) return;
 
         dot.className = "status-dot loading";
         try {
@@ -258,7 +265,7 @@ async function updateStatuses(games) {
         } catch (err) {
             dot.className = "status-dot offline";
         }
-    }
+    }));
 }
 
 async function loadSamsaraState() {
@@ -438,6 +445,36 @@ async function init() {
     await loadSamsaraState();
     await loadSkillTree();
     initSkillTreeModal();
+    loadRpgOverview();
+}
+
+// ═══ RPG 总览加载（v1.3） ═══
+async function loadRpgOverview() {
+    try {
+        const resp = await fetch("/samsara/story/api/rpg/overview");
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        const align = data.alignment || {};
+        const el = (id) => document.getElementById(id);
+        if (el("rpg-enlightenment")) el("rpg-enlightenment").textContent = align.enlightenment || 0;
+        if (el("rpg-corruption")) el("rpg-corruption").textContent = align.corruption || 0;
+        if (el("rpg-prayer")) el("rpg-prayer").textContent = data.prayer_count || 0;
+
+        const frags = data.memory_fragments || {};
+        if (el("rpg-fragments")) el("rpg-fragments").textContent = `${frags.unlocked_count || 0}/${frags.total || 6}`;
+
+        const preview = (data.endings || {}).preview || {};
+        if (el("rpg-ending-name")) el("rpg-ending-name").textContent = preview.name || "未定";
+
+        // 天道Boss战按钮（仅可进入时显示）
+        const boss = data.tiandao_boss || {};
+        if (boss.can_enter && el("rpg-boss-btn")) {
+            el("rpg-boss-btn").style.display = "flex";
+        }
+    } catch (e) {
+        console.warn("无法加载RPG总览:", e);
+    }
 }
 
 init();
