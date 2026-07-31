@@ -17,6 +17,28 @@
     let choicesShown = false;
     let storyData = null;
 
+    // ── 立绘逐帧动画配置（12FPS 循环） ──
+    const ANIM_FRAME_COUNT = 6;   // 每动画 6 帧
+    const ANIM_FPS = 12;          // 12 FPS = 83ms/帧
+    let animationTimer = null;   // 当前动画循环定时器
+
+    function clearAnimation() {
+        if (animationTimer) {
+            clearInterval(animationTimer);
+            animationTimer = null;
+        }
+    }
+
+    // 探测动画帧 URL 是否存在（预加载）
+    function probeFrames(urls) {
+        return Promise.all(urls.map(u => new Promise(resolve => {
+            const probe = new Image();
+            probe.onload = () => resolve(u);
+            probe.onerror = () => resolve(null);
+            probe.src = u;
+        }))).then(results => results.filter(Boolean));
+    }
+
     // ── URL 参数解析 ──
     function getParams() {
         const params = new URLSearchParams(window.location.search);
@@ -190,6 +212,7 @@
 
     // ── 更新立绘 ──
     function updatePortraits(dialogue) {
+        clearAnimation();
         const container = document.getElementById('dialogue-characters');
         container.innerHTML = '';
 
@@ -201,16 +224,19 @@
         const jpgName = dialogue.portrait;
         // 优先使用抠图后的透明 PNG，回退到 JPG
         const pngName = jpgName.replace(/\.jpg$/i, '.png');
+        const baseName = pngName.replace(/\.png$/i, '');
 
         const img = document.createElement('img');
         img.className = 'character-portrait speaking';
         img.alt = dialogue.speaker;
-        img.dataset.pngUrl = `/shared/assets/characters/${folder}/${pngName}`;
-        img.dataset.jpgUrl = `/shared/assets/characters/${folder}/${jpgName}`;
+        const baseUrl = `/shared/assets/characters/${folder}`;
+        img.dataset.pngUrl = `${baseUrl}/${pngName}`;
+        img.dataset.jpgUrl = `${baseUrl}/${jpgName}`;
         img.src = img.dataset.pngUrl;
 
         // PNG 加载失败 → 回退到 JPG
         img.addEventListener('error', function onError() {
+            // 动画帧循环中不触发回退（仅当当前 src 是 pngUrl/jpgUrl 时）
             if (this.src === this.dataset.pngUrl) {
                 this.src = this.dataset.jpgUrl;
             } else if (this.src === this.dataset.jpgUrl) {
@@ -221,6 +247,27 @@
         });
 
         container.appendChild(img);
+
+        // 尝试加载逐帧动画 _f1.png ... _f6.png，若存在则在 12FPS 循环播放
+        const frameUrls = [];
+        for (let i = 1; i <= ANIM_FRAME_COUNT; i++) {
+            frameUrls.push(`${baseUrl}/${baseName}_f${i}.png`);
+        }
+        probeFrames(frameUrls).then(loadedUrls => {
+            // 仅当立绘未被切换且至少 2 帧可用时启动动画
+            if (loadedUrls.length >= 2 && container.contains(img)) {
+                let fi = 0;
+                img.src = loadedUrls[0];
+                animationTimer = setInterval(() => {
+                    if (!container.contains(img)) {
+                        clearAnimation();
+                        return;
+                    }
+                    fi = (fi + 1) % loadedUrls.length;
+                    img.src = loadedUrls[fi];
+                }, 1000 / ANIM_FPS);
+            }
+        });
     }
 
     // ── 获取角色立绘路径 ──
