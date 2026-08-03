@@ -21,18 +21,14 @@
     "default_portrait": "boy_neutral.jpg",
     "description": "聪明叛逆的高中生，自尊心强，内心善良但嘴硬",
     "animation": {
-      "enabled": true,
-      "type": "frame_sequence",
-      "description": "AnimateDiff-SDXL 图生视频 + RIFE 插帧 + LayerDiffusion 透明化，24FPS 48帧/2秒循环",
-      "fps": 24,
-      "frame_count": 48,
-      "loop_duration": "2s",
-      "frame_pattern": "boy_{emotion}_f{1-48}.png",
-      "source": "SDXL + Pixel Art XL LoRA + AnimateDiff-SDXL(mm_sdxl_v10_beta) 生成16帧, RIFE 插帧到48",
-      "cutout": "LayerDiffusion 原生 RGBA（头发丝/半透明细节完美保留，无 rembg 后处理）",
-      "platform": "Google Colab T4 + SD WebUI Forge",
-      "js_location": "hub/dialogue.js (startPortraitAnimation)",
-      "config": "tools/forge_asset_config.py (ANIMATIONS)"
+      "enabled": false,
+      "type": "static_spritecook",
+      "description": "SpriteCook 16-bit SFC 像素画静态立绘（256×256 透明背景，免抠图）。每个角色先生成 hero 立绘再以 reference_asset_id 保证一致性。CG 动画保留。",
+      "size": "256x256",
+      "style": "16-bit SNES JRPG style",
+      "bg_mode": "transparent",
+      "source": "SpriteCook API (gpt-image-2 @ 2K)",
+      "js_location": "hub/dialogue.js (updatePortraits)"
     }
   },
   "guide": {
