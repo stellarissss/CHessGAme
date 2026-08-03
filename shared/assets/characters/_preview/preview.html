@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Seedream 5.0 Pro 预览 - 林夜 & 女版陈默</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #1a1a1a; color: #eee; padding: 24px; line-height: 1.6;
+  }
+  h1 { font-size: 22px; margin-bottom: 8px; }
+  .meta { color: #888; font-size: 13px; margin-bottom: 24px; }
+  .char { margin-bottom: 36px; }
+  .char h2 {
+    font-size: 18px; border-left: 4px solid #4a9eff;
+    padding-left: 10px; margin-bottom: 14px;
+  }
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .cell { background: #2a2a2a; border-radius: 8px; overflow: hidden; }
+  .cell .label {
+    padding: 6px 10px; font-size: 12px; color: #aaa;
+    border-bottom: 1px solid #333; background: #222;
+  }
+  .cell img { width: 100%; height: auto; display: block; }
+  .cell.checker img {
+    background:
+      repeating-conic-gradient(#bbb 0% 25%, #fff 0% 50%) 0 0 / 32px 32px;
+  }
+  .note {
+    margin-top: 10px; padding: 10px 14px; background: #2a2a2a;
+    border-radius: 6px; font-size: 13px; color: #bbb;
+  }
+  .note code { color: #ffd479; background: #3a3a3a; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <h1>Seedream 5.0 Pro 预览图</h1>
+  <div class="meta">
+    模型: doubao-seedream-5-0-pro-260628 &nbsp;|&nbsp;
+    尺寸: 2048×2048 &nbsp;|&nbsp;
+    方案: Pro 文生图(纯白背景) + rembg 抠图(alpha 二值化 + 边缘羽化)
+  </div>
+
+  <div class="char">
+    <h2>林夜 (男主) — neutral base</h2>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">① Pro 白底原图</div>
+        <img src="linne_neutral_white.png" alt="林夜白底">
+      </div>
+      <div class="cell checker">
+        <div class="label">② 透明背景抠图 (棋盘格)</div>
+        <img src="linne_neutral_checker.png" alt="林夜棋盘格">
+      </div>
+      <div class="cell checker">
+        <div class="label">③ 抠图 PNG (透明)</div>
+        <img src="linne_neutral_cutout.png" alt="林夜透明">
+      </div>
+    </div>
+    <div class="note">
+      人设: 17岁高二男生，短黑发，聪明叛逆但内心善良，深棕色眼眸，校服西装配红领带<br>
+      透明度统计: 完全不透明 33.7% / 完全透明 65.7% / 半透明(边缘) 0.57%
+    </div>
+  </div>
+
+  <div class="char">
+    <h2>陈默 (女主) — neutral base</h2>
+    <div class="grid">
+      <div class="cell">
+        <div class="label">① Pro 白底原图</div>
+        <img src="chenmo_f_neutral_white.png" alt="陈默白底">
+      </div>
+      <div class="cell checker">
+        <div class="label">② 透明背景抠图 (棋盘格)</div>
+        <img src="chenmo_f_neutral_checker.png" alt="陈默棋盘格">
+      </div>
+      <div class="cell checker">
+        <div class="label">③ 抠图 PNG (透明)</div>
+        <img src="chenmo_f_neutral_cutout.png" alt="陈默透明">
+      </div>
+    </div>
+    <div class="note">
+      人设: 17岁高二女生，齐肩黑直发+左侧小发夹，杏眼温和棕瞳，温柔内向，校服西装配红领结+棋子胸针<br>
+      透明度统计: 完全不透明 45.1% / 完全透明 54.2% / 半透明(边缘) 0.72%
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:20px;">
+    <strong>预览说明：</strong> 当前为 base 立绘(文生图)，用于建立人物形象基线。
+    确认后将以这两张 base 作为<strong>图生图参考</strong>，低 denoise 重绘其他表情变体(微笑/惊讶/悲伤/思考等)，
+    保证人物形象一致性。透明 PNG 可直接用于 RPG 游戏立绘层。
+  </div>
+</body>
+</html>
