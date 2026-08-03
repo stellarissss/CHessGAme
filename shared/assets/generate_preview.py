@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Seedream 5.0 Pro 像素立绘预览生成器
+Seedream 5.0 Pro 精细像素立绘预览生成器
 =====================================
-用 Pro 模型文生图生成林夜+女版陈默的 base 立绘（像素艺术风格 / 纯白背景），
-降采样到 256x256 像素，rembg 抠图为透明 PNG。
+用 Pro 模型文生图生成林夜+女版陈默的 base 立绘（精细像素艺术风格 / 纯白背景），
+保持 2048x2048 原始尺寸，rembg 抠图为透明 PNG。
 
 人设来源：轻RPG化剧情实现草案 v1.4 + generate_all.py 提示词
 - 林夜：17岁高二男生，内向阴郁、自尊心强、内心善良但嘴硬（"作弊者"身份）
 - 陈默(女版)：17岁高二女生，温和内向+棋艺高超，齐肩黑发+小发夹
 
-最终交付规格：256x256 像素艺术 PNG，透明背景。
+最终交付规格：2048x2048 精细像素艺术 PNG，透明背景。
 """
 import json
 import os
@@ -22,7 +22,7 @@ from pathlib import Path
 API_KEY = os.getenv("ARK_API_KEY") or os.getenv("MODEL_IMAGE_API_KEY")
 ENDPOINT = "https://ark.cn-beijing.volces.com/api/v3/images/generations"
 MODEL = "doubao-seedream-5-0-pro-260628"  # Pro 模型
-PIXEL_SIZE = 256  # 最终交付像素尺寸
+PIXEL_SIZE = 2048  # 最终交付尺寸（保持 Pro 生成原尺寸）
 GEN_SIZE = "2048x2048"  # Pro 生成尺寸（API 最小 ~1920x1920）
 
 CHAR_DIR = Path(__file__).resolve().parent / "characters"
@@ -135,18 +135,8 @@ def generate_pro(prompt: str, out_path: Path, size: str = GEN_SIZE,
     return True
 
 
-def downscale_pixel(src: Path, dst: Path, size: int = PIXEL_SIZE):
-    """降采样到 size×size 像素艺术（最近邻保持锐利）"""
-    from PIL import Image
-    img = Image.open(src).convert("RGB")
-    # 最近邻降到目标尺寸
-    pix = img.resize((size, size), Image.NEAREST)
-    pix.save(dst, "PNG")
-    print(f"  🔻 像素化: {dst.name} ({size}×{size})")
-
-
-def rembg_cutout(src: Path, dst: Path, size: int = PIXEL_SIZE):
-    """rembg 抠图 + alpha 二值化 + 边缘羽化，并降到像素尺寸"""
+def rembg_cutout(src: Path, dst: Path):
+    """rembg 抠图 + alpha 二值化 + 边缘羽化，保持原尺寸"""
     from rembg import remove
     from PIL import Image, ImageFilter
     import numpy as np
@@ -166,20 +156,10 @@ def rembg_cutout(src: Path, dst: Path, size: int = PIXEL_SIZE):
     a_arr2 = np.where(a_arr2 > 200, 255, a_arr2)
     a_final = Image.fromarray(a_arr2.astype(np.uint8), "L")
 
-    rgba = Image.merge("RGBA", (r, g, b, a_final))
-    # 降采样到像素尺寸（NEAREST 保留像素感）
-    rgba_pix = rgba.resize((size, size), Image.NEAREST)
-    # 再做一次 alpha 二值化确保像素清晰
-    a_pix = np.array(rgba_pix.split()[-1])
-    a_pix = np.where(a_pix > 128, 255, 0).astype(np.uint8)
-    final = Image.merge("RGBA", (
-        rgba_pix.split()[0], rgba_pix.split()[1], rgba_pix.split()[2],
-        Image.fromarray(a_pix, "L"),
-    ))
-    final.save(dst, "PNG")
+    Image.merge("RGBA", (r, g, b, a_final)).save(dst, "PNG")
 
-    opaque = (a_pix > 200).sum() / a_pix.size * 100
-    print(f"  ✂ 抠图+像素化: {dst.name} (不透明 {opaque:.1f}%)")
+    opaque = (a_arr2 > 200).sum() / a_arr2.size * 100
+    print(f"  ✂ 抠图: {dst.name} (不透明 {opaque:.1f}%)")
     return opaque
 
 
@@ -202,30 +182,26 @@ def main():
     for stem, prompt, label in previews:
         print(f"\n▶ [{label}]")
         white_png = PREVIEW_DIR / f"{stem}_white.png"        # 白底原图 2K
-        white_pix = PREVIEW_DIR / f"{stem}_white_256.png"    # 白底像素版
-        cutout_png = PREVIEW_DIR / f"{stem}_cutout.png"      # 抠图透明像素 PNG
+        cutout_png = PREVIEW_DIR / f"{stem}_cutout.png"      # 抠图透明 PNG
 
-        # 1. Pro 文生图（白底 2K）
+        # 1. Pro 文生图（白底 2K，精细像素艺术风格）
         print(f"  生成白底像素立绘 (Pro {GEN_SIZE})...")
         ok = generate_pro(prompt, white_png)
         if not ok:
             continue
 
-        # 2. 降采样到 256 像素
-        downscale_pixel(white_png, white_pix)
-
-        # 3. rembg 抠图 + 像素化
-        print(f"  rembg 抠图 + 像素化...")
+        # 2. rembg 抠图（保持原尺寸）
+        print(f"  rembg 抠图...")
         try:
             rembg_cutout(white_png, cutout_png)
         except Exception as e:
             print(f"  ❌ 抠图失败: {e}")
 
     print("\n" + "=" * 60)
-    print("✅ 像素立绘预览生成完成！")
+    print("✅ 精细像素立绘预览生成完成！")
     print(f"📁 位置: {PREVIEW_DIR}")
     print("\n关键文件:")
-    for f in sorted(PREVIEW_DIR.glob("*_256.png")):
+    for f in sorted(PREVIEW_DIR.glob("*_white.png")):
         print(f"  {f.name} ({f.stat().st_size // 1024}KB)")
     for f in sorted(PREVIEW_DIR.glob("*_cutout.png")):
         print(f"  {f.name} ({f.stat().st_size // 1024}KB)")
