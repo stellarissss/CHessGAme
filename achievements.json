@@ -1,9 +1,15 @@
 {
   "version": 1,
-  "unlocked": {},
+  "unlocked": {
+    "got_cketched": {
+      "unlocked_at": "2026-08-03T22:27:09.475316",
+      "game": "xiangqi",
+      "context": "被black方击败"
+    }
+  },
   "stats": {
-    "total_commands": 0,
-    "total_moves": 2,
+    "total_commands": 1,
+    "total_moves": 8,
     "total_captures": 0,
     "games_played": {}
   }
