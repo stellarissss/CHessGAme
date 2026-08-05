@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "current_realm": "hell",
+  "current_realm": "hungry",
   "current_level": 0,
   "skill_points": 19,
   "karma_max": 120,
@@ -25,7 +25,7 @@
       "tier": 1
     }
   },
-  "current_turn": 1,
+  "current_turn": 0,
   "turn_limit": 20,
   "cheat_count": 0,
   "overdraft_count": 0,
@@ -66,8 +66,8 @@
       "no_cheat_full_clear": false
     }
   },
-  "level_karma": 70,
-  "last_modified": "2026-07-31T23:42:04.767033",
+  "level_karma": 50,
+  "last_modified": "2026-08-05T20:47:23.451890",
   "alignment": {
     "enlightenment": 0,
     "corruption": 0,

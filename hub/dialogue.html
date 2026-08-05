@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>html { zoom: 0.75; }</style>
     <title>剧情对话 · 六道轮回</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
@@ -66,7 +67,7 @@
             opacity: 0.7;
             user-select: none;
             -webkit-user-drag: none;
-            /* 立绘为 SpriteCook 16-bit 像素画透明 PNG（256×256，免抠图） */
+            /* 立绘动画由 dialogue.js 24FPS 帧序列驱动（48帧/2秒循环） */
         }
         .character-portrait.speaking {
             opacity: 1;

@@ -1264,8 +1264,102 @@
 }
 
 .thinking-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
     text-align: center;
+    z-index: 1;
     animation: fadeIn 0.3s ease;
+}
+
+.thinking-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* 井字棋 mini game */
+.ttt-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: rgba(128, 128, 128, 0.06);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.ttt-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-light);
+}
+
+.ttt-board {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 52px);
+    gap: 6px;
+}
+
+.ttt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.08);
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.ttt-cell:hover:not(.taken):not(.over) {
+    border-color: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+}
+
+.ttt-cell.taken { cursor: default; }
+.ttt-cell.x { color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green); }
+.ttt-cell.o { color: #f87171; text-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
+.ttt-cell.win { background: rgba(248, 113, 113, 0.18); box-shadow: inset 0 0 12px rgba(248, 113, 113, 0.4); }
+
+.ttt-status {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink-light);
+    min-height: 1.2em;
+    text-align: center;
+}
+
+.ttt-restart {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 6px 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ttt-restart:hover {
+    border-color: var(--neon-green);
+    color: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
 }
 
 .thinking-spinner {

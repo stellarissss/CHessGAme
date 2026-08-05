@@ -184,6 +184,10 @@ class MoveRequest(BaseModel):
     to: list  # [x, y]
 
 
+class ValidMovesRequest(BaseModel):
+    piece_id: str
+
+
 class DifficultyRequest(BaseModel):
     difficulty: str  # easy | medium | hard
 
@@ -699,7 +703,7 @@ async def _trigger_karma_recover(piece: dict, from_pos: list, to_pos: list, boar
 
 
 @app.post("/api/valid_moves")
-async def get_valid_moves(req: MoveRequest):
+async def get_valid_moves(req: ValidMovesRequest):
     """获取棋子的合法移动"""
     board = state.configs["board_state"]
     for p in board["pieces"]:

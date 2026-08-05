@@ -110,11 +110,10 @@ def main():
 
     jpgs = sorted(CHAR_DIR.glob("*/*.jpg"))
     # 排除：动画帧 _f1-_f48（由 generate_anim_frames.py 单独生成+抠图）、
-    # 黑色背景备份 .darkbg.jpg、_preview 目录（预览/对比用，不属于角色资产）
+    # 黑色背景备份 .darkbg.jpg
     jpgs = [j for j in jpgs
             if not (f"_f" in j.stem and j.stem.split("_f")[-1].isdigit())
-            and not j.stem.endswith("darkbg")
-            and j.parent.name != "_preview"]
+            and not j.stem.endswith("darkbg")]
     if not jpgs:
         print("未找到角色立绘 jpg。")
         sys.exit(1)

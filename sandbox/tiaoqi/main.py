@@ -180,6 +180,10 @@ class MoveRequest(BaseModel):
     to: list  # [x, y]
 
 
+class ValidMovesRequest(BaseModel):
+    piece_id: str
+
+
 class DifficultyRequest(BaseModel):
     difficulty: str  # easy | medium | hard
 
@@ -515,7 +519,7 @@ async def get_token_stats():
 
 
 @app.post("/api/valid_moves")
-async def get_valid_moves(req: MoveRequest):
+async def get_valid_moves(req: ValidMovesRequest):
     """获取棋子的合法移动"""
     board = state.configs["board_state"]
     for p in board["pieces"]:

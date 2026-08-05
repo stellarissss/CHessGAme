@@ -74,6 +74,7 @@ class HeibaiqiBoard extends HTMLElement {
         this.attachShadow({ mode: 'open' });
         this._renderShadowDom();
         this._updateRpgMode();
+        this._initTicTacToe();
     }
 
     disconnectedCallback() {
@@ -83,13 +84,333 @@ class HeibaiqiBoard extends HTMLElement {
     _renderShadowDom() {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = '/static/style.css';
+        link.href = '/static/style.css?v=20260805b';
         this.shadowRoot.appendChild(link);
 
         const container = document.createElement('div');
         container.id = 'app';
         container.innerHTML = this._getHtmlTemplate();
         this.shadowRoot.appendChild(container);
+    }
+
+    async loadConfigs() {
+        const resp = await fetch(`${this.apiBase}/api/config/all`, { cache: 'no-store' });
+        this.configs = await resp.json();
+        this.boardState = this.configs.board_state;
+        this.uiConfig = this.configs.ui_config;
+    }
+
+    _getBoardLayoutConfig() {
+        const defaults = {
+            grid: {
+                line_thickness: 0.03,
+                show_horizontal: true,
+                show_vertical: true,
+                river_gap: false
+            },
+            palace: {
+                enabled: false,
+                show_diagonals: false,
+                line_thickness: 0.03
+            },
+            river: {
+                enabled: false,
+                text: '',
+                text_size: 0.5,
+                gap_ratio: 1.0
+            },
+            appearance: {
+                background_color: '#1a5d3a',
+                line_color: '#000000',
+                palace_line_color: null
+            },
+            layout: {
+                viewbox_padding_left: 0,
+                viewbox_padding_right: 0,
+                viewbox_padding_top: 0,
+                viewbox_padding_bottom: 0,
+                board_size: '90vmin'
+            },
+            decorations: {
+                border: {
+                    enabled: true,
+                    thickness: 0.06,
+                    color: '#000000'
+                },
+                custom_lines: [],
+                background_pattern: null
+            }
+        };
+
+        const user = this.configs.board?.appearance || {};
+
+        const merge = (def, usr) => {
+            if (!usr || typeof usr !== 'object') return def;
+            const result = {};
+            for (const key in def) {
+                if (def[key] && typeof def[key] === 'object' && !Array.isArray(def[key])) {
+                    result[key] = merge(def[key], usr[key]);
+                } else {
+                    result[key] = (usr[key] !== undefined) ? usr[key] : def[key];
+                }
+            }
+            return result;
+        };
+
+        try {
+            const merged = merge(defaults, user);
+            merged.appearance = {
+                background_color: user.background_color !== undefined
+                    ? user.background_color : defaults.appearance.background_color,
+                line_color: user.line_color !== undefined
+                    ? user.line_color : defaults.appearance.line_color,
+                palace_line_color: user.palace_line_color !== undefined
+                    ? user.palace_line_color : defaults.appearance.palace_line_color,
+            };
+            return merged;
+        } catch (e) {
+            console.error('Failed to merge board layout config:', e);
+            return defaults;
+        }
+    }
+
+    renderBoard() {
+        const container = this.shadowRoot.getElementById('board-container');
+        container.innerHTML = '';
+
+        const layoutConfig = this._getBoardLayoutConfig();
+
+        const geometry = this.configs.board?.geometry || {};
+        const width = geometry.width || 8;
+        const height = geometry.height || 8;
+
+        const bgColor = layoutConfig.appearance.background_color;
+        container.style.backgroundColor = bgColor;
+        this.style.setProperty('--board-bg', bgColor);
+
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('board-grid');
+        // 单元格模型：viewBox 0 0 width height，线条落格边界
+        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.style.width = '100%';
+        svg.style.height = '100%';
+
+        const lineColor = layoutConfig.appearance.line_color;
+        const sw = String(layoutConfig.grid.line_thickness);
+
+        // 9 条竖线 x=0..width
+        if (layoutConfig.grid.show_vertical) {
+            for (let i = 0; i <= width; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', i);
+                line.setAttribute('y1', 0);
+                line.setAttribute('x2', i);
+                line.setAttribute('y2', height);
+                line.setAttribute('stroke', lineColor);
+                line.setAttribute('stroke-width', sw);
+                svg.appendChild(line);
+            }
+        }
+        // 9 条横线 y=0..height
+        if (layoutConfig.grid.show_horizontal) {
+            for (let i = 0; i <= height; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', 0);
+                line.setAttribute('y1', i);
+                line.setAttribute('x2', width);
+                line.setAttribute('y2', i);
+                line.setAttribute('stroke', lineColor);
+                line.setAttribute('stroke-width', sw);
+                svg.appendChild(line);
+            }
+        }
+
+        // 边框
+        if (layoutConfig.decorations.border.enabled) {
+            const borderThickness = layoutConfig.decorations.border.thickness;
+            const borderColor = layoutConfig.decorations.border.color || lineColor;
+            const borderRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            const halfThick = borderThickness / 2;
+            borderRect.setAttribute('x', -halfThick);
+            borderRect.setAttribute('y', -halfThick);
+            borderRect.setAttribute('width', width + borderThickness);
+            borderRect.setAttribute('height', height + borderThickness);
+            borderRect.setAttribute('fill', 'none');
+            borderRect.setAttribute('stroke', borderColor);
+            borderRect.setAttribute('stroke-width', String(borderThickness));
+            svg.appendChild(borderRect);
+        }
+
+        container.appendChild(svg);
+
+        this.applyUiConfig();
+    }
+
+    applyUiConfig() {
+        const rotation = this.uiConfig?.layout?.rotation || 0;
+        const container = this.shadowRoot.getElementById('board-container');
+        if (container) {
+            container.style.transform = `rotate(${rotation}deg)`;
+            container.style.transition = 'transform 0.3s ease';
+        }
+
+        this.shadowRoot.querySelectorAll('.piece-text').forEach(el => {
+            el.style.transform = `rotate(${-rotation}deg)`;
+            el.style.transition = 'transform 0.3s ease';
+        });
+
+        const customStyleId = 'custom-ui-css';
+        let styleEl = this.shadowRoot.getElementById(customStyleId);
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = customStyleId;
+            this.shadowRoot.appendChild(styleEl);
+        }
+        styleEl.textContent = this.uiConfig?.custom_css || '';
+    }
+
+    renderPieces() {
+        const container = this.shadowRoot.getElementById('board-container');
+        container.querySelectorAll('.piece').forEach(el => el.remove());
+
+        const piecesTheme = this.uiConfig?.theme?.pieces || {};
+
+        const pieces = this.boardState?.pieces || [];
+        pieces.forEach(piece => {
+            if (!piece.is_alive) return;
+            this.createPieceElement(piece, piecesTheme);
+        });
+
+        // 高亮上一步落子点
+        if (this.lastMove?.to) {
+            const el = container.querySelector(`[data-pos="${this.lastMove.to[0]},${this.lastMove.to[1]}"]`);
+            if (el) el.classList.add('last-moved');
+        }
+    }
+
+    createPieceElement(piece, theme) {
+        const container = this.shadowRoot.getElementById('board-container');
+        const el = document.createElement('div');
+        el.className = `piece ${piece.side}`;
+        el.dataset.pieceId = piece.id;
+        el.dataset.pos = `${piece.position[0]},${piece.position[1]}`;
+
+        const geometry = this.configs.board?.geometry || {};
+        const width = geometry.width || 8;
+        const height = geometry.height || 8;
+
+        const [x, y] = piece.position;
+        // 单元格中心定位
+        const leftPct = ((x + 0.5) / width) * 100;
+        const topPct = ((y + 0.5) / height) * 100;
+
+        el.style.left = `${leftPct}%`;
+        el.style.top = `${topPct}%`;
+        el.style.transform = 'translate(-50%, -50%)';
+
+        // 按 side 上色（支持 ui_config 与 custom_properties 覆盖）
+        if (piece.side === 'black') {
+            el.style.background = theme.black || '#000000';
+            el.style.borderColor = theme.black || '#000000';
+        } else {
+            el.style.background = theme.white || '#ffffff';
+            el.style.borderColor = '#1a1a1a';
+        }
+
+        if (piece.custom_properties) {
+            const cp = piece.custom_properties;
+            if (cp.color) el.style.background = cp.color;
+            if (cp.bg) el.style.background = cp.bg;
+        }
+
+        // 仅 coordInsertMode 下可点（选坐标）；正常落子由 valid-move-indicator 指示器处理
+        el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (this.coordInsertMode) {
+                this.onCoordDotClick(x, y);
+            }
+            // 非选坐标模式：点击已有棋子无操作（黑白棋点空格落子）
+        });
+
+        container.appendChild(el);
+    }
+
+    clearValidMoves() {
+        this.shadowRoot.querySelectorAll('.valid-move-indicator').forEach(el => el.remove());
+    }
+
+    clearSelection() {
+        // 黑白棋无选子状态
+        this.clearValidMoves();
+    }
+
+    async renderValidPlacements() {
+        this.clearValidMoves();
+        if (this.boardState?.game_status?.state === 'ended') return;
+        const side = this.boardState?.current_turn || 'black';
+        try {
+            const resp = await fetch(`${this.apiBase}/api/valid_moves`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ side })
+            });
+            const data = await resp.json();
+            this.validMoves = data.moves || [];
+            const container = this.shadowRoot.getElementById('board-container');
+            const geometry = this.configs.board?.geometry || {};
+            const width = geometry.width || 8;
+            const height = geometry.height || 8;
+            this.validMoves.forEach(([x, y]) => {
+                const indicator = document.createElement('div');
+                indicator.className = 'valid-move-indicator';
+                indicator.dataset.pos = `${x},${y}`;
+                indicator.style.left = `${((x + 0.5) / width) * 100}%`;
+                indicator.style.top = `${((y + 0.5) / height) * 100}%`;
+                indicator.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    if (this.coordInsertMode) {
+                        this.onCoordDotClick(x, y);
+                        return;
+                    }
+                    this.placeStone(x, y);
+                });
+                container.appendChild(indicator);
+            });
+        } catch (e) {
+            console.error('获取合法落子点失败:', e);
+        }
+    }
+
+    async init() {
+        if (this._initialized) return;
+        await this.loadConfigs();
+        this.renderBoard();
+        this.renderPieces();
+        this.updateTurnIndicator();
+        await this.renderValidPlacements();
+        this.updateActiveRules();
+        this.updateGameObjectives();
+        this.updateAIPersonality();
+        this.updateMechanisms();
+        this.bindEvents();
+        this.checkApiKey();
+        this.loadTokenStats();
+        this._initialized = true;
+        this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
+
+    async loadTokenStats() {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/token_stats`);
+            const data = await resp.json();
+            this.shadowRoot.getElementById('token-total').textContent = data.total_tokens.toLocaleString();
+            this.shadowRoot.getElementById('token-today').textContent = data.today_tokens.toLocaleString();
+            this.shadowRoot.getElementById('token-calls').textContent = data.total_calls.toLocaleString();
+            this.shadowRoot.getElementById('token-cost').textContent = `$${data.estimated_cost_usd.toFixed(4)}`;
+        } catch (e) {
+            console.error('Failed to load token stats:', e);
+        }
     }
 
     _getHtmlTemplate() {
@@ -103,9 +424,27 @@ class HeibaiqiBoard extends HTMLElement {
 
         <div id="thinking-overlay" class="thinking-overlay">
             <div class="thinking-content">
-                <div class="thinking-spinner"></div>
-                <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
-                <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+                <div class="thinking-loading">
+                    <div class="thinking-spinner"></div>
+                    <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
+                    <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+                </div>
+                <div class="ttt-wrap">
+                    <div class="ttt-title">井字棋 · 消遣一局（不保存）</div>
+                    <div class="ttt-board" id="ttt-board">
+                        <div class="ttt-cell" data-idx="0"></div>
+                        <div class="ttt-cell" data-idx="1"></div>
+                        <div class="ttt-cell" data-idx="2"></div>
+                        <div class="ttt-cell" data-idx="3"></div>
+                        <div class="ttt-cell" data-idx="4"></div>
+                        <div class="ttt-cell" data-idx="5"></div>
+                        <div class="ttt-cell" data-idx="6"></div>
+                        <div class="ttt-cell" data-idx="7"></div>
+                        <div class="ttt-cell" data-idx="8"></div>
+                    </div>
+                    <div class="ttt-status" id="ttt-status">你执 X · 随机先手</div>
+                    <button type="button" class="ttt-restart" id="ttt-restart">重新开始</button>
+                </div>
             </div>
         </div>
 
@@ -1262,6 +1601,126 @@ class HeibaiqiBoard extends HTMLElement {
             this.updateMechanisms();
         }
         return data;
+    }
+
+    // ── 井字棋 mini game（不保存数据）──
+    _initTicTacToe() {
+        const board = this.shadowRoot.getElementById('ttt-board');
+        if (!board) return;
+        this.ttt = { cells: Array(9).fill(null), over: false };
+        this.ttt.playerFirst = Math.random() < 0.5; // 随机先手
+        this.ttt.turn = 'X'; // 玩家 X，AI O
+        board.querySelectorAll('.ttt-cell').forEach(cell => {
+            cell.addEventListener('click', () => this._tttCellClick(cell));
+        });
+        this.shadowRoot.getElementById('ttt-restart').addEventListener('click', () => this._tttReset());
+        this._tttRender();
+        if (!this.ttt.playerFirst) {
+            this.shadowRoot.getElementById('ttt-status').textContent = 'AI 先手（O）';
+            setTimeout(() => this._tttAiMove(), 500);
+        } else {
+            this.shadowRoot.getElementById('ttt-status').textContent = '你先手（X）';
+        }
+    }
+
+    _tttReset() {
+        this.ttt = { cells: Array(9).fill(null), over: false };
+        this.ttt.playerFirst = Math.random() < 0.5;
+        this.ttt.turn = 'X';
+        this._tttRender();
+        if (!this.ttt.playerFirst) {
+            this.shadowRoot.getElementById('ttt-status').textContent = '新一局 · AI 先手（O）';
+            setTimeout(() => this._tttAiMove(), 400);
+        } else {
+            this.shadowRoot.getElementById('ttt-status').textContent = '新一局 · 你先手（X）';
+        }
+    }
+
+    _tttRender() {
+        const board = this.shadowRoot.getElementById('ttt-board');
+        if (!board) return;
+        board.querySelectorAll('.ttt-cell').forEach((cell, i) => {
+            cell.textContent = this.ttt.cells[i] || '';
+            cell.classList.toggle('x', this.ttt.cells[i] === 'X');
+            cell.classList.toggle('o', this.ttt.cells[i] === 'O');
+            cell.classList.toggle('taken', !!this.ttt.cells[i]);
+            cell.classList.toggle('over', this.ttt.over);
+            cell.classList.remove('win');
+        });
+        if (this.ttt.winLine) {
+            this.ttt.winLine.forEach(i => board.querySelectorAll('.ttt-cell')[i].classList.add('win'));
+        }
+    }
+
+    _tttCellClick(cell) {
+        if (this.ttt.over || this.ttt.turn !== 'X') return;
+        const idx = Array.prototype.indexOf.call(this.shadowRoot.querySelectorAll('#ttt-board .ttt-cell'), cell);
+        if (this.ttt.cells[idx]) return;
+        this.ttt.cells[idx] = 'X';
+        this.shadowRoot.getElementById('ttt-status').textContent = 'AI 思考中…';
+        this._tttRender();
+        if (!this._tttCheckGame()) {
+            this.ttt.turn = 'O';
+            setTimeout(() => this._tttAiMove(), 450);
+        }
+    }
+
+    _tttAiMove() {
+        if (this.ttt.over) return;
+        // 轻量 AI：优先取胜/拦截，否则随机。
+        const empty = this.ttt.cells.map((v, i) => v ? null : i).filter(i => i !== null);
+        if (!empty.length) { this._tttCheckGame(); return; }
+        let move = null;
+        // 取胜
+        for (const i of empty) {
+            const c = this.ttt.cells.slice(); c[i] = 'O';
+            if (this._tttWinner(c)) { move = i; break; }
+        }
+        // 拦截玩家
+        if (move === null) {
+            for (const i of empty) {
+                const c = this.ttt.cells.slice(); c[i] = 'X';
+                if (this._tttWinner(c)) { move = i; break; }
+            }
+        }
+        // 随机
+        if (move === null) move = empty[Math.floor(Math.random() * empty.length)];
+        this.ttt.cells[move] = 'O';
+        this.ttt.turn = 'X';
+        this.shadowRoot.getElementById('ttt-status').textContent = '轮到你（X）';
+        this._tttRender();
+        this._tttCheckGame();
+    }
+
+    _tttWinner(cells) {
+        const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+        for (const [a,b,c] of lines) {
+            if (cells[a] && cells[a] === cells[b] && cells[a] === cells[c]) return cells[a];
+        }
+        return null;
+    }
+
+    _tttCheckGame() {
+        const w = this._tttWinner(this.ttt.cells);
+        if (w) {
+            this.ttt.over = true;
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (const [a,b,c] of lines) {
+                if (this.ttt.cells[a] === w && this.ttt.cells[a] === this.ttt.cells[b] && this.ttt.cells[a] === this.ttt.cells[c]) {
+                    this.ttt.winLine = [a,b,c];
+                }
+            }
+            this._tttRender();
+            this.shadowRoot.getElementById('ttt-status').textContent = w === 'X' ? '你赢了！点击重新开始再来一局' : 'AI 获胜，点击重新开始再来一局';
+            return true;
+        }
+        if (!this.ttt.cells.includes(null)) {
+            this.ttt.over = true;
+            this._tttRender();
+            this.shadowRoot.getElementById('ttt-status').textContent = '平局！点击重新开始再来一局';
+            return true;
+        }
+        return false;
     }
 
     destroy() {

@@ -1,10 +1,11 @@
 /**
- * 剧情对话系统（v1.7）
+ * 剧情对话系统（v1.6）
  * 功能：打字机效果、立绘切换、选择面板、祈求低语、识破警告
  *
- * v1.7 变更：立绘改用 SpriteCook 16-bit SFC 像素画（256×256 透明背景，
- * 免抠图）。每个角色先生成 hero 立绘再以 reference_asset_id 保证一致性。
- * 移除 24FPS 帧动画，恢复纯静态立绘显示。CG 动画保留。
+ * v1.6 变更：立绘动画改回 AI 关键帧插值连续动画帧（24FPS，48帧/2秒循环）。
+ * 白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧为 48 张
+ * 连续帧（boy/chenmo 全表情），rembg 抠图为透明 PNG。帧间过渡自然、
+ * 角色一致性最佳（同源图），幅度由 AI 生成自然微动控制。
  *
  * Boss 关卡流程：Boss 关卡（type=boss，含 dialogues_before
  * + dialogues_after + choices）按以下顺序执行：
@@ -26,6 +27,13 @@
     let currentPhase = 'dialogues'; // dialogues / dialogues_before / dialogues_after / choice_response
     let choicesShown = false;
     let storyData = null;
+
+    // 立绘动画：24FPS 帧序列（48帧/2秒循环），由 Seedance 图生视频抽帧生成。
+    // updatePortraits 探测 _f1.png 存在则启动 24FPS 循环，否则用静态抠图 PNG。
+    const ANIM_FPS = 24;
+    const ANIM_FRAME_COUNT = 48;
+    let portraitAnimTimer = null;
+    const portraitFrameCache = {};
 
     // ── URL 参数解析 ──
     function getParams() {
@@ -201,6 +209,9 @@
 
     // ── 更新立绘 ──
     function updatePortraits(dialogue) {
+        // 停止上一轮立绘动画
+        stopPortraitAnim();
+
         const container = document.getElementById('dialogue-characters');
         container.innerHTML = '';
 
@@ -210,8 +221,9 @@
 
         const folder = getCharacterPath(dialogue).replace(/\/[^/]+$/, '');
         const jpgName = dialogue.portrait;
-        // 优先使用 SpriteCook 透明 PNG，回退到旧 JPG
+        // 优先使用抠图后的透明 PNG，回退到 JPG
         const pngName = jpgName.replace(/\.jpg$/i, '.png');
+        const stem = jpgName.replace(/\.jpg$/i, '');  // 如 boy_happy
 
         const img = document.createElement('img');
         img.className = 'character-portrait speaking';
@@ -233,6 +245,55 @@
         });
 
         container.appendChild(img);
+        // 启动 24FPS 帧动画（探测 _f1.png 存在则循环播放 48 帧，否则静态）
+        startPortraitAnimation(img, baseUrl, stem);
+    }
+
+    // ── 停止立绘动画 ──
+    function stopPortraitAnim() {
+        if (portraitAnimTimer) {
+            clearInterval(portraitAnimTimer);
+            portraitAnimTimer = null;
+        }
+    }
+
+    // ── 立绘 24FPS 帧动画 ──
+    // 探测首帧 _f1.png：存在则预加载全部帧，等所有帧 settle（load/error）后，
+    // 仅循环已成功加载的帧。这样 48 帧动画全速 24FPS；仅 6 帧的旧动画也能
+    // 平滑循环（而非在第 6 帧后卡住）。无动画帧则保持静态抠图 PNG。
+    function startPortraitAnimation(img, baseUrl, stem) {
+        const firstFrameUrl = `${baseUrl}/${stem}_f1.png`;
+        const probe = new Image();
+        probe.onload = async () => {
+            let frames = portraitFrameCache[stem];
+            if (!frames) {
+                frames = [];
+                for (let i = 1; i <= ANIM_FRAME_COUNT; i++) {
+                    const f = new Image();
+                    f.src = `${baseUrl}/${stem}_f${i}.png`;
+                    frames.push(f);
+                }
+                portraitFrameCache[stem] = frames;
+            }
+            img.src = probe.src;  // 切到动画首帧
+            // 等所有帧 settle（成功加载或失败）
+            await Promise.all(frames.map(f =>
+                f.complete ? Promise.resolve() : new Promise(res => {
+                    f.addEventListener('load', res, { once: true });
+                    f.addEventListener('error', res, { once: true });
+                })
+            ));
+            // 仅循环已成功加载的帧（≥2 帧才启动动画，否则保持静态首帧）
+            const loaded = frames.filter(f => f.naturalWidth > 0);
+            if (loaded.length < 2) return;
+            let frameIdx = 0;
+            portraitAnimTimer = setInterval(() => {
+                frameIdx = (frameIdx + 1) % loaded.length;
+                img.src = loaded[frameIdx].src;
+            }, 1000 / ANIM_FPS);
+        };
+        // probe.onerror：无动画帧，保持静态抠图 PNG（img.src 已设为 pngUrl）
+        probe.src = firstFrameUrl;
     }
 
     // ── 获取角色立绘路径 ──

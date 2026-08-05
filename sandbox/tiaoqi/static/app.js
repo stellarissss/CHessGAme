@@ -81,6 +81,7 @@ class CheckersBoard extends HTMLElement {
     connectedCallback() {
         this.attachShadow({ mode: 'open' });
         this._renderShadowDom();
+        this._initTicTacToe();
         this._updateRpgMode();
     }
 
@@ -103,9 +104,27 @@ class CheckersBoard extends HTMLElement {
         return `
         <div id="thinking-overlay" class="thinking-overlay">
             <div class="thinking-content">
-                <div class="thinking-spinner"></div>
-                <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
-                <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+                <div class="thinking-loading">
+                    <div class="thinking-spinner"></div>
+                    <div class="thinking-text" id="thinking-text">ChatAI 正在理解您的意图...</div>
+                    <div class="thinking-stage" id="thinking-stage">阶段: 意图解析</div>
+                </div>
+                <div class="ttt-wrap">
+                    <div class="ttt-title">井字棋 · 消遣一局（不保存）</div>
+                    <div class="ttt-board" id="ttt-board">
+                        <div class="ttt-cell" data-idx="0"></div>
+                        <div class="ttt-cell" data-idx="1"></div>
+                        <div class="ttt-cell" data-idx="2"></div>
+                        <div class="ttt-cell" data-idx="3"></div>
+                        <div class="ttt-cell" data-idx="4"></div>
+                        <div class="ttt-cell" data-idx="5"></div>
+                        <div class="ttt-cell" data-idx="6"></div>
+                        <div class="ttt-cell" data-idx="7"></div>
+                        <div class="ttt-cell" data-idx="8"></div>
+                    </div>
+                    <div class="ttt-status" id="ttt-status">你执 X · 随机先手</div>
+                    <button type="button" class="ttt-restart" id="ttt-restart">重新开始</button>
+                </div>
             </div>
         </div>
 
@@ -458,8 +477,8 @@ class CheckersBoard extends HTMLElement {
     display: flex;
     flex: 1;
     overflow: hidden;
-    padding: 24px 32px;
-    gap: 32px;
+    padding: 12px 24px;
+    gap: 24px;
 }
 
 .board-section {
@@ -474,8 +493,8 @@ class CheckersBoard extends HTMLElement {
 /* 跳棋棋盘容器 — 正方形比例，适配六角星形 */
 #board-container {
     position: relative;
-    width: min(85vmin, 650px);
-    height: min(85vmin, 650px);
+    width: min(85vmin, 560px, calc(100vh - 180px));
+    height: min(85vmin, 560px, calc(100vh - 180px));
     background: var(--board-bg);
     border-radius: 4px;
     box-shadow:
@@ -816,17 +835,11 @@ class CheckersBoard extends HTMLElement {
     cursor: pointer;
     pointer-events: auto;
     transition: all 0.2s ease;
-    animation: validMovePulse 1.5s ease-in-out infinite;
 }
 
 .valid-move-indicator:hover {
     fill: rgba(57, 255, 20, 0.85);
     stroke-width: 0.06;
-}
-
-@keyframes validMovePulse {
-    0%, 100% { opacity: 0.7; }
-    50% { opacity: 1; }
 }
 
 /* Input section */
@@ -1354,9 +1367,103 @@ class CheckersBoard extends HTMLElement {
 
 .thinking-content {
     position: relative;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
     color: var(--ink);
     z-index: 1;
+}
+
+.thinking-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+/* 井字棋 mini game */
+.ttt-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 14px;
+    background: rgba(128, 128, 128, 0.06);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.3);
+}
+
+.ttt-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    opacity: 0.7;
+}
+
+.ttt-board {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 52px);
+    gap: 6px;
+}
+
+.ttt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    background: rgba(128, 128, 128, 0.08);
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: var(--ink);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.ttt-cell:hover:not(.taken):not(.over) {
+    border-color: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
+}
+
+.ttt-cell.taken { cursor: default; }
+.ttt-cell.x { color: var(--neon-green); text-shadow: 0 0 8px var(--neon-green); }
+.ttt-cell.o { color: #f87171; text-shadow: 0 0 8px rgba(248, 113, 113, 0.6); }
+.ttt-cell.win { background: rgba(248, 113, 113, 0.18); box-shadow: inset 0 0 12px rgba(248, 113, 113, 0.4); }
+
+.ttt-status {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    color: var(--ink);
+    opacity: 0.8;
+    min-height: 1.2em;
+    text-align: center;
+}
+
+.ttt-restart {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding: 6px 18px;
+    border: 1px solid var(--line-strong);
+    border-radius: 20px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ttt-restart:hover {
+    border-color: var(--neon-green);
+    color: var(--neon-green);
+    box-shadow: 0 0 10px var(--neon-green);
 }
 
 .thinking-spinner {
@@ -2932,6 +3039,119 @@ class CheckersBoard extends HTMLElement {
             this.addMessage(`网络错误: ${e.message}`, 'error');
             this._dispatchError('发送指令失败', e);
         }
+    }
+
+    // ── 井字棋 mini game（不保存数据）──
+    _initTicTacToe() {
+        const board = this.shadowRoot.getElementById('ttt-board');
+        if (!board) return;
+        this.ttt = { cells: Array(9).fill(null), over: false };
+        this.ttt.playerFirst = Math.random() < 0.5; // 随机先手
+        this.ttt.turn = 'X'; // 玩家 X，AI O
+        board.querySelectorAll('.ttt-cell').forEach(cell => {
+            cell.addEventListener('click', () => this._tttCellClick(cell));
+        });
+        this.shadowRoot.getElementById('ttt-restart').addEventListener('click', () => this._tttReset());
+        this._tttRender();
+        if (!this.ttt.playerFirst) {
+            this.shadowRoot.getElementById('ttt-status').textContent = 'AI 先手（O）';
+            setTimeout(() => this._tttAiMove(), 500);
+        } else {
+            this.shadowRoot.getElementById('ttt-status').textContent = '你先手（X）';
+        }
+    }
+
+    _tttReset() {
+        this.ttt = { cells: Array(9).fill(null), over: false };
+        this.ttt.playerFirst = Math.random() < 0.5;
+        this.ttt.turn = 'X';
+        this.shadowRoot.getElementById('ttt-status').textContent = '新一局 · 随机先手';
+        this._tttRender();
+        if (!this.ttt.playerFirst) setTimeout(() => this._tttAiMove(), 400);
+    }
+
+    _tttRender() {
+        const board = this.shadowRoot.getElementById('ttt-board');
+        if (!board) return;
+        board.querySelectorAll('.ttt-cell').forEach((cell, i) => {
+            cell.textContent = this.ttt.cells[i] || '';
+            cell.classList.toggle('x', this.ttt.cells[i] === 'X');
+            cell.classList.toggle('o', this.ttt.cells[i] === 'O');
+            cell.classList.toggle('taken', !!this.ttt.cells[i]);
+            cell.classList.toggle('over', this.ttt.over);
+            cell.classList.remove('win');
+        });
+        if (this.ttt.winLine) {
+            this.ttt.winLine.forEach(i => board.querySelectorAll('.ttt-cell')[i].classList.add('win'));
+        }
+    }
+
+    _tttCellClick(cell) {
+        if (this.ttt.over || this.ttt.turn !== 'X') return;
+        const idx = Array.prototype.indexOf.call(this.shadowRoot.querySelectorAll('#ttt-board .ttt-cell'), cell);
+        if (this.ttt.cells[idx]) return;
+        this.ttt.cells[idx] = 'X';
+        this.shadowRoot.getElementById('ttt-status').textContent = 'AI 思考中…';
+        this._tttRender();
+        if (!this._tttCheckGame()) {
+            this.ttt.turn = 'O';
+            setTimeout(() => this._tttAiMove(), 450);
+        }
+    }
+
+    _tttAiMove() {
+        if (this.ttt.over) return;
+        const empty = this.ttt.cells.map((v, i) => v ? null : i).filter(i => i !== null);
+        if (!empty.length) { this._tttCheckGame(); return; }
+        let move = null;
+        for (const i of empty) {
+            const c = this.ttt.cells.slice(); c[i] = 'O';
+            if (this._tttWinner(c)) { move = i; break; }
+        }
+        if (move === null) {
+            for (const i of empty) {
+                const c = this.ttt.cells.slice(); c[i] = 'X';
+                if (this._tttWinner(c)) { move = i; break; }
+            }
+        }
+        if (move === null) move = empty[Math.floor(Math.random() * empty.length)];
+        this.ttt.cells[move] = 'O';
+        this.ttt.turn = 'X';
+        this.shadowRoot.getElementById('ttt-status').textContent = '轮到你（X）';
+        this._tttRender();
+        this._tttCheckGame();
+    }
+
+    _tttWinner(cells) {
+        const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+        for (const [a,b,c] of lines) {
+            if (cells[a] && cells[a] === cells[b] && cells[a] === cells[c]) return cells[a];
+        }
+        return null;
+    }
+
+    _tttCheckGame() {
+        const w = this._tttWinner(this.ttt.cells);
+        if (w) {
+            this.ttt.over = true;
+            const lines = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+            for (const [a,b,c] of lines) {
+                if (this.ttt.cells[a] === w && this.ttt.cells[a] === this.ttt.cells[b] && this.ttt.cells[a] === this.ttt.cells[c]) {
+                    this.ttt.winLine = [a,b,c];
+                }
+            }
+            this._tttRender();
+            this.shadowRoot.getElementById('ttt-status').textContent = w === 'X' ? '你赢了！点击重新开始再来一局' : 'AI 获胜，点击重新开始再来一局';
+            return true;
+        }
+        if (this.ttt.cells.every(v => v)) {
+            this.ttt.over = true;
+            this.ttt.winLine = null;
+            this._tttRender();
+            this.shadowRoot.getElementById('ttt-status').textContent = '平局！点击重新开始再来一局';
+            return true;
+        }
+        return false;
     }
 
     showThinking(text, stage) {

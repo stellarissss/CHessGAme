@@ -46,8 +46,8 @@
       "name": "红",
       "side": "red",
       "position": [
-        4,
-        8
+        2,
+        10
       ],
       "is_alive": true,
       "custom_properties": {}
@@ -130,8 +130,8 @@
       "name": "黑",
       "side": "black",
       "position": [
-        12,
-        8
+        13,
+        9
       ],
       "is_alive": true,
       "custom_properties": {}
