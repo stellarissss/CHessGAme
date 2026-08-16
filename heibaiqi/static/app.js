@@ -84,7 +84,7 @@ class HeibaiqiBoard extends HTMLElement {
     _renderShadowDom() {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = '/static/style.css?v=20260805b';
+        link.href = '/static/style.css?v=20260806a';
         this.shadowRoot.appendChild(link);
 
         const container = document.createElement('div');
@@ -382,6 +382,451 @@ class HeibaiqiBoard extends HTMLElement {
         }
     }
 
+    highlightPiece(piece) {
+        // 黑白棋无选子高亮
+    }
+
+    showValidMoves() {
+        // 已被 renderValidPlacements 取代
+    }
+
+    async onPieceClick(piece) {
+        // 黑白棋：点击已有棋子无操作（落子点由 valid-move-indicator 处理）
+    }
+
+    async placeStone(x, y) {
+        if (this.aiThinking) return;
+        if (this.boardState?.game_status?.state === 'ended') return;
+        if (!this._isCurrentTurnPlayerControlled()) return;
+
+        this.clearValidMoves();
+        this.aiThinking = true;
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to: [x, y] })
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                this.boardState = data.board_state;
+                this.lastMove = this.boardState.move_history?.slice(-1)[0] || null;
+                this.renderPieces();
+                await this._animateFlips(data.flipped || []);
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateMechanisms();
+                this.loadTokenStats();
+                await this.loadSamsaraState();
+                this._dispatchMoveEvent();
+
+                if (this.boardState.game_status.state === 'ended') {
+                    this.showGameOver();
+                    this._dispatchGameEndEvent();
+                    this.aiThinking = false;
+                    return;
+                }
+                await this.renderValidPlacements();
+                await this.sleep(800);
+                if (this._isCurrentTurnAITurn()) {
+                    await this.makeAIMove();
+                }
+            } else {
+                this.addMessage(data.message || '落子失败', 'error');
+                await this.renderValidPlacements();
+            }
+        } catch (e) {
+            this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('落子失败', e);
+            await this.renderValidPlacements();
+        }
+        this.aiThinking = false;
+    }
+
+    _animateFlips(flippedIds) {
+        return new Promise(resolve => {
+            if (!flippedIds || flippedIds.length === 0) { resolve(); return; }
+            let pending = flippedIds.length;
+            flippedIds.forEach(id => {
+                const el = this.shadowRoot.querySelector(`[data-piece-id="${id}"]`);
+                if (el) {
+                    el.classList.add('flipping');
+                    const onEnd = () => {
+                        el.classList.remove('flipping');
+                        el.removeEventListener('animationend', onEnd);
+                        pending--;
+                        if (pending <= 0) resolve();
+                    };
+                    el.addEventListener('animationend', onEnd);
+                    setTimeout(() => {
+                        if (pending > 0) {
+                            el.classList.remove('flipping');
+                            pending--;
+                            if (pending <= 0) resolve();
+                        }
+                    }, 500);
+                } else {
+                    pending--;
+                    if (pending <= 0) resolve();
+                }
+            });
+        });
+    }
+
+    async makeAIMove(depth = 0) {
+        if (depth > 10) return;
+        this.addMessage('AI思考中...', 'info');
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/ai_move`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            const data = await resp.json();
+
+            if (data.success) {
+                this.boardState = data.board_state;
+                this.lastMove = data.ai_move || null;
+                this.renderPieces();
+                await this._animateFlips(data.ai_move?.flipped || []);
+                if (data.ai_move?.to) {
+                    const el = this.shadowRoot.querySelector(`[data-pos="${data.ai_move.to[0]},${data.ai_move.to[1]}"]`);
+                    if (el) {
+                        this.shadowRoot.querySelectorAll('.piece').forEach(p => p.classList.remove('ai-moved'));
+                        el.classList.add('ai-moved');
+                    }
+                }
+                this.updateTurnIndicator();
+                this.updateActiveRules();
+                this.updateGameObjectives();
+                this.updateMechanisms();
+                await this.loadSamsaraState();
+
+                const messages = this.shadowRoot.getElementById('ai-messages');
+                const lastMsg = messages.lastElementChild;
+                if (lastMsg && lastMsg.textContent.includes('思考中')) {
+                    lastMsg.remove();
+                }
+                this.addMessage(`AI落子于 (${data.ai_move.to[0]},${data.ai_move.to[1]})，翻转 ${data.ai_move.flipped?.length || 0} 子`, 'info');
+
+                this._dispatchMoveEvent();
+
+                if (this.boardState.game_status.state === 'ended') {
+                    this.showGameOver();
+                    this._dispatchGameEndEvent();
+                    return;
+                }
+                await this.renderValidPlacements();
+                if (this._isCurrentTurnAITurn()) {
+                    await this.sleep(600);
+                    await this.makeAIMove(depth + 1);
+                }
+            } else {
+                this.addMessage(data.message || 'AI移动失败', 'error');
+            }
+        } catch (e) {
+            this.addMessage(`AI错误: ${e.message}`, 'error');
+            this._dispatchError('AI移动失败', e);
+        }
+    }
+
+    _dispatchMoveEvent() {
+        const lastMove = this.boardState?.move_history?.slice(-1)[0];
+        const gameStatus = this.boardState?.game_status || {};
+        const mover = this.boardState?.current_turn === 'black' ? 'white' : 'black';
+
+        this.dispatchEvent(new CustomEvent('move', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                captured: lastMove?.flipped || null,
+                mover: mover,
+                is_check: gameStatus.is_check || false,
+                game_ended: gameStatus.state === 'ended',
+                winner: gameStatus.winner || null,
+                is_five_in_a_row: false,
+                go_captures: 0
+            }
+        }));
+    }
+
+    _dispatchGameEndEvent() {
+        const gameStatus = this.boardState?.game_status || {};
+        this.dispatchEvent(new CustomEvent('gameend', {
+            bubbles: true,
+            composed: true,
+            detail: {
+                winner: gameStatus.winner || null,
+                win_condition: gameStatus.win_condition || null
+            }
+        }));
+    }
+
+    _dispatchError(message, error) {
+        this.dispatchEvent(new CustomEvent('error', {
+            bubbles: true,
+            composed: true,
+            detail: { message, error: error?.message || error }
+        }));
+    }
+
+    _isCurrentTurnAITurn() {
+        const currentTurn = this.boardState?.current_turn || 'black';
+        if (this._isCurrentTurnAIControlled()) return true;
+        if (!this._isCurrentTurnPlayerControlled()) return true;
+        return false;
+    }
+
+    _isCurrentTurnAIControlled() {
+        const mechanisms = this.boardState?.mechanisms || {};
+        const currentTurn = this.boardState?.current_turn || 'black';
+        const aiControl = mechanisms.ai_control || [];
+        return aiControl.some(item => item.side === currentTurn && item.remaining !== 0);
+    }
+
+    _isCurrentTurnPlayerControlled() {
+        const currentTurn = this.boardState?.current_turn || 'black';
+        const mechanisms = this.boardState?.mechanisms || {};
+        const playerControl = mechanisms.player_control || [];
+
+        if (!playerControl || playerControl.length === 0) {
+            return currentTurn === this.playerSide;
+        }
+
+        for (const item of playerControl) {
+            const side = item.side;
+            if (side === 'both') return true;
+            if (side === currentTurn) return true;
+        }
+
+        return false;
+    }
+
+    highlightAIMovedPiece(pieceId) {
+        this.shadowRoot.querySelectorAll('.piece').forEach(el => {
+            el.classList.remove('ai-moved');
+        });
+        const el = this.shadowRoot.querySelector(`[data-piece-id="${pieceId}"]`);
+        if (el) {
+            el.classList.add('ai-moved');
+        }
+    }
+
+    async sendCommand(command) {
+        if (!command.trim()) return;
+
+        this.addMessage(`📝 你: ${command}`, 'user');
+
+        this.showThinking('ChatAI 正在理解您的意图...', '意图解析');
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: command })
+            });
+            const data = await resp.json();
+
+            this.hideThinking();
+
+            if (data.success) {
+                if (data.type === 'applied') {
+                    this.addMessage(`✅ ${data.message}`, 'success');
+                    if (data.refresh_page) {
+                        await this.sleep(500);
+                        window.location.reload();
+                        return;
+                    }
+                    await this.loadConfigs();
+                    this.renderBoard();
+                    this.renderPieces();
+                    this.updateTurnIndicator();
+                    await this.renderValidPlacements();
+                    this.updateActiveRules();
+                    this.updateGameObjectives();
+                    this.updateAIPersonality();
+                    this.updateMechanisms();
+                    this.loadTokenStats();
+                    await this.loadSamsaraState();
+
+                    if (data.classification === 'A') {
+                        this.triggerPersonalityChangeAnimation();
+                    }
+
+                    const gameStatus = this.boardState?.game_status;
+                    if (gameStatus && gameStatus.state === 'ended') {
+                        this._gameOverTimer = setTimeout(() => this.showGameOver(), 100);
+                    }
+
+                    if (this._isCurrentTurnAITurn() && !this.aiThinking) {
+                        this.aiThinking = true;
+                        await this.sleep(500);
+                        await this.makeAIMove();
+                        this.aiThinking = false;
+                    }
+                } else if (data.type === 'fun') {
+                    this.addMessage(data.message, 'fun');
+                    this.loadTokenStats();
+                }
+            } else {
+                if (data.type === 'rejected') {
+                    this.addMessage(`❌ ${data.message}`, 'error');
+                } else {
+                    this.addMessage(`⚠️ ${data.message}`, 'error');
+                }
+            }
+        } catch (e) {
+            this.hideThinking();
+            this.addMessage(`网络错误: ${e.message}`, 'error');
+            this._dispatchError('发送指令失败', e);
+        }
+    }
+
+    showThinking(text, stage) {
+        const overlay = this.shadowRoot.getElementById('thinking-overlay');
+        const textEl = this.shadowRoot.getElementById('thinking-text');
+        const stageEl = this.shadowRoot.getElementById('thinking-stage');
+
+        if (textEl) textEl.textContent = text;
+        if (stageEl) stageEl.textContent = `阶段: ${stage}`;
+        if (overlay) overlay.classList.add('show');
+
+        const boardContainer = this.shadowRoot.getElementById('board-container');
+        if (boardContainer) boardContainer.classList.add('board-locked');
+        const commandInput = this.shadowRoot.getElementById('command-input');
+        if (commandInput) commandInput.disabled = true;
+
+        this.pollThinkingStatus();
+    }
+
+    hideThinking() {
+        const overlay = this.shadowRoot.getElementById('thinking-overlay');
+        if (overlay) overlay.classList.remove('show');
+
+        const boardContainer = this.shadowRoot.getElementById('board-container');
+        if (boardContainer) boardContainer.classList.remove('board-locked');
+        const commandInput = this.shadowRoot.getElementById('command-input');
+        if (commandInput) commandInput.disabled = false;
+
+        if (this.thinkingPollInterval) {
+            clearInterval(this.thinkingPollInterval);
+            this.thinkingPollInterval = null;
+        }
+    }
+
+    async pollThinkingStatus() {
+        this.thinkingPollInterval = setInterval(async () => {
+            try {
+                const resp = await fetch(`${this.apiBase}/api/thinking_status`);
+                const data = await resp.json();
+
+                if (data.thinking) {
+                    const textEl = this.shadowRoot.getElementById('thinking-text');
+                    const stageEl = this.shadowRoot.getElementById('thinking-stage');
+
+                    if (data.stage === 'intent') {
+                        if (textEl) textEl.textContent = 'ChatAI 正在理解您的意图...';
+                        if (stageEl) stageEl.textContent = '阶段: 意图解析';
+                    } else if (data.stage === 'code') {
+                        if (textEl) textEl.textContent = 'CodeAI 正在生成代码...';
+                        if (stageEl) stageEl.textContent = '阶段: 代码生成';
+                    }
+                }
+            } catch (e) {
+                console.error('轮询思考状态失败:', e);
+            }
+        }, 500);
+    }
+
+    async showLogs() {
+        const modal = this.shadowRoot.getElementById('logs-modal');
+        if (modal) modal.classList.add('show');
+        await this.refreshLogs();
+    }
+
+    hideLogs() {
+        const modal = this.shadowRoot.getElementById('logs-modal');
+        if (modal) modal.classList.remove('show');
+    }
+
+    async refreshLogs() {
+        const container = this.shadowRoot.getElementById('logs-container');
+        if (!container) return;
+
+        try {
+            const resp = await fetch(`${this.apiBase}/api/logs?count=10`);
+            const data = await resp.json();
+
+            if (data.logs && data.logs.length > 0) {
+                container.innerHTML = data.logs.map((log, index) => this.renderLogEntry(log, index)).join('');
+            } else {
+                container.innerHTML = '<div class="empty">暂无日志</div>';
+            }
+        } catch (e) {
+            container.innerHTML = `<div class="error">加载日志失败: ${e.message}</div>`;
+        }
+    }
+
+    renderLogEntry(log, index) {
+        const intent = log.intent_analysis || {};
+        const code = log.code_generation || {};
+        const final = log.final_result || {};
+
+        let statusClass = '';
+        if (final.type === 'error' || log.errors?.length > 0) statusClass = 'error';
+        else if (final.type === 'applied') statusClass = 'success';
+
+        return `
+            <div class="log-entry ${statusClass}">
+                <div class="log-header">
+                    <span>#${index + 1} ${log.timestamp || '未知时间'}</span>
+                    <span>分类: ${log.classification || 'N/A'}</span>
+                </div>
+                <div class="log-user-input">👤 用户: ${this.escapeHtml(log.user_input || '')}</div>
+
+                ${intent.success ? `
+                <div class="log-section">
+                    <div class="log-section-title">🤖 ChatAI 意图解析 (${intent.elapsed_time?.toFixed(2) || '?'}s)</div>
+                    <div class="log-content">${this.escapeHtml(JSON.stringify(intent.parsed_result || {}, null, 2))}</div>
+                </div>
+                ` : intent.error ? `
+                <div class="log-section">
+                    <div class="log-section-title">🤖 ChatAI 意图解析 - 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${this.escapeHtml(intent.error)}</div>
+                </div>
+                ` : ''}
+
+                ${code.success ? `
+                <div class="log-section">
+                    <div class="log-section-title">💻 CodeAI 代码生成 (${code.elapsed_time?.toFixed(2) || '?'}s)${code.patch_mode ? ` · ${code.patch_mode}` : ''}${code.patch_operations != null ? ` · ${code.patch_operations}项操作` : (code.diff_operations != null ? ` · ${code.diff_operations}项差异` : '')}</div>
+                    <div class="log-content log-json">${this.renderCodeDiff(code)}</div>
+                </div>
+                ` : code.error ? `
+                <div class="log-section">
+                    <div class="log-section-title">💻 CodeAI 代码生成 - 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${this.escapeHtml(code.error)}</div>
+                </div>
+                ` : ''}
+
+                ${log.errors?.length > 0 ? `
+                <div class="log-section">
+                    <div class="log-section-title">⚠️ 错误</div>
+                    <div class="log-content" style="color: var(--danger)">${log.errors.map(e => this.escapeHtml(e)).join('<br>')}</div>
+                </div>
+                ` : ''}
+
+                <div class="log-section">
+                    <div class="log-section-title">✅ 最终结果: ${final.type || 'unknown'}</div>
+                    <div class="log-content">${this.escapeHtml(final.message || final.response || JSON.stringify(final, null, 2))}</div>
+                </div>
+            </div>
+        `;
+    }
+
     async init() {
         if (this._initialized) return;
         await this.loadConfigs();
@@ -396,8 +841,94 @@ class HeibaiqiBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
+        await this.loadSamsaraState();
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
+
+    async loadSamsaraState() {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/karma_detection`, { cache: 'no-store' });
+            const data = await resp.json();
+            if (data.success) {
+                this.samsaraState = {
+                    karma: data.karma?.current ?? 0,
+                    karma_max: data.karma?.max ?? 150,
+                    detection: data.detection ?? 0,
+                    current_turn: this.boardState?.game_status?.turn_count || 0,
+                    turn_limit: 20,
+                    objective: { description: this._getObjectiveDescription() }
+                };
+            } else {
+                throw new Error(data.message || 'failed');
+            }
+        } catch (e) {
+            this.samsaraState = {
+                karma: 0,
+                karma_max: 150,
+                detection: 0,
+                current_turn: this.boardState?.game_status?.turn_count || 0,
+                turn_limit: 20,
+                objective: { description: this._getObjectiveDescription() }
+            };
+        }
+        this.updateSamsaraUI();
+        await this.loadLevelInfo();
+    }
+
+    _getObjectiveDescription() {
+        const objs = this.configs?.board?.objectives || [];
+        const primary = objs.find(o => o.category === 'victory') || objs[0];
+        return primary?.description || primary?.name || '占领更多棋子';
+    }
+
+    async loadLevelInfo() {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/level/info`, { cache: 'no-store' });
+            const data = await resp.json();
+            this.levelInfo = data.current_level || null;
+            this.updateLevelDisplay();
+        } catch (e) {
+            this.levelInfo = null;
+        }
+    }
+
+    updateLevelDisplay() {
+        const levelBar = this.shadowRoot.getElementById('level-info-bar');
+        if (!levelBar) return;
+        if (!this.levelInfo) { levelBar.innerHTML = ''; return; }
+        const typeLabels = { standard: '对弈', puzzle: '残局', objective: '目标', boss: 'Boss', sandbox: '沙盒' };
+        const typeLabel = typeLabels[this.levelInfo.type] || this.levelInfo.type || '';
+        const name = this.levelInfo.name || '';
+        const desc = this.levelInfo.description || this.levelInfo.objective?.description || '';
+        levelBar.innerHTML = `<span class="level-realm">${this.levelInfo.realm_name || '地狱道'}</span> › <span class="level-name">${name}</span> <span class="level-type-badge">${typeLabel}</span>`;
+        if (desc) levelBar.title = desc;
+    }
+
+    updateSamsaraUI() {
+        const state = this.samsaraState || {};
+        const karma = state.karma || 0;
+        const maxKarma = state.karma_max || 150;
+        const detection = state.detection || 0;
+        const currentTurn = state.current_turn || 0;
+        const maxTurns = state.turn_limit || 20;
+        const objective = state.objective || { description: '占领更多棋子' };
+
+        const karmaFill = this.shadowRoot.getElementById('karma-fill');
+        const karmaValue = this.shadowRoot.getElementById('karma-value');
+        const detectionFill = this.shadowRoot.getElementById('detection-fill');
+        const detectionValue = this.shadowRoot.getElementById('detection-value');
+        const turnFill = this.shadowRoot.getElementById('turn-fill');
+        const turnValue = this.shadowRoot.getElementById('turn-value');
+        const objectiveText = this.shadowRoot.getElementById('objective-text');
+
+        if (karmaFill) karmaFill.style.width = `${Math.min(100, (karma / maxKarma) * 100)}%`;
+        if (karmaValue) karmaValue.textContent = `${karma}/${maxKarma}`;
+        if (detectionFill) detectionFill.style.width = `${Math.min(100, detection)}%`;
+        if (detectionValue) detectionValue.textContent = `${Math.round(detection)}%`;
+        if (turnFill) turnFill.style.width = `${Math.min(100, (currentTurn / maxTurns) * 100)}%`;
+        if (turnValue) turnValue.textContent = `${currentTurn}/${maxTurns}`;
+        if (objectiveText) objectiveText.textContent = objective.description || '占领更多棋子';
     }
 
     async loadTokenStats() {
@@ -910,14 +1441,15 @@ class HeibaiqiBoard extends HTMLElement {
             def = personality.conservatism ?? 0.5;
         }
 
-        const totalBars = 10;
-        const aggBars = Math.round(agg * totalBars);
-        const defBars = Math.round(def * totalBars);
+        const aggPct = Math.round(agg * 100);
+        const defPct = Math.round(def * 100);
 
-        this.shadowRoot.getElementById('bar-agg').textContent = '█'.repeat(aggBars) + '░'.repeat(totalBars - aggBars);
-        this.shadowRoot.getElementById('bar-def').textContent = '█'.repeat(defBars) + '░'.repeat(totalBars - defBars);
-        this.shadowRoot.getElementById('bar-agg-pct').textContent = `${Math.round(agg * 100)}%`;
-        this.shadowRoot.getElementById('bar-def-pct').textContent = `${Math.round(def * 100)}%`;
+        const aggFill = this.shadowRoot.getElementById('bar-agg-fill');
+        const defFill = this.shadowRoot.getElementById('bar-def-fill');
+        if (aggFill) aggFill.style.width = `${aggPct}%`;
+        if (defFill) defFill.style.width = `${defPct}%`;
+        this.shadowRoot.getElementById('bar-agg-pct').textContent = `${aggPct}%`;
+        this.shadowRoot.getElementById('bar-def-pct').textContent = `${defPct}%`;
     }
 
     triggerPersonalityChangeAnimation() {
