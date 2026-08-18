@@ -11,19 +11,13 @@
       "moves": [
         {
           "kind": "jump",
-          "to": [
-            0,
-            1
-          ],
+          "to": [0, 1],
           "block": [],
           "land": "any",
           "sym": "rotate4",
           "where": [
             {
-              "in_region": {
-                "pos": "$dest",
-                "region": "$palace"
-              }
+              "in_region": {"pos": "$dest", "region": "$palace"}
             }
           ]
         }
@@ -34,19 +28,13 @@
       "moves": [
         {
           "kind": "jump",
-          "to": [
-            1,
-            1
-          ],
+          "to": [1, 1],
           "block": [],
           "land": "any",
           "sym": "rotate4",
           "where": [
             {
-              "in_region": {
-                "pos": "$dest",
-                "region": "$palace"
-              }
+              "in_region": {"pos": "$dest", "region": "$palace"}
             }
           ]
         }
@@ -57,25 +45,13 @@
       "moves": [
         {
           "kind": "jump",
-          "to": [
-            2,
-            2
-          ],
-          "block": [
-            [
-              1,
-              1
-            ]
-          ],
+          "to": [2, 2],
+          "block": [[1, 1]],
           "land": "any",
           "sym": "rotate4",
           "where": [
             {
-              "not": {
-                "crossed_river": {
-                  "pos": "$dest"
-                }
-              }
+              "not": {"crossed_river": {"pos": "$dest"}}
             }
           ]
         }
@@ -86,16 +62,8 @@
       "moves": [
         {
           "kind": "jump",
-          "to": [
-            1,
-            2
-          ],
-          "block": [
-            [
-              0,
-              1
-            ]
-          ],
+          "to": [1, 2],
+          "block": [[0, 1]],
           "land": "any",
           "sym": "rotate4_mirror"
         }
@@ -106,10 +74,7 @@
       "moves": [
         {
           "kind": "ray",
-          "dir": [
-            1,
-            0
-          ],
+          "dir": [1, 0],
           "max": -1,
           "screens": 0,
           "land": "any",
@@ -122,10 +87,7 @@
       "moves": [
         {
           "kind": "ray",
-          "dir": [
-            1,
-            0
-          ],
+          "dir": [1, 0],
           "max": -1,
           "screens": 0,
           "land": "empty",
@@ -133,10 +95,7 @@
         },
         {
           "kind": "ray",
-          "dir": [
-            1,
-            0
-          ],
+          "dir": [1, 0],
           "max": -1,
           "screens": 1,
           "land": "enemy",
@@ -156,18 +115,13 @@
         },
         {
           "kind": "jump",
-          "to": [
-            1,
-            0
-          ],
+          "to": [1, 0],
           "block": [],
           "land": "any",
           "sym": "mirror_x",
           "where": [
             {
-              "crossed_river": {
-                "pos": "$self"
-              }
+              "crossed_river": {"pos": "$self"}
             }
           ]
         }

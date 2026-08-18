@@ -348,6 +348,8 @@ class HeibaiqiBoard extends HTMLElement {
     async renderValidPlacements() {
         this.clearValidMoves();
         if (this.boardState?.game_status?.state === 'ended') return;
+        // 仅玩家自己可控的回合才显示可落点；AI 回合 / AI 思考时不显示
+        if (!this._isCurrentTurnPlayerControlled()) return;
         const side = this.boardState?.current_turn || 'black';
         try {
             const resp = await fetch(`${this.apiBase}/api/valid_moves`, {

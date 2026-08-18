@@ -489,8 +489,8 @@
 /* ============================================================
    棋盘网格 SVG（线条由 JS 生成）
    ============================================================ */
-.board-grid line { stroke: var(--board-line); stroke-width: 1.2; opacity: 0.85; }
-.board-grid rect.border { fill: none; stroke: var(--board-line); stroke-width: 2; opacity: 0.9; }
+.board-grid line { stroke: var(--magma-orange); stroke-width: 0.04; opacity: 0.92; }
+.board-grid rect { fill: none; stroke: var(--magma-orange); stroke-width: 0.06; opacity: 0.92; }
 
 /* ============================================================
    棋子

@@ -35,18 +35,9 @@
   "ai_difficulty": {
     "current": "medium",
     "levels": {
-      "easy": {
-        "depth": 2,
-        "randomness": 0.3
-      },
-      "medium": {
-        "depth": 3,
-        "randomness": 0.1
-      },
-      "hard": {
-        "depth": 4,
-        "randomness": 0.0
-      }
+      "easy": {"depth": 2, "randomness": 0.3},
+      "medium": {"depth": 3, "randomness": 0.1},
+      "hard": {"depth": 4, "randomness": 0.0}
     },
     "personality": {
       "type": "normal",

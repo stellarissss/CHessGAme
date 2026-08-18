@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 ### 设置 API Key
 
-1. 打开浏览器访问 `http://localhost:8000`
+1. 打开浏览器访问 `http://localhost:8001`
 2. 点击设置按钮 ⚙
 3. 输入 DeepSeek API Key
 
@@ -67,7 +67,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-访问 `http://localhost:8000` 开始游戏。
+访问 `http://localhost:8001` 开始游戏。
 
 ## 🎯 游戏玩法
 

@@ -1,8 +1,8 @@
 {
   "version": 3,
-  "current_realm": "hungry",
+  "current_realm": "hell",
   "current_level": 0,
-  "skill_points": 19,
+  "skill_points": 0,
   "karma_max": 120,
   "karma_single_max": 120,
   "initial_karma": 50,
@@ -17,11 +17,11 @@
   },
   "skills": {
     "karma_capacity_t1": {
-      "unlocked_at": "2026-07-27T12:16:41.666699",
+      "unlocked_at": "2026-08-18T12:41:44.347613",
       "tier": 1
     },
     "stealth_t1": {
-      "unlocked_at": "2026-07-27T12:16:41.666699",
+      "unlocked_at": "2026-08-18T12:41:44.347622",
       "tier": 1
     }
   },
@@ -67,7 +67,6 @@
     }
   },
   "level_karma": 50,
-  "last_modified": "2026-08-05T20:47:23.451890",
   "alignment": {
     "enlightenment": 0,
     "corruption": 0,
@@ -93,7 +92,7 @@
   "endings_unlocked": {
     "enlightenment": false,
     "corruption": false,
-    "samsara": true,
+    "samsara": false,
     "true_me": false,
     "exposed": false
   },
@@ -103,10 +102,11 @@
     "current_battle_active": false
   },
   "story_progress": {
-    "prologue_seen": true,
+    "prologue_seen": false,
     "current_dialogue_realm": null,
     "current_dialogue_level": null,
     "last_choice_made": null
   },
-  "playthrough_count": 1
+  "playthrough_count": 1,
+  "last_modified": "2026-08-18T12:41:44.347629"
 }

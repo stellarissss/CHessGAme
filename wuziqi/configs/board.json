@@ -1,24 +1,12 @@
 {
-  "_metadata": {
-    "version": "2.0",
-    "description": "五子棋棋盘几何定义与渲染配置"
-  },
+  "_metadata": {"version": "2.0", "description": "五子棋棋盘几何定义与渲染配置"},
   "geometry": {
     "width": 15,
     "height": 15,
     "river_line": null,
     "palace": null,
     "regions": {
-      "center": {
-        "x_range": [
-          6,
-          8
-        ],
-        "y_range": [
-          6,
-          8
-        ]
-      }
+      "center": {"x_range": [6, 8], "y_range": [6, 8]}
     }
   },
   "appearance": {
@@ -50,11 +38,7 @@
       "board_size": "90vmin"
     },
     "decorations": {
-      "border": {
-        "enabled": true,
-        "thickness": 0.1,
-        "color": "#8B4513"
-      },
+      "border": {"enabled": true, "thickness": 0.1, "color": "#8B4513"},
       "custom_lines": [],
       "background_pattern": null
     }

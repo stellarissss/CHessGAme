@@ -1,7 +1,6 @@
 {
-  "total_prompt_tokens": 0,
-  "total_completion_tokens": 0,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
   "total_calls": 0,
-  "daily_stats": {},
-  "token_price_per_1k": 0.0015
+  "by_action": {}
 }

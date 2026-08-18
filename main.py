@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 棋圣 (ChessSage) — 六道众生统一启动器
-一键拉起六种 AI 作弊棋类服务，并在本地启动“六道众生”总坛界面。
+一键拉起六种 AI 作弊棋类服务（剧情模式）+ 六种沙盒棋类（共 12 个子服务），
+并在本地启动“六道众生”总坛界面。
 """
 import os
 import sys
@@ -126,7 +127,6 @@ ACHIEVEMENT_DEFINITIONS = [
     {"id": "pokedex", "name": "全图鉴", "desc": "解锁所有成就", "icon": "📖", "category": "meta", "rarity": "legendary", "games": ["all"]},
 ]
 
-ALL_GAME_IDS = [g["id"] for g in []]  # filled below
 ALL_GAME_IDS = ["xiangqi", "wuziqi", "weiqi", "dongwuqi", "tiaoqi", "heibaiqi"]
 META_ACHIEVEMENT_IDS = {"samsara", "collector", "completionist", "pokedex"}
 

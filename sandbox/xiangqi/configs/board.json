@@ -1,53 +1,17 @@
 {
-  "_metadata": {
-    "version": "2.0",
-    "description": "棋盘几何定义与渲染配置"
-  },
+  "_metadata": {"version": "2.0", "description": "棋盘几何定义与渲染配置"},
   "geometry": {
     "width": 9,
     "height": 10,
     "river_line": 5,
     "palace": {
-      "red": {
-        "top_left": [
-          3,
-          7
-        ],
-        "bottom_right": [
-          5,
-          9
-        ]
-      },
-      "black": {
-        "top_left": [
-          3,
-          0
-        ],
-        "bottom_right": [
-          5,
-          2
-        ]
-      }
+      "red": {"top_left": [3, 7], "bottom_right": [5, 9]},
+      "black": {"top_left": [3, 0], "bottom_right": [5, 2]}
     },
     "regions": {
-      "red_side": {
-        "y_range": [
-          5,
-          9
-        ]
-      },
-      "black_side": {
-        "y_range": [
-          0,
-          4
-        ]
-      },
-      "river": {
-        "y_range": [
-          4,
-          5
-        ]
-      }
+      "red_side": {"y_range": [5, 9]},
+      "black_side": {"y_range": [0, 4]},
+      "river": {"y_range": [4, 5]}
     }
   },
   "appearance": {
@@ -79,11 +43,7 @@
       "board_size": "90vmin"
     },
     "decorations": {
-      "border": {
-        "enabled": false,
-        "thickness": 0.1,
-        "color": null
-      },
+      "border": {"enabled": false, "thickness": 0.1, "color": null},
       "custom_lines": [],
       "background_pattern": null
     }
