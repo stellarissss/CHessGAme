@@ -17,7 +17,7 @@ if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -147,6 +147,39 @@ if STATIC_DIR.exists():
 SHARED_ASSETS_DIR = SHARED_DIR / "assets"
 if SHARED_ASSETS_DIR.exists():
     app.mount("/assets", StaticFiles(directory=str(SHARED_ASSETS_DIR)), name="assets")
+
+
+# ═══════════════════════════════════════════════════════════════
+# Samsara API 代理（前端通过相对路径 /samsara/... 访问总坛 samsara 服务）
+# ═══════════════════════════════════════════════════════════════
+
+@app.api_route("/samsara/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+async def proxy_samsara(path: str, request: Request):
+    """代理 samsara API 请求到总坛服务。
+
+    前端使用相对路径 /samsara/api/... 调用 samsara，但 samsara 只挂载在总坛(8080)。
+    此代理将 /samsara/... 转发到 SAMSARA_API_URL，避免 404 导致业力显示归零。
+    """
+    target_url = f"{SAMSARA_API_URL}/{path}"
+    body = await request.body()
+    headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                request.method, target_url,
+                headers=headers, content=body, params=request.query_params,
+            )
+            content = resp.content
+            excluded = {"content-encoding", "transfer-encoding", "connection", "keep-alive", "content-length"}
+            response_headers = {k: v for k, v in resp.headers.items() if k.lower() not in excluded}
+            return Response(
+                content=content,
+                status_code=resp.status_code,
+                headers=response_headers,
+                media_type=resp.headers.get("content-type"),
+            )
+    except Exception as e:
+        return JSONResponse({"detail": f"samsara proxy error: {e}"}, status_code=502)
 
 
 class PlayerCommand(BaseModel):
