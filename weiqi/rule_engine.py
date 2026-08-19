@@ -378,13 +378,16 @@ class RuleEngine:
 
     def _get_group(self, board_state: dict, x: int, y: int) -> List[dict]:
         """获取连通块（同色相连的棋子）"""
-        piece = self._get_piece_at([x, y], board_state)
-        if not piece:
+        # 位置索引 O(1) 查找：一次建索引，BFS 全程复用
+        pos_idx = self._pos_index(board_state)
+        start = pos_idx.get((x, y))
+        if not start:
             return []
 
         group = []
         visited = set()
         stack = [(x, y)]
+        target_side = start["side"]
 
         while stack:
             cx, cy = stack.pop()
@@ -392,8 +395,9 @@ class RuleEngine:
                 continue
             visited.add((cx, cy))
 
-            current = self._get_piece_at([cx, cy], board_state)
-            if current and current["side"] == piece["side"]:
+            # 位置索引 O(1) 查找当前格
+            current = pos_idx.get((cx, cy))
+            if current and current["side"] == target_side:
                 group.append(current)
                 for dx, dy in self._directions:
                     nx, ny = cx + dx, cy + dy
@@ -403,14 +407,16 @@ class RuleEngine:
         return group
 
     def _count_liberties(self, board_state: dict, group: List[dict]) -> int:
-        """计算连通块的气数"""
+        """计算连通块的气数（通过位置索引 O(1) 判定邻格是否为空）"""
+        # 位置索引 O(1) 查找：一次构建即可判定所有邻格占位情况
+        pos_idx = self._pos_index(board_state)
         liberties = set()
 
         for piece in group:
             px, py = piece["position"]
             for dx, dy in self._directions:
                 nx, ny = px + dx, py + dy
-                if self._in_bounds(nx, ny) and not self._get_piece_at([nx, ny], board_state):
+                if self._in_bounds(nx, ny) and (nx, ny) not in pos_idx:
                     liberties.add((nx, ny))
 
         return len(liberties)
@@ -654,9 +660,22 @@ class RuleEngine:
         """获取棋盘高度"""
         return self.board_config.get("geometry", {}).get("height", 19)
 
-    def _get_piece_at(self, pos: List[int], board_state: dict) -> Optional[dict]:
-        """获取指定位置的棋子"""
+    def _pos_index(self, board_state: dict) -> Dict[Tuple[int, int], dict]:
+        """位置→棋子 O(1) 查找：将 board_state 中所有活子按坐标建索引"""
+        # 位置索引 O(1) 查找
+        pos_idx: Dict[Tuple[int, int], dict] = {}
         for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
-        return None
+            if not p.get("is_alive", True):
+                continue
+            pos = p.get("position")
+            if not pos:
+                continue
+            key = (pos[0], pos[1])
+            pos_idx[key] = p
+        return pos_idx
+
+    def _get_piece_at(self, pos: List[int], board_state: dict) -> Optional[dict]:
+        """获取指定位置的棋子（位置→棋子 O(1) 查找）"""
+        # 位置索引 O(1) 查找
+        pos_idx = self._pos_index(board_state)
+        return pos_idx.get((pos[0], pos[1]))

@@ -173,10 +173,15 @@ class RuleEngine:
         """
         返回该棋子（作为锚点己棋）能支撑的合法落子点。
         落子点必须能沿某个 flip 方向翻转至少 1 颗敌方棋子。
+
+        位置索引 O(1) 查找：一次构建即可在所有方向内复用。
         """
         move_defs = self._get_move_definitions(piece["type"], piece.get("side"))
         if not move_defs:
             return []
+
+        # 位置索引 O(1) 查找：一次性建索引，传入单方向函数复用
+        pos_idx = self._pos_index(board_state)
 
         placements: List[List[int]] = []
         seen = set()
@@ -184,7 +189,7 @@ class RuleEngine:
             if move_def.get("kind") != "flip":
                 continue
             for exp_def in self._expand_symmetry(move_def):
-                for placement in self._flip_moves_single(exp_def, piece, board_state):
+                for placement in self._flip_moves_single(exp_def, piece, board_state, pos_idx):
                     key = (placement[0], placement[1])
                     if key not in seen:
                         seen.add(key)
@@ -192,14 +197,18 @@ class RuleEngine:
         return placements
 
     def _flip_moves_single(
-        self, exp_def: dict, piece: dict, board_state: dict
+        self, exp_def: dict, piece: dict, board_state: dict,
+        _pos_idx: Optional[Dict[Tuple[int, int], dict]] = None,
     ) -> List[List[int]]:
-        """单个已展开方向的 flip 落子点计算"""
+        """单个已展开方向的 flip 落子点计算（支持传入已构建的位置索引）"""
         px, py = piece["position"]
         side = piece["side"]
         direction = exp_def.get("dir", [1, 0])
         max_dist = exp_def.get("max", 6)
         where = exp_def.get("where", [])
+
+        # 位置索引 O(1) 查找：未传入则自行构建
+        pos_idx = _pos_idx if _pos_idx is not None else self._pos_index(board_state)
 
         placements: List[List[int]] = []
         enemy_count = 0
@@ -208,7 +217,8 @@ class RuleEngine:
             nx, ny = px + direction[0] * step, py + direction[1] * step
             if not self._in_bounds(nx, ny):
                 break
-            target = self._get_piece_at([nx, ny], board_state)
+            # 位置索引 O(1) 查表代替 for 线性扫描
+            target = pos_idx.get((nx, ny))
             if target is None:
                 # 空格：若此前已遇≥1敌棋，则为合法落子点
                 if enemy_count >= 1:
@@ -658,11 +668,24 @@ class RuleEngine:
         """获取棋盘高度"""
         return self.board_config.get("geometry", {}).get("height", 8)
 
+    def _pos_index(self, board_state: dict) -> Dict[Tuple[int, int], dict]:
+        """位置→棋子 O(1) 查找：将 board_state 中所有活子按坐标建索引"""
+        # 位置索引 O(1) 查找
+        pos_idx: Dict[Tuple[int, int], dict] = {}
+        for p in board_state.get("pieces", []):
+            if not p.get("is_alive", True):
+                continue
+            pos = p.get("position")
+            if not pos:
+                continue
+            key = (pos[0], pos[1])
+            pos_idx[key] = p
+        return pos_idx
+
     def _get_piece_at(
         self, pos: List[int], board_state: dict
     ) -> Optional[dict]:
-        """获取指定位置的棋子"""
-        for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
-        return None
+        """获取指定位置的棋子（位置→棋子 O(1) 查找）"""
+        # 位置索引 O(1) 查找
+        pos_idx = self._pos_index(board_state)
+        return pos_idx.get((pos[0], pos[1]))

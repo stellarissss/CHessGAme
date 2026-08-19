@@ -74,12 +74,25 @@ class RuleEngine:
         # 去重（同一终点可能被 step/hop 多次覆盖）
         return list({tuple(m): m for m in all_moves}.values())
 
-    def _get_piece_at(self, pos: List[int], board_state: dict) -> Optional[dict]:
-        """获取指定位置的棋子"""
+    def _pos_index(self, board_state: dict) -> dict:
+        """位置→棋子 O(1) 查找：将 board_state 中所有活子按坐标建索引"""
+        # 位置索引 O(1) 查找
+        pos_idx = {}
         for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
-        return None
+            if not p.get("is_alive", True):
+                continue
+            pos = p.get("position")
+            if not pos:
+                continue
+            key = (pos[0], pos[1])
+            pos_idx[key] = p
+        return pos_idx
+
+    def _get_piece_at(self, pos: List[int], board_state: dict) -> Optional[dict]:
+        """获取指定位置的棋子（位置→棋子 O(1) 查找）"""
+        # 位置索引 O(1) 查找
+        pos_idx = self._pos_index(board_state)
+        return pos_idx.get((pos[0], pos[1]))
 
     def is_all_in_camp(self, board_state) -> Optional[str]:
         """检查是否有方全部棋子已进入对方营区

@@ -357,14 +357,27 @@ class RuleEngine:
         """获取棋盘高度"""
         return self.board_config.get("geometry", {}).get("height", 15)
 
+    def _pos_index(self, board_state: dict) -> Dict[Tuple[int, int], dict]:
+        """位置→棋子 O(1) 查找：将 board_state 中所有活子按坐标建索引"""
+        # 位置索引 O(1) 查找
+        pos_idx: Dict[Tuple[int, int], dict] = {}
+        for p in board_state.get("pieces", []):
+            if not p.get("is_alive", True):
+                continue
+            pos = p.get("position")
+            if not pos:
+                continue
+            key = (pos[0], pos[1])
+            pos_idx[key] = p
+        return pos_idx
+
     def _get_piece_at(
         self, pos: List[int], board_state: dict
     ) -> Optional[dict]:
-        """获取指定位置的棋子"""
-        for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
-        return None
+        """获取指定位置的棋子（位置→棋子 O(1) 查找）"""
+        # 位置索引 O(1) 查找
+        pos_idx = self._pos_index(board_state)
+        return pos_idx.get((pos[0], pos[1]))
 
     def check_five_in_a_row(self, board_state: dict) -> Optional[str]:
         """检查是否有五连珠"""
@@ -372,11 +385,11 @@ class RuleEngine:
         width = geometry.get("width", 15)
         height = geometry.get("height", 15)
 
-        pieces = board_state.get("pieces", [])
-        board = {}
-        for p in pieces:
-            if p.get("is_alive", True):
-                board[(p["position"][0], p["position"][1])] = p["side"]
+        # 位置索引 O(1) 查找：基于坐标索引构建 side 查询表
+        pos_idx = self._pos_index(board_state)
+        board_side: Dict[Tuple[int, int], str] = {
+            coord: p["side"] for coord, p in pos_idx.items()
+        }
 
         directions = [
             (1, 0),   # 水平
@@ -387,19 +400,19 @@ class RuleEngine:
 
         for x in range(width):
             for y in range(height):
-                side = board.get((x, y))
+                side = board_side.get((x, y))
                 if not side:
                     continue
 
                 for dx, dy in directions:
                     count = 1
                     nx, ny = x + dx, y + dy
-                    while 0 <= nx < width and 0 <= ny < height and board.get((nx, ny)) == side:
+                    while 0 <= nx < width and 0 <= ny < height and board_side.get((nx, ny)) == side:
                         count += 1
                         nx += dx
                         ny += dy
                     nx, ny = x - dx, y - dy
-                    while 0 <= nx < width and 0 <= ny < height and board.get((nx, ny)) == side:
+                    while 0 <= nx < width and 0 <= ny < height and board_side.get((nx, ny)) == side:
                         count += 1
                         nx -= dx
                         ny -= dy

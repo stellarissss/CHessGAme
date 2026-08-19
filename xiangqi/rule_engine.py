@@ -422,17 +422,33 @@ class RuleEngine:
         """获取棋盘高度"""
         return self.board_config.get("geometry", {}).get("height", 10)
 
+    def _pos_index(self, board_state: dict) -> Dict[Tuple[int, int], dict]:
+        """位置→棋子 O(1) 查找：将 board_state 中所有活子按坐标建索引"""
+        # 位置索引 O(1) 查找
+        pos_idx: Dict[Tuple[int, int], dict] = {}
+        for p in board_state.get("pieces", []):
+            if not p.get("is_alive", True):
+                continue
+            pos = p.get("position")
+            if not pos:
+                continue
+            key = (pos[0], pos[1])
+            pos_idx[key] = p
+        return pos_idx
+
     def _get_piece_at(
         self, pos: List[int], board_state: dict
     ) -> Optional[dict]:
-        """获取指定位置的棋子"""
-        for p in board_state.get("pieces", []):
-            if p.get("is_alive", True) and p["position"][0] == pos[0] and p["position"][1] == pos[1]:
-                return p
-        return None
+        """获取指定位置的棋子（位置→棋子 O(1) 查找）"""
+        # 位置索引 O(1) 查找
+        pos_idx = self._pos_index(board_state)
+        return pos_idx.get((pos[0], pos[1]))
 
     def is_in_check(self, side: str, board_state: dict) -> bool:
         """检查指定方是否被将军"""
+        # 位置索引 O(1) 查找：预构建一次索引复用
+        pos_idx = self._pos_index(board_state)
+
         general = None
         for p in board_state.get("pieces", []):
             if p.get("is_alive", True) and p["type"] in self._king_types and p["side"] == side:
@@ -453,14 +469,17 @@ class RuleEngine:
         if other_general and other_general["position"][0] == gx:
             og_y = other_general["position"][1]
             y_min, y_max = min(gy, og_y), max(gy, og_y)
+            # 飞将中间遮挡：用索引 O(1) 逐行查询，替代 O(n) 全量扫描
             blocked = False
-            for p in board_state.get("pieces", []):
-                if p.get("is_alive", True) and p["id"] != general["id"] and p["id"] != other_general["id"] and p["position"][0] == gx and y_min < p["position"][1] < y_max:
+            for y in range(y_min + 1, y_max):
+                mid = pos_idx.get((gx, y))
+                if mid and mid.get("id") != general["id"] and mid.get("id") != other_general.get("id"):
                     blocked = True
                     break
             if not blocked:
                 return True
 
+        # 敌子逐枚验证是否可攻击己方将/帅（保留原循环结构）
         for p in board_state.get("pieces", []):
             if p.get("is_alive", True) and p["side"] != side:
                 valid = self.get_valid_moves(p, board_state)
