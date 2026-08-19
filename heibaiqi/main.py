@@ -1,27 +1,45 @@
 """
-无限制黑白棋 - 主服务器
+无限制黑白棋 - 主服务器（重构版，使用 shared/game_base 共享基类）。
 黑白棋子项目的 FastAPI 入口。剧情编辑器与共享资产已分离至各自子项目。
+
+本文件仅保留：
+    1. 配置常量（CONFIGS_DIR / STATIC_DIR / SAMSARA_API_URL）
+    2. GameState — 继承 BaseGameState，仅实现 _rebuild_engines
+    3. FastAPI 应用创建 / 中间件 / 静态目录挂载
+    4. 棋类专有路由：/api/command, /api/move, /api/ai_move, /api/undo, /api/valid_moves
+    5. 棋类专有辅助函数：_place_disc_and_flip、_switch_turn_after_move、_trigger_karma_recover 等
+    6. if __name__ == "__main__" 启动块
+
+公共路由（25+ 条）和共享 GameState 方法均由 shared.game_base 提供。
 """
 import os
 import sys
-import json
-import copy
+import json  # noqa: F401（保留以备子模块内部间接使用，原文件有）
+import copy  # noqa: F401
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional  # noqa: F401
 
-# 将 shared/ 加入 sys.path，以便复用 schema_validator / json_patch_utils
+# 将 shared/ 加入 sys.path，以便复用 schema_validator / json_patch_utils / game_base
 BASE_DIR = Path(__file__).resolve().parent
 WORKSPACE_ROOT = BASE_DIR.parent
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query  # WebSocket 等保留占位
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
+
+# ── 共享基类导入 ────────────────────────────────────────────────
+from shared.game_base import (
+    BaseGameState,
+    register_common_routes,
+    SetApiKey,      # noqa: F401（re-export，保持原 import 语义对外可见）
+    DifficultyRequest,  # noqa: F401
+    PlayerCommand,
+)
 
 from ai_orchestrator import AIOrchestrator
 from rule_engine import RuleEngine
@@ -38,48 +56,27 @@ STATIC_DIR = BASE_DIR / "static"
 
 SAMSARA_API_URL = os.environ.get("SAMSARA_API_URL", "http://localhost:8080/samsara")
 
-CONFIG_FILES = ["board_state", "board", "pieces_black", "pieces_white", "rules", "ui_config"]
 
 # ═══════════════════════════════════════════════════════════════
-# 状态管理
+# 状态管理（继承 BaseGameState，仅实现棋类参数化差异）
 # ═══════════════════════════════════════════════════════════════
 
+class GameState(BaseGameState):
+    """黑白棋全局游戏状态 — 继承 BaseGameState，仅重写 _rebuild_engines。"""
 
-class GameState:
-    """全局游戏状态"""
+    CONFIG_FILES = ["board_state", "board", "pieces_black", "pieces_white", "rules", "ui_config"]
+    DEFAULT_DIFFICULTY = "normal"
+    PIECE_CONFIG_KEYS = ("pieces_black", "pieces_white")
 
     def __init__(self):
-        self.configs: Dict[str, dict] = {}
+        super().__init__(configs_dir=CONFIGS_DIR)
         api_key = get_api_key()
         self.ai_orchestrator = AIOrchestrator(api_key=api_key)
-        self.rule_engine: Optional[RuleEngine] = None
-        self.chess_ai: Optional[ChessAI] = None
-        self.mechanism_engine: Optional[MechanismEngine] = None
-        self.undo_stack: list = []  # 修改历史，用于撤回AI修改
+        # super().__init__ 不调用 load_configs（遵守子类契约），这里在设置完 ai_orchestrator 后调用
         self.load_configs()
 
-    def load_configs(self):
-        """加载所有配置文件"""
-        for name in CONFIG_FILES:
-            path = CONFIGS_DIR / f"{name}.json"
-            if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    self.configs[name] = json.load(f)
-        self._rebuild_engines()
-
-    def save_config(self, name: str):
-        """保存配置到文件"""
-        path = CONFIGS_DIR / f"{name}.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.configs[name], f, ensure_ascii=False, indent=2)
-
-    def save_all(self):
-        """保存所有配置"""
-        for name in CONFIG_FILES:
-            self.save_config(name)
-
     def _rebuild_engines(self):
-        """重建规则引擎和AI引擎"""
+        """重建规则引擎和AI引擎（黑白棋参数化：pieces_black + pieces_white）。"""
         board_config = self.configs.get("board", {})
         pieces_black = self.configs.get("pieces_black", {})
         pieces_white = self.configs.get("pieces_white", {})
@@ -94,50 +91,6 @@ class GameState:
         self.mechanism_engine = MechanismEngine(rules_config)
         # 应用AI性格
         self.mechanism_engine.apply_personality_to_ai(self.chess_ai)
-
-    def apply_config_update(self, updates: Dict[str, dict]):
-        """应用配置更新"""
-        # 保存当前状态到撤销栈
-        snapshot = {}
-        for name in updates:
-            if name in self.configs:
-                snapshot[name] = copy.deepcopy(self.configs[name])
-        if snapshot:
-            self.undo_stack.append(snapshot)
-            if len(self.undo_stack) > 10:
-                self.undo_stack.pop(0)
-
-        for name, data in updates.items():
-            self.configs[name] = data
-            self.save_config(name)
-
-        self._rebuild_engines()
-
-    def undo_last_config_change(self) -> bool:
-        """撤回上一次AI配置修改"""
-        if not self.undo_stack:
-            return False
-        snapshot = self.undo_stack.pop()
-        for name, data in snapshot.items():
-            self.configs[name] = data
-            self.save_config(name)
-        self._rebuild_engines()
-        return True
-
-    def reset_board(self):
-        """重置棋盘到初始状态 - 重置所有配置"""
-        # 从初始备份目录加载所有配置
-        initial_dir = CONFIGS_DIR / "initial"
-        for name in CONFIG_FILES:
-            initial_path = initial_dir / f"{name}.json.initial"
-            if initial_path.exists():
-                with open(initial_path, "r", encoding="utf-8") as f:
-                    self.configs[name] = json.load(f)
-
-        # 清空撤销栈
-        self.undo_stack.clear()
-        self._rebuild_engines()
-        self.save_all()
 
 
 state = GameState()
@@ -270,19 +223,26 @@ if SHARED_ASSETS_DIR.exists():
 
 
 # ═══════════════════════════════════════════════════════════════
-# 数据模型
+# 注册共享公共路由（25+ 条：根路由 / samsara 代理 / 配置读写 / 关卡系统等）
+# ═══════════════════════════════════════════════════════════════
+
+register_common_routes(
+    app,
+    state,
+    game_type="heibaiqi",
+    static_dir=STATIC_DIR,
+    samsara_api_url=SAMSARA_API_URL,
+    difficulty_levels=["easy", "normal", "hard"],
+)
+
+
+# ═══════════════════════════════════════════════════════════════
+# 黑白棋专有数据模型
 # ═══════════════════════════════════════════════════════════════
 
 
-class PlayerCommand(BaseModel):
-    command: str
-
-
-class SetApiKey(BaseModel):
-    api_key: str
-
-
 class MoveRequest(BaseModel):
+    piece_id: Optional[str] = None
     to: list  # [x, y] - 黑白棋无 piece_id，仅需落子坐标
 
 
@@ -290,51 +250,9 @@ class ValidMovesRequest(BaseModel):
     side: str  # black | white
 
 
-class DifficultyRequest(BaseModel):
-    difficulty: str  # easy | normal | hard | master
-
-
 # ═══════════════════════════════════════════════════════════════
-# API 路由
+# 黑白棋专有 API 路由
 # ═══════════════════════════════════════════════════════════════
-
-
-@app.get("/")
-async def index():
-    """返回主页面"""
-    html_path = STATIC_DIR / "index.html"
-    if html_path.exists():
-        return HTMLResponse(html_path.read_text(encoding="utf-8"))
-    return HTMLResponse("<h1>前端文件未找到</h1>", status_code=404)
-
-
-@app.get("/api/config/all")
-async def get_all_configs():
-    """获取所有配置（必须放在 /{config_name} 路由之前）"""
-    return state.configs
-
-
-@app.get("/api/config/{config_name}")
-async def get_config(config_name: str):
-    """获取配置"""
-    if config_name not in CONFIG_FILES:
-        return JSONResponse({"error": "无效的配置名"}, status_code=400)
-    return state.configs.get(config_name, {})
-
-
-@app.post("/api/apikey")
-async def set_api_key(req: SetApiKey):
-    """设置API密钥"""
-    state.ai_orchestrator.set_api_key(req.api_key)
-    if state.chess_ai:
-        state.chess_ai.set_api_key(req.api_key)
-    return {"success": True, "message": "API密钥已设置"}
-
-
-@app.get("/api/apikey/status")
-async def api_key_status():
-    """检查API密钥状态"""
-    return {"has_key": bool(state.ai_orchestrator.api_key)}
 
 
 @app.post("/api/command")
@@ -637,53 +555,59 @@ async def ai_move():
     }
 
 
-@app.get("/api/mechanisms")
-async def get_mechanisms():
-    """获取当前激活的机制列表"""
+@app.post("/api/valid_moves")
+async def get_valid_moves(req: ValidMovesRequest):
+    """获取指定方的合法落子点"""
     board = state.configs["board_state"]
-    summary = []
-    if state.mechanism_engine:
-        summary = state.mechanism_engine.get_active_mechanisms_summary(board)
-    return {"success": True, "mechanisms": summary, "raw": board.get("mechanisms", {})}
+    side = req.side or board.get("current_turn", "black")
+    moves = state.rule_engine.get_valid_placements(side, board)
+    return {"success": True, "moves": moves, "side": side}
 
 
-class StopMechanismRequest(BaseModel):
-    mechanism_type: str  # skip_turns | ai_control | random_moves | extra_turns | move_limits | player_control
-    side: str  # black | white | both
-
-
-@app.post("/api/stop_mechanism")
-async def stop_mechanism(req: StopMechanismRequest):
-    """截停指定方的指定机制"""
+@app.post("/api/undo")
+async def undo_move():
+    """悔棋（回退一步）"""
     board = state.configs["board_state"]
-    mech = board.get("mechanisms", {})
-    if req.mechanism_type in mech and isinstance(mech[req.mechanism_type], list):
-        # 移除指定方的所有激活机制
-        # player_control机制没有remaining字段，始终有效
-        if req.mechanism_type == "player_control":
-            mech[req.mechanism_type] = [
-                item for item in mech[req.mechanism_type]
-                if not item.get("side") == req.side
-            ]
-        else:
-            mech[req.mechanism_type] = [
-                item for item in mech[req.mechanism_type]
-                if not (item.get("side") == req.side and item.get("remaining", 0) != 0)
-            ]
-        board["mechanisms"] = mech
-        state.save_config("board_state")
+    history = board.get("move_history", [])
 
-    summary = []
-    if state.mechanism_engine:
-        summary = state.mechanism_engine.get_active_mechanisms_summary(board)
-    return {"success": True, "message": "机制已截停", "mechanisms": summary, "board_state": board}
+    if not history:
+        return {"success": False, "message": "没有可悔的棋"}
+
+    # 从 move_history 弹出最后一条
+    last = history.pop()
+    side = last.get("side")
+    opponent = "white" if side == "black" else "black"
+
+    # 删除该步新增的 disc（按 id 查找并从 pieces 列表移除）
+    placed_id = last.get("placed_disc_id")
+    if placed_id:
+        board["pieces"] = [p for p in board.get("pieces", []) if p["id"] != placed_id]
+
+    # 恢复被翻转的棋子的 side（用 flipped 列表反向恢复）
+    flipped_ids = last.get("flipped", [])
+    for p in board.get("pieces", []):
+        if p["id"] in flipped_ids:
+            p["side"] = opponent
+
+    # 切换 current_turn 回该方
+    board["current_turn"] = side
+    board["move_history"] = history
+
+    # 重置游戏状态为进行中
+    board["game_status"] = {
+        "state": "playing",
+        "winner": None,
+        "win_condition": None,
+        "custom_rules_active": board.get("game_status", {}).get("custom_rules_active", []),
+    }
+
+    state.save_config("board_state")
+    return {"success": True, "board_state": board, "message": "已悔一步"}
 
 
-@app.get("/api/token_stats")
-async def get_token_stats():
-    """获取Token消耗统计"""
-    return state.ai_orchestrator.get_token_stats()
-
+# ═══════════════════════════════════════════════════════════════
+# 黑白棋专有辅助函数
+# ═══════════════════════════════════════════════════════════════
 
 async def _trigger_karma_recover(flipped_ids: list, to_pos: list, current_turn: str):
     """翻转棋子后触发业力减少（消业，使用本地 KarmaAssessor）
@@ -759,277 +683,9 @@ async def _trigger_karma_recover(flipped_ids: list, to_pos: list, current_turn: 
         pass
 
 
-@app.post("/api/valid_moves")
-async def get_valid_moves(req: ValidMovesRequest):
-    """获取指定方的合法落子点"""
-    board = state.configs["board_state"]
-    side = req.side or board.get("current_turn", "black")
-    moves = state.rule_engine.get_valid_placements(side, board)
-    return {"success": True, "moves": moves, "side": side}
-
-
-@app.post("/api/undo")
-async def undo_move():
-    """悔棋（回退一步）"""
-    board = state.configs["board_state"]
-    history = board.get("move_history", [])
-
-    if not history:
-        return {"success": False, "message": "没有可悔的棋"}
-
-    # 从 move_history 弹出最后一条
-    last = history.pop()
-    side = last.get("side")
-    opponent = "white" if side == "black" else "black"
-
-    # 删除该步新增的 disc（按 id 查找并从 pieces 列表移除）
-    placed_id = last.get("placed_disc_id")
-    if placed_id:
-        board["pieces"] = [p for p in board.get("pieces", []) if p["id"] != placed_id]
-
-    # 恢复被翻转的棋子的 side（用 flipped 列表反向恢复）
-    flipped_ids = last.get("flipped", [])
-    for p in board.get("pieces", []):
-        if p["id"] in flipped_ids:
-            p["side"] = opponent
-
-    # 切换 current_turn 回该方
-    board["current_turn"] = side
-    board["move_history"] = history
-
-    # 重置游戏状态为进行中
-    board["game_status"] = {
-        "state": "playing",
-        "winner": None,
-        "win_condition": None,
-        "custom_rules_active": board.get("game_status", {}).get("custom_rules_active", []),
-    }
-
-    state.save_config("board_state")
-    return {"success": True, "board_state": board, "message": "已悔一步"}
-
-
-@app.post("/api/undo_config")
-async def undo_config_change():
-    """撤回AI配置修改"""
-    success = state.undo_last_config_change()
-    if success:
-        return {"success": True, "message": "已撤回上一次AI修改", "configs": state.configs}
-    return {"success": False, "message": "没有可撤回的修改"}
-
-
-@app.post("/api/restart")
-async def restart_game():
-    """重新开始游戏"""
-    state.reset_board()
-    return {"success": True, "message": "游戏已重新开始", "board_state": state.configs["board_state"]}
-
-
-@app.post("/api/difficulty")
-async def set_difficulty(req: DifficultyRequest):
-    """设置AI难度"""
-    if req.difficulty not in ["easy", "normal", "hard", "master"]:
-        return {"success": False, "message": "无效的难度"}
-
-    state.configs["rules"]["ai_difficulty"]["current"] = req.difficulty
-    state.save_config("rules")
-    state.chess_ai.set_difficulty(req.difficulty)
-    return {"success": True, "message": f"难度已设置为{req.difficulty}"}
-
-
-@app.post("/api/reset_configs")
-async def reset_configs():
-    """重置所有配置到初始状态"""
-    state.reset_board()
-    return {"success": True, "message": "所有配置已重置"}
-
-
-@app.get("/api/logs")
-async def get_logs(count: int = 10):
-    """获取AI对话日志"""
-    return {"logs": state.ai_orchestrator.get_logs(count)}
-
-
-@app.get("/api/karma_detection")
-async def get_karma_detection():
-    """获取业力和识破状态"""
-    karma_assessor = state.ai_orchestrator.karma_assessor
-    return {
-        "success": True,
-        "karma": {
-            "current": karma_assessor.get_local_karma(),
-            "max": karma_assessor.get_local_karma_max(),
-        },
-        "detection": karma_assessor.get_realm_detection(),
-    }
-
-
-@app.post("/api/karma/recover")
-async def recover_karma(request: Request):
-    """业力减少（消业，通过游戏事件）"""
-    body = await request.json()
-    event_type = body.get("event_type", "")
-    amount = body.get("amount", 0)
-    karma_assessor = state.ai_orchestrator.karma_assessor
-
-    # 从 samsara 获取技能修饰符
-    skill_modifiers = {}
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            skill_resp = await client.get(f"{SAMSARA_API_URL}/api/skills")
-            if skill_resp.status_code == 200:
-                skill_data = skill_resp.json()
-                skill_modifiers = skill_data.get("modifiers", {})
-    except Exception:
-        pass
-
-    actual = karma_assessor.decrease_karma(amount, skill_modifiers)
-
-    # 同步到 samsara（业障模型：recover 接口现在表示减少业力/消业）
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.post(
-                f"{SAMSARA_API_URL}/api/karma/recover",
-                json={"game_type": "heibaiqi", "event_type": event_type, "event_data": body}
-            )
-    except Exception:
-        pass
-
-    return {
-        "success": True,
-        "amount": actual,
-        "karma": {
-            "current": karma_assessor.get_local_karma(),
-            "max": karma_assessor.get_local_karma_max(),
-        },
-        "detection": karma_assessor.get_realm_detection(),
-    }
-
-
-@app.get("/api/thinking_status")
-async def get_thinking_status():
-    """获取AI思考状态"""
-    return state.ai_orchestrator.get_thinking_status()
-
-
-@app.post("/api/clear_logs")
-async def clear_logs():
-    """清空日志"""
-    state.ai_orchestrator.logger.clear()
-    return {"success": True, "message": "日志已清空"}
-
-
-# ═══════════════════════════════════════════════════════════════
-# RPG 代理路由（供 rpg_server:80 调用）
-# ═══════════════════════════════════════════════════════════════
-
-from json_patch_utils import apply_patch as _rpg_apply_patch  # noqa: E402
-
-
-class RpgApplyPatchReq(BaseModel):
-    patch: list
-    target: str  # board_state / rules / pieces_black / pieces_white / board / ui_config
-
-
-@app.post("/api/rpg/apply_patch")
-async def rpg_apply_patch(req: RpgApplyPatchReq):
-    """应用 JSON Patch 到指定配置文件"""
-    if req.target not in CONFIG_FILES:
-        return JSONResponse({"success": False, "message": f"无效 target: {req.target}"}, status_code=400)
-    try:
-        current = copy.deepcopy(state.configs.get(req.target, {}))
-        patched = _rpg_apply_patch(current, req.patch)
-        state.configs[req.target] = patched
-        state.save_config(req.target)
-        state._rebuild_engines()
-        return {"success": True, "target": req.target, "configs": patched}
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "message": f"应用 patch 失败: {e}"}
-
-
-@app.post("/api/rpg/apply_rules")
-async def rpg_apply_rules(req: RpgApplyPatchReq):
-    """应用规则覆盖（target 强制为 rules）"""
-    req.target = "rules"
-    return await rpg_apply_patch(req)
-
-
-@app.post("/api/rpg/reset_battle")
-async def rpg_reset_battle():
-    """RPG 每局开始时调用，重置棋盘到初始状态"""
-    state.reset_board()
-    return {"success": True, "message": "战斗已重置", "board_state": state.configs["board_state"]}
-
-
 # ═══════════════════════════════════════════════════════════════
 # 启动
 # ═══════════════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════════════════
-# 关卡系统接口
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/level/info")
-async def get_level_info():
-    """获取当前关卡信息"""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
-            data = resp.json()
-            return data
-    except Exception as e:
-        return {"success": False, "message": str(e), "current_level": None}
-
-
-@app.post("/api/level/apply")
-async def apply_level_config():
-    """根据当前关卡配置设置游戏参数"""
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
-            data = resp.json()
-            level = data.get("current_level")
-            if not level:
-                return {"success": False, "message": "无当前关卡"}
-
-            ai_depth = level.get("ai_depth", 3)
-            ai_personality = level.get("ai_personality", "normal")
-            turn_limit = level.get("turn_limit", 20)
-
-            difficulty_map = {1: "easy", 2: "easy", 3: "medium", 4: "hard", 5: "hard"}
-            difficulty = difficulty_map.get(ai_depth, "medium")
-            state.configs["rules"]["ai_difficulty"]["current"] = difficulty
-            if state.chess_ai:
-                state.chess_ai.set_difficulty(difficulty)
-            state.save_config("rules")
-
-            async with httpx.AsyncClient(timeout=5.0) as client2:
-                await client2.post(f"{SAMSARA_API_URL}/api/turn/reset")
-                await client2.post(f"{SAMSARA_API_URL}/api/turn/increment", json={"game_type": "heibaiqi"})
-
-            return {"success": True, "level": level, "difficulty": difficulty}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-
-@app.post("/api/level/complete")
-async def complete_level(won: bool = True, no_cheat: bool = False, boss_defeated: bool = False):
-    """通关/失败时调用 samsara progression"""
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{SAMSARA_API_URL}/api/progression/resolve",
-                json={"won": won, "no_cheat": no_cheat, "boss_defeated": boss_defeated}
-            )
-            data = resp.json()
-            if won:
-                await client.post(f"{SAMSARA_API_URL}/api/levels/advance")
-            return data
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
 
 if __name__ == "__main__":
     import uvicorn
