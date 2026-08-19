@@ -2871,8 +2871,8 @@ class XiangqiBoard extends HTMLElement {
         } catch (e) {
             console.error('Failed to load samsara state:', e);
             this.samsaraState = {
-                karma: 150,
-                karma_max: 150,
+                karma: 50,
+                karma_max: 120,
                 detection: 0,
                 current_turn: 0,
                 turn_limit: 20,

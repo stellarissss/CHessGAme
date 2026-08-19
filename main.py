@@ -452,15 +452,6 @@ def build_hub_app():
         }
 
         meta_unlocked = _check_meta_achievements(data)
-        if meta_unlocked:
-            for mid in meta_unlocked:
-                if mid not in unlocked:
-                    unlocked[mid] = {
-                        "unlocked_at": datetime.now().isoformat(),
-                        "game": "meta",
-                        "context": "元成就自动解锁",
-                    }
-
         _save_achievements(data)
         return {"newly_unlocked": True, "achievement_id": achievement_id, "meta_unlocked": meta_unlocked}
 

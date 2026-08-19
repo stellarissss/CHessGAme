@@ -866,8 +866,8 @@ class HeibaiqiBoard extends HTMLElement {
             }
         } catch (e) {
             this.samsaraState = {
-                karma: 0,
-                karma_max: 150,
+                karma: 50,
+                karma_max: 120,
                 detection: 0,
                 current_turn: this.boardState?.game_status?.turn_count || 0,
                 turn_limit: 20,
