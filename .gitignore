@@ -9,7 +9,6 @@ dist/
 
 # ── 密钥 / 本地配置（勿提交） ──
 api密钥.txt
-config.json
 *.local.json
 
 # ── 编辑器 / 系统 ──
