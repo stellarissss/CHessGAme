@@ -209,8 +209,12 @@
         // 胜负结算 resolve
         let rewards = null;
         let next_level = null;
+        const isSandbox = !!target.isSandbox;
         const noCheatThisLevel = !!(target.samsaraState && target.samsaraState.no_cheat_this_level);
-        if (isPlayerWin) {
+        if (isSandbox) {
+            // 沙盒无关卡，跳过 progression resolve，避免无效 API 调用
+            target._lastResolveRewards = { rewards: null, next_level: null, isPlayerWin };
+        } else if (isPlayerWin) {
             try {
                 const r = await target._fetchRaw(`${target.apiBase}/api/level/complete`, {
                     method: 'POST',
@@ -254,7 +258,6 @@
         const nextLvInfo = next_level && next_level.level ? next_level.level : null;
 
         // 主/沙盒 按钮可见性
-        const isSandbox = !!target.isSandbox;
         let nextBtnLabel = '➡️ 下一关';
         let nextBtnDisabled = true;
         let showNextBtn = !isSandbox;
@@ -276,15 +279,18 @@
         }
 
         const titleHtml = isPlayerWin ? '<h2>🏆 通关胜利</h2>' : '<h2>💀 本局败北</h2>';
+        const rpgStatsHtml = isSandbox ? '' : `
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px;opacity:.95;">
+                <div>业力：<b>${karmaNow !== null ? `${karmaNow}${karmaMax !== null ? ` / ${karmaMax}` : ''}` : '—'}</b></div>
+                <div>识破：<b>${detNow !== null ? `${detNow}%` : '—'}</b></div>
+                <div>无作弊通关：<b>${noCheatThisLevel ? '✅ 是' : '❌ 否'}</b></div>
+                <div>技能点：<b style="color:#fde047;">${skillPointsEarned >= 0 ? '+' : ''}${skillPointsEarned}</b></div>
+            </div>
+        `;
         const summaryHtml = `
             <div style="margin:10px 0 14px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.06);color:#e5e7eb;">
                 <div style="margin-bottom:6px;"><b>${winLabel}</b> 获胜</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px;opacity:.95;">
-                    <div>业力：<b>${karmaNow !== null ? `${karmaNow}${karmaMax !== null ? ` / ${karmaMax}` : ''}` : '—'}</b></div>
-                    <div>识破：<b>${detNow !== null ? `${detNow}%` : '—'}</b></div>
-                    <div>无作弊通关：<b>${noCheatThisLevel ? '✅ 是' : '❌ 否'}</b></div>
-                    <div>技能点：<b style="color:#fde047;">${skillPointsEarned >= 0 ? '+' : ''}${skillPointsEarned}</b></div>
-                </div>
+                ${rpgStatsHtml}
                 ${nextLvInfo ? `<div style="margin-top:10px;font-size:13px;">下一关：<b>${_escapeHtml(nextLvInfo.name || ('第' + (next_level.level_index + 1) + '关'))}</b>${next_level && next_level.realm_name ? `（${_escapeHtml(next_level.realm_name)}）` : ''}</div>` : ''}
                 ${realmAdvance && realmAdvance.realm_switched ? `<div style="margin-top:6px;font-size:13px;color:#a7f3d0;">🆙 道切换成功：进入「${_escapeHtml(realmAdvance.new_realm_name || realmAdvance.new_realm || '')}」</div>` : ''}
                 ${sandboxUnlocked ? `<div style="margin-top:8px;font-size:13px;color:#a5f3fc;">🔓 沙盒模式已解锁</div>` : ''}
