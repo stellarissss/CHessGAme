@@ -3081,6 +3081,52 @@ class XiangqiBoard extends HTMLElement {
         return { applyResp, resetResp };
     }
 
+    /** 「重置所有配置」处理器：调用 /api/reset_configs + Samsara 存档重置 + 三件套 */
+    async rpgResetConfigsHandler(hardOrSoft) {
+        const mode = hardOrSoft === 'hard' ? 'hard' : 'soft';
+        // 1. 重置本地棋类配置
+        try {
+            const r = await this._fetchRaw(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
+            const data = (r && r.ok) ? await r.json() : null;
+            if (data && !data.success) console.warn('[RPG] reset_configs failed');
+        } catch (e) { console.warn('[RPG] reset_configs failed', e); }
+
+        // 2. 非沙盒: 重置 Samsara 业力/关卡
+        if (!this.isSandbox) {
+            try {
+                const r = await fetch('/samsara/api/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode }),
+                });
+                if (r.ok) {
+                    try {
+                        const d = await r.json();
+                        if (d && d.state) { this.samsaraState = d.state; this.updateSamsaraUI(); }
+                    } catch (e) {}
+                }
+            } catch (e) { console.warn('[RPG] samsara reset failed', e); }
+
+            if (mode === 'hard') {
+                try {
+                    await fetch('/api/achievements/reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ mode: 'all' }),
+                    });
+                } catch (e) {}
+            }
+            this._fireLocalAndBroadcast('reset-issued', { mode });
+        }
+
+        // 3. 三件套 + 全重绘
+        await this.rpgResetBattleAndApply({ doSamsaraResetLevel: true, doBroadcast: true });
+        if (typeof this.loadConfigs === 'function') await this.loadConfigs();
+        if (this.lastMove !== undefined) this.lastMove = null;
+        if (typeof this._rpgRerender === 'function') await this._rpgRerender(this);
+        this.addMessage('✅ 所有配置已重置' + (mode === 'hard' ? '（含存档）' : ''), 'success');
+    }
+
     async loadTokenStats() {
         try {
             const resp = await fetch(`${this.apiBase}/api/token_stats`);
@@ -5039,21 +5085,7 @@ class XiangqiBoard extends HTMLElement {
 
         this.shadowRoot.getElementById('btn-reset-configs').addEventListener('click', async () => {
             if (!confirm('确定要重置所有配置吗？所有自定义规则将被清除。')) return;
-            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
-            const data = await resp.json();
-            if (data.success) {
-                await this.loadConfigs();
-                this.lastMove = null;
-                this.clearSelection();
-                this.renderBoard();
-                this.renderPieces();
-                this.updateTurnIndicator();
-                this.updateActiveRules();
-                this.updateGameObjectives();
-                this.updateAIPersonality();
-                this.updateMechanisms();
-                this.addMessage('✅ 所有配置已重置', 'success');
-            }
+            await this.rpgResetConfigsHandler('soft');
         });
 
         this.shadowRoot.getElementById('btn-logs').addEventListener('click', () => {
