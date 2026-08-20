@@ -2122,6 +2122,29 @@ export class GoBoard extends HTMLElement {
         this.updateAIPersonality();
         this.updateMechanisms();
         this.updateCaptureStats();
+
+        // === 六道 RPG（沙盒遮罩版，无关卡不推进） ===
+        try {
+            if (window.GameSharedRPG) {
+                window.GameSharedRPG.install(this, {
+                    isSandbox: true,
+                    rerender: async (instance) => {
+                    instance.renderBoard();
+                    instance.renderStones();
+                    instance.updateTurnIndicator();
+                    instance.updateCaptureStats();
+                    instance.updateActiveRules();
+                    instance.updateGameObjectives();
+                    instance.updateAIPersonality();
+                    instance.updateMechanisms();
+                    },
+                });
+                // 沙盒不切关，只触发 reset_battle fallback + 事件监听兜底
+                try { await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: false }); } catch(e) {}
+                if (typeof this.initRpgEventListeners === 'function') this.initRpgEventListeners();
+            }
+        } catch (e) { console.warn('[Sandbox RPG] init failed', e); }
+
         this.bindEvents();
         this.checkApiKey();
         this._initialized = true;
@@ -2806,43 +2829,17 @@ export class GoBoard extends HTMLElement {
             setTimeout(() => toast.remove(), 300);
         }, 3000);
     }
-
-    showGameOver(winner, condition) {
-        const container = this.shadowRoot.getElementById('board-container');
-        const overlay = document.createElement('div');
-        overlay.className = 'game-over-overlay';
-
-        const winnerText = winner === 'black' ? '黑方' : '白方';
-        const conditionText = condition || '获胜';
-
-        overlay.innerHTML = `
-            <h2>游戏结束</h2>
-            <p>${winnerText} ${conditionText}</p>
-            <button class="restart-btn">再来一局</button>
-        `;
-
-        const btn = overlay.querySelector('.restart-btn');
-        btn.addEventListener('click', () => this.restartGame());
-
-        container.appendChild(overlay);
+    async showGameOver() {
+        // 沙盒版：通用胜负弹窗 + 两按钮（无下一关）
+        return this.showRpgGameOver();
     }
 
+    
     async restartGame() {
-        try {
-            await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
-            await this.loadConfigs();
-            this.renderBoard();
-            this.renderStones();
-            this.updateTurnIndicator();
-            this.updateCaptureStats();
-            this.updateActiveRules();
-            this.updateGameObjectives();
-            this.updateAIPersonality();
-            this.updateMechanisms();
-        } catch (error) {
-            console.error('Restart failed:', error);
-        }
+        // 沙盒：RPG 重玩（fallback /api/restart + 全重绘）
+        return this.rpgRestart();
     }
+
 
     async undoMove() {
         try {
@@ -2886,28 +2883,8 @@ export class GoBoard extends HTMLElement {
     }
 
     async resetConfigs() {
-        if (!confirm('确定要重置所有配置吗？')) return;
-        try {
-            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
-            const data = await resp.json();
-
-            if (data.success) {
-                await this.loadConfigs();
-                this.renderBoard();
-                this.renderStones();
-                this.updateTurnIndicator();
-                this.updateCaptureStats();
-                this.updateActiveRules();
-                this.updateGameObjectives();
-                this.updateAIPersonality();
-                this.updateMechanisms();
-                this.showToast('已重置所有配置');
-            } else {
-                this.showToast(data.message, 'error');
-            }
-        } catch (error) {
-            console.error('Reset configs failed:', error);
-        }
+        if (!confirm('确定要重置当前沙盒所有配置为默认值吗？')) return;
+        await this.rpgResetConfigsHandler('soft');
     }
 
     updateActiveRules() {

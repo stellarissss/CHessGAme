@@ -129,9 +129,39 @@ class BaseGameState:
 
     def _after_reset_board(self) -> None:
         """
-        reset_board() 结束时调用的钩子（默认空实现）。
-        典型用途：动物棋需要在每次重置棋盘后清空关卡业力。
+        reset_board() 结束时调用的钩子（默认：同步 Samsara 业力到本地 karma_assessor）。
+
+        Bug 1 修复：任何棋类（不只是动物棋）在 reset_board 后都必须清空/同步本地
+        业力评估器副本，否则“第二关开始本地业力还是上一局残留值 + Samsara 服务器
+        已被 actions 同步到下一关初始值”导致业力突然消失 / 突然回复。
+
+        子类可继续覆盖此方法：比如动物棋需要强制重置 carryover = 0 的默认值，
+        但要先 super()._after_reset_board() 保证基础同步已发生。
         """
+        # karma_assessor 存在则同步：重置本地业力
+        orch = getattr(self, "ai_orchestrator", None)
+        if orch is not None:
+            ka = getattr(orch, "karma_assessor", None)
+            if ka is not None and hasattr(ka, "reset_level_karma"):
+                # 从服务端 SamsaraState 读取 modifiers/carryover（若模块可用）
+                try:
+                    from samsara.state import SamsaraState  # 延迟避免循环 import
+                    s = SamsaraState()
+                    modifiers = s.get_skill_modifiers()
+                    carryover = s.get("realm_overshoot_carryover") or 0
+                except Exception:
+                    modifiers = None
+                    carryover = 0
+                ka.reset_level_karma(skill_modifiers=modifiers, carryover=carryover)
+
+        # 若存在 karma_assessor 的 detection / 识破概率，也默认清到 0.0
+        if orch is not None:
+            ka = getattr(orch, "karma_assessor", None)
+            if ka is not None and hasattr(ka, "set_realm_detection"):
+                try:
+                    ka.set_realm_detection(0.0)
+                except Exception:
+                    pass
         return None
 
     # ───────────────────────────────────────────────────────────
@@ -306,7 +336,16 @@ def register_common_routes(
     async def reset_configs():
         """重置所有配置到初始状态。"""
         state.reset_board()
-        return {"success": True, "message": "所有配置已重置"}
+        payload: Dict[str, Any] = {
+            "success": True,
+            "message": "所有配置已重置",
+            "configs": state.configs,
+            "board_state": state.configs["board_state"],
+        }
+        # Bug 3 修复：响应追加 karma_detection_state + state，供前端立即同步 UI
+        payload["karma_detection_state"] = _build_karma_detection_payload(state)
+        payload["state"] = _proxy_samsara_state_brief()
+        return payload
 
     # ───────────────────────────────────────────────────────────
     # API 密钥
@@ -333,7 +372,15 @@ def register_common_routes(
     async def restart_game():
         """重新开始游戏（重置棋盘 + 初始配置）。"""
         state.reset_board()
-        return {"success": True, "message": "游戏已重新开始", "board_state": state.configs["board_state"]}
+        payload: Dict[str, Any] = {
+            "success": True,
+            "message": "游戏已重新开始",
+            "board_state": state.configs["board_state"],
+            "configs": state.configs,
+        }
+        payload["karma_detection_state"] = _build_karma_detection_payload(state)
+        payload["state"] = _proxy_samsara_state_brief()
+        return payload
 
     @app.post("/api/difficulty")
     async def set_difficulty(req: DifficultyRequest):
@@ -367,15 +414,15 @@ def register_common_routes(
 
     @app.get("/api/karma_detection")
     async def get_karma_detection():
-        """获取本地业力与识破状态（响应字段严格与原实现一致）。"""
-        karma_assessor = state.ai_orchestrator.karma_assessor
+        """获取本地业力与识破状态。
+
+        Bug 1 / 4 修复：响应字段严格对齐 karma.get_state()，额外提供 single_max 与 initial，
+        前端即使缓存了旧响应也能通过字段差异判定需重绘。
+        """
         return {
             "success": True,
-            "karma": {
-                "current": karma_assessor.get_local_karma(),
-                "max": karma_assessor.get_local_karma_max(),
-            },
-            "detection": karma_assessor.get_realm_detection(),
+            "karma": _build_karma_detection_payload(state)["karma"],
+            "detection": _build_karma_detection_payload(state)["detection"],
         }
 
     @app.post("/api/karma/recover")
@@ -497,11 +544,67 @@ def register_common_routes(
         req.target = "rules"
         return await rpg_apply_patch(req)
 
+    # ── 局部辅助：构造对齐 karma.get_state() 的 karma_detection 负载 ──
+    def _build_karma_detection_payload(st: BaseGameState) -> Dict[str, Any]:
+        ka = getattr(getattr(st, "ai_orchestrator", None), "karma_assessor", None)
+        if ka is None:
+            # 测试环境或未初始化：返回占位（结构保证齐全，前端不会 crash）
+            return {
+                "karma": {"current": 0, "max": 0, "single_max": 0, "initial": 0},
+                "detection": 0.0,
+            }
+        # 兼容未实现 *_single_max / *_initial 的旧 KarmaAssessor 副本
+        def _call(name: str, default: Any) -> Any:
+            fn = getattr(ka, name, None)
+            if callable(fn):
+                try:
+                    return fn()
+                except Exception:
+                    return default
+            return default
+        return {
+            "karma": {
+                "current": _call("get_local_karma", 0),
+                "max": _call("get_local_karma_max", 0),
+                "single_max": _call("get_local_karma_single_max", _call("get_local_karma_max", 0)),
+                "initial": _call("get_local_karma_initial", _call("get_local_karma_max", 0)),
+            },
+            "detection": _call("get_realm_detection", 0.0),
+        }
+
+    def _proxy_samsara_state_brief() -> Dict[str, Any]:
+        """代理获取 Samsara 简要 state（失败时给安全空对象，不阻塞 UI 刷新）。"""
+        try:
+            import httpx as _httpx
+            resp_raw = _httpx.get(
+                f"{SAMSARA_API_URL}/api/state", timeout=2.0,
+            )
+            if resp_raw.status_code == 200:
+                return resp_raw.json()
+        except Exception:
+            pass
+        return {
+            "karma": _build_karma_detection_payload(state)["karma"]["current"],
+            "karma_max": _build_karma_detection_payload(state)["karma"]["max"],
+            "detection": _build_karma_detection_payload(state)["detection"],
+        }
+
     @app.post("/api/rpg/reset_battle")
     async def rpg_reset_battle():
-        """RPG 每局开始时调用，重置棋盘（自动调用子类 _after_reset_board 钩子）。"""
+        """RPG 每局开始时调用，重置棋盘（自动调用子类 _after_reset_board 钩子）。
+
+        Bug 1/2 修复：返回体追加 karma_detection_state 与 Samsara state，供前端
+        立即刷新业力条/识破条，避免轮询。
+        """
         state.reset_board()
-        return {"success": True, "message": "战斗已重置", "board_state": state.configs["board_state"]}
+        return {
+            "success": True,
+            "message": "战斗已重置",
+            "board_state": state.configs["board_state"],
+            "configs": state.configs,
+            "karma_detection_state": _build_karma_detection_payload(state),
+            "state": _proxy_samsara_state_brief(),
+        }
 
     # ───────────────────────────────────────────────────────────
     # 关卡系统接口
@@ -520,14 +623,26 @@ def register_common_routes(
 
     @app.post("/api/level/apply")
     async def apply_level_config():
-        """根据当前关卡配置设置难度、回合限制等参数。game_type 参数化。"""
+        """根据当前关卡配置设置难度、回合限制等参数。game_type 参数化。
+
+        Bug 2 修复：apply 成功后再 reset_board()，保证开局棋盘/规则/棋子
+        回到本关初始状态（否则前端沿用之前的修改，第二关视觉与规则不恢复）。
+        """
         try:
+            samsara_level = None
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
                 data = resp.json()
                 level = data.get("current_level")
                 if not level:
-                    return {"success": False, "message": "无当前关卡"}
+                    # 沙盒 / fallback：无 level 时仍返回 success + 本地 karma 快照
+                    return {
+                        "success": False,
+                        "message": "无当前关卡",
+                        "karma_detection_state": _build_karma_detection_payload(state),
+                        "state": _proxy_samsara_state_brief(),
+                    }
+                samsara_level = level
 
                 ai_depth = level.get("ai_depth", 3)
                 ai_personality = level.get("ai_personality", "normal")  # noqa: F841 (保留字段名以备扩展)
@@ -547,8 +662,20 @@ def register_common_routes(
                         json={"game_type": game_type}
                     )
 
-                return {"success": True, "level": level, "difficulty": difficulty}
+            # apply 完后：reset_board 触发 _after_reset_board → 本地 karma 同步
+            state.reset_board()
+            return {
+                "success": True,
+                "level": samsara_level,
+                "difficulty": difficulty,
+                "board_state": state.configs["board_state"],
+                "configs": state.configs,
+                "karma_detection_state": _build_karma_detection_payload(state),
+                "state": _proxy_samsara_state_brief(),
+            }
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {"success": False, "message": str(e)}
 
     @app.post("/api/level/complete")

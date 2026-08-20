@@ -142,7 +142,14 @@ def _load_achievements():
 
 
 def _save_achievements(data):
-    """写入成就存档"""
+    """写入成就存档，失败前先写入 .bak 回滚备份"""
+    # 先备份旧文件（如果存在）
+    try:
+        if ACHIEVEMENTS_FILE.exists():
+            bak = ACHIEVEMENTS_FILE.with_suffix(ACHIEVEMENTS_FILE.suffix + ".bak")
+            bak.write_bytes(ACHIEVEMENTS_FILE.read_bytes())
+    except OSError:
+        pass
     ACHIEVEMENTS_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -292,7 +299,16 @@ def build_hub_app():
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
 
-    app = FastAPI(title="棋圣 · 六道众生", version="1.4.0")
+    NO_STORE = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+
+    def _nc(payload):
+        return JSONResponse(content=payload, headers=NO_STORE)
+
+    app = FastAPI(title="棋圣 · 六道众生", version="1.4.1")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -368,28 +384,28 @@ def build_hub_app():
 
     @app.get("/api/games")
     async def list_games():
-        return [
+        return _nc([
             {
                 **game,
                 "url": f"http://localhost:{game['port']}/",
             }
             for game in GAMES
-        ]
+        ])
 
     @app.get("/api/sandbox/games")
     async def list_sandbox_games():
         # 沙盒模式棋类列表（纯净版，与 RPG 隔离）
-        return [
+        return _nc([
             {
                 **game,
                 "url": f"http://localhost:{game['port']}/",
             }
             for game in SANDBOX_GAMES
-        ]
+        ])
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "hub_port": HUB_PORT}
+        return _nc({"status": "ok", "hub_port": HUB_PORT})
 
     # ── 六道轮回 API ──
     sys.path.insert(0, str(WORKSPACE_ROOT))
@@ -398,7 +414,7 @@ def build_hub_app():
 
     @app.get("/api/samsara/realms")
     async def get_realms_list():
-        return REALMS
+        return _nc(REALMS)
 
     # ── 成就 API ──
 
@@ -422,11 +438,11 @@ def build_hub_app():
                 "game": info.get("game") if info else None,
                 "context": info.get("context") if info else None,
             })
-        return {
+        return _nc({
             "total": len(ACHIEVEMENT_DEFINITIONS),
             "unlocked_count": len(unlocked),
             "achievements": achievements,
-        }
+        })
 
     @app.post("/api/achievements/unlock")
     async def unlock_achievement(request: Request):
@@ -437,13 +453,13 @@ def build_hub_app():
 
         valid_ids = {a["id"] for a in ACHIEVEMENT_DEFINITIONS}
         if achievement_id not in valid_ids:
-            return JSONResponse({"error": "unknown achievement"}, status_code=400)
+            return JSONResponse({"error": "unknown achievement"}, headers=NO_STORE, status_code=400)
 
         data = _load_achievements()
         unlocked = data["unlocked"]
 
         if achievement_id in unlocked:
-            return {"newly_unlocked": False, "achievement_id": achievement_id, "meta_unlocked": []}
+            return _nc({"newly_unlocked": False, "achievement_id": achievement_id, "meta_unlocked": []})
 
         unlocked[achievement_id] = {
             "unlocked_at": datetime.now().isoformat(),
@@ -453,12 +469,12 @@ def build_hub_app():
 
         meta_unlocked = _check_meta_achievements(data)
         _save_achievements(data)
-        return {"newly_unlocked": True, "achievement_id": achievement_id, "meta_unlocked": meta_unlocked}
+        return _nc({"newly_unlocked": True, "achievement_id": achievement_id, "meta_unlocked": meta_unlocked})
 
     @app.get("/api/achievements/stats")
     async def get_stats():
         data = _load_achievements()
-        return data.get("stats", {})
+        return _nc(data.get("stats", {}))
 
     @app.post("/api/achievements/stats")
     async def update_stats(request: Request):
@@ -480,7 +496,37 @@ def build_hub_app():
                 stats[k] = v
 
         _save_achievements(data)
-        return {"ok": True, "stats": stats}
+        return _nc({"ok": True, "stats": stats})
+
+    @app.post("/api/achievements/reset")
+    async def reset_achievements(request: Request):
+        """成就重置。默认重置 stats 与 unlocked，保留成就定义不变。"""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        # 先备份
+        if ACHIEVEMENTS_FILE.exists():
+            try:
+                bak = ACHIEVEMENTS_FILE.with_suffix(ACHIEVEMENTS_FILE.suffix + ".bak")
+                bak.write_bytes(ACHIEVEMENTS_FILE.read_bytes())
+            except OSError:
+                pass
+        mode = body.get("mode", "all")
+        if mode == "stats_only":
+            data = _load_achievements()
+            data["stats"] = {"total_commands": 0, "total_moves": 0, "total_captures": 0, "games_played": {}}
+            _save_achievements(data)
+            return _nc({"ok": True, "mode": mode, "data": data})
+        # all: 整个成就结构恢复空
+        empty = {
+            "version": 1,
+            "unlocked": {},
+            "stats": {"total_commands": 0, "total_moves": 0, "total_captures": 0, "games_played": {}},
+        }
+        _save_achievements(empty)
+        return _nc({"ok": True, "mode": "all", "data": empty})
+
 
     return app
 

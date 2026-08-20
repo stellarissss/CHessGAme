@@ -2883,8 +2883,43 @@ export class WuziqiBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
-        await this.loadSamsaraState();
-        this.startKarmaPolling();
+
+        // === 六道 RPG 接入（共享模块） ===
+        try {
+            if (window.GameSharedRPG) {
+                window.GameSharedRPG.install(this, {
+                    isSandbox: false,
+                    rerender: async (instance) => {
+                    instance.clearSelection();
+                    instance.renderBoard();
+                    instance.renderPieces();
+                    instance.updateTurnIndicator();
+                    instance.updateActiveRules();
+                    instance.updateGameObjectives();
+                    instance.updateAIPersonality();
+                    instance.updateMechanisms();
+                    },
+                });
+                // 开局三件套
+                await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: false });
+                // 事件驱动刷新
+                this.initRpgEventListeners();
+            } else {
+                // fallback：老流程
+                this.loadSamsaraState();
+                this.startKarmaPolling();
+            }
+        } catch (e) {
+            console.warn('[RPG] 开局三件套失败，继续走默认 loadSamsaraState：', e);
+            try { await this.loadSamsaraState(); } catch (e2) {}
+            try { await this.loadLocalKarmaDetection(); } catch (e2) {}
+        }
+        // 兜底：若三件套失败，仍以 Samsara 服务器为准刷一次
+        try { await this.loadSamsaraState(); } catch (e) {}
+        try { await this.loadLocalKarmaDetection(); } catch (e) {}
+        // 禁用轮询（事件驱动替代）
+        this.stopKarmaPolling();
+
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
     }
@@ -4393,40 +4428,8 @@ export class WuziqiBoard extends HTMLElement {
     }
 
     async showGameOver() {
-        const state = this.boardState?.game_status;
-        if (!state || state.state !== 'ended') return;
-
-        const winner = state.winner === 'black' ? '黑方' : '白方';
-        const container = this.shadowRoot.getElementById('board-container');
-
-        const existing = container.querySelector('.game-over-overlay');
-        if (existing) existing.remove();
-
-        const overlay = document.createElement('div');
-        overlay.className = 'game-over-overlay';
-        overlay.innerHTML = `
-            <h2>🎮 游戏结束</h2>
-            <p>${winner} 获胜！</p>
-            <button class="btn-primary">再来一局</button>
-        `;
-        const restartBtn = overlay.querySelector('button');
-        restartBtn.addEventListener('click', () => this.restart());
-        container.appendChild(overlay);
-
-        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
-        try {
-            const isPlayerWin = state.winner === this.playerSide;
-            if (isPlayerWin) {
-                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
-                const data = await resp.json();
-                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
-                    this.showVictoryReward(data);
-                    await this.loadSamsaraState();
-                }
-            }
-        } catch (e) {
-            console.error('Failed to resolve level rewards:', e);
-        }
+        // Bug2 修复：统一使用共享 RPG 胜负页三按钮 + resolve 奖励
+        return this.showRpgGameOver();
     }
 
     showVictoryReward(rewards) {
@@ -4458,25 +4461,10 @@ export class WuziqiBoard extends HTMLElement {
     }
 
     async restart() {
-        const overlay = this.shadowRoot.querySelector('.game-over-overlay');
-        if (overlay) overlay.remove();
-
-        const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            await this.loadConfigs();
-            this.lastMove = null;
-            this.clearSelection();
-            this.renderBoard();
-            this.renderPieces();
-            this.updateTurnIndicator();
-            this.updateActiveRules();
-            this.updateGameObjectives();
-            this.updateAIPersonality();
-            this.updateMechanisms();
-            this.addMessage('🔄 游戏已重新开始', 'info');
-        }
+        // Bug3 修复：重玩调用 RPG 三件套（apply_level_config + reset_battle + UI 重绘）
+        return this.rpgRestart();
     }
+
 
     getPieceName(pieceId) {
         const piece = this.boardState?.pieces?.find(p => p.id === pieceId);
@@ -4605,24 +4593,11 @@ export class WuziqiBoard extends HTMLElement {
             this.restart();
         });
 
-        this.shadowRoot.getElementById('btn-reset-configs').addEventListener('click', async () => {
-            if (!confirm('确定要重置所有配置吗？所有自定义规则将被清除。')) return;
-            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
-            const data = await resp.json();
-            if (data.success) {
-                await this.loadConfigs();
-                this.lastMove = null;
-                this.clearSelection();
-                this.renderBoard();
-                this.renderPieces();
-                this.updateTurnIndicator();
-                this.updateActiveRules();
-                this.updateGameObjectives();
-                this.updateAIPersonality();
-                this.updateMechanisms();
-                this.addMessage('✅ 所有配置已重置', 'success');
-            }
+        getElementById('btn-reset-configs').addEventListener('click', async () => {
+            if (!confirm('确定要重置所有配置吗？会同步重置六道关卡/业力（软重置：保留成就/技能），规则配置恢复默认。')) return;
+            await this.rpgResetConfigsHandler('soft');
         });
+
 
         this.shadowRoot.getElementById('btn-logs').addEventListener('click', () => {
             this.showLogs();
@@ -4676,7 +4651,10 @@ export class WuziqiBoard extends HTMLElement {
                 this.clearSelection();
             }
         });
-    }
+    
+        // 六道 RPG：跨页事件驱动刷新（替代轮询）
+        if (typeof this.initRpgEventListeners === 'function') this.initRpgEventListeners();
+}
 
     _getGridCoordsFromEvent(e) {
         const container = this.shadowRoot.getElementById('board-container');

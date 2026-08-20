@@ -568,3 +568,138 @@ class SamsaraState:
     def increment_playthrough(self):
         self._data["playthrough_count"] = self._data.get("playthrough_count", 1) + 1
         self._save()
+
+    # ══════════════════════════════════════════════════════════════
+    # 存档重置（软档 / 硬档）
+    # ══════════════════════════════════════════════════════════════
+
+    def reset_all(self, full: bool = False) -> None:
+        """重置存档。
+
+        full=False (soft): 保留技能、技能点、已解锁结局、记忆碎片、成就类存档字段，
+                          只清空当前进度（道 / 关卡 / 业力 / alignment / 识破 /
+                          溢出叠加 / 关卡计数 / 选择历史 / Boss 状态 / 剧情进度）。
+                          playthrough_count 自增 1，其它保持。
+        full=True  (hard): 所有字段恢复到默认值（只保留 version 不变，
+                           备份旧存档为 .bak 后缀）。
+
+        无论软硬档：写 STATE_FILE.bak 作为回滚备份，完成后 reset_level_state 重置
+        单局业力等字段。
+        """
+        # 写备份：整文件备份
+        try:
+            bak = STATE_FILE.with_suffix(STATE_FILE.suffix + ".bak")
+            if STATE_FILE.exists():
+                bak.write_bytes(STATE_FILE.read_bytes())
+        except OSError:
+            pass  # 备份失败不应阻止重置
+
+        if full:
+            # 硬档：先默认结构，再把 version 设成原值，再调用 _init_defaults 补迁移
+            version = self._data.get("version", 3)
+            self._data = {"version": version}
+            self._init_defaults()
+            self.reset_level_state()
+            self._save()
+            return
+
+        # soft 档：需保留的字段
+        keep_keys = {
+            "version", "skills", "skill_points", "karma_max", "karma_single_max",
+            "initial_karma", "endings_unlocked", "memory_fragments_unlocked",
+            "sandbox_unlocked",
+        }
+        keep_sub = {
+            "skills": copy.deepcopy(self._data.get("skills", {})),
+            "skill_points": self._data.get("skill_points", 0),
+            "karma_max": self._data.get("karma_max", 120),
+            "karma_single_max": self._data.get("karma_single_max", 120),
+            "initial_karma": self._data.get("initial_karma", 50),
+            "endings_unlocked": copy.deepcopy(
+                self._data.get("endings_unlocked", {
+                    "enlightenment": False, "corruption": False, "samsara": False,
+                    "true_me": False, "exposed": False,
+                })
+            ),
+            "memory_fragments_unlocked": copy.deepcopy(
+                self._data.get("memory_fragments_unlocked", {r: False for r in REALMS})
+            ),
+            "sandbox_unlocked": list(self._data.get("sandbox_unlocked", [])),
+            "_playthrough_count": self._data.get("playthrough_count", 1),
+        }
+        version = self._data.get("version", 3)
+        # 清空再默认化
+        self._data = {"version": version}
+        self._init_defaults()
+        # 恢复保留字段
+        for k, v in keep_sub.items():
+            if k in ("skills", "_playthrough_count"):
+                continue
+            self._data[k] = v
+        # skills 合并：保留字段覆盖默认（默认含 tier1 起始技能）
+        merged_skills = {**self._data.get("skills", {}), **keep_sub["skills"]}
+        self._data["skills"] = merged_skills
+        # 进度字段明确归零（playthrough_count = 原值 + 1）
+        self._data["current_realm"] = "hell"
+        self._data["current_level"] = 0
+        self._data["realm_overshoot_carryover"] = 0
+        self._data["playthrough_count"] = keep_sub["_playthrough_count"] + 1
+        self._data["alignment"] = {
+            "enlightenment": 0, "corruption": 0, "rationality": 0, "emotion": 0,
+        }
+        self._data["detection_state"] = {
+            "is_detected": False, "detection_locked": False,
+            "trigger_boss_on_complete": False, "exposure_path_triggered": False,
+        }
+        self._data["realm_detections"] = {r: 0.0 for r in REALMS}
+        self._data["choices_made"] = []
+        self._data["total_levels_completed"] = 0
+        self._data["bosses_defeated"] = []
+        self._data["prayer_count"] = 0
+        self._data["tiandao_boss_state"] = {
+            "defeated": False, "attempt_count": 0, "current_battle_active": False,
+        }
+        self._data["story_progress"] = {
+            "prologue_seen": False, "current_dialogue_realm": None,
+            "current_dialogue_level": None, "last_choice_made": None,
+        }
+        self._data["realm_progress"] = {
+            r: {"completed": False, "levels_passed": 0, "no_cheat_full_clear": False}
+            for r in REALMS
+        }
+        self.reset_level_state()
+        self._save()
+
+    def get_frontend_state(self) -> dict:
+        """返回总坛 / 棋类前端共同需要的精简状态字段。"""
+        modifiers = self.get_skill_modifiers()
+        allowed = sorted(self.get_allowed_classifications())
+        karma_max = self._data.get("karma_max", 120) + modifiers.get("karma_max_bonus", 0)
+        karma_single_max = self._data.get("karma_single_max", 120) + modifiers.get("karma_single_max_bonus", 0)
+        return {
+            "karma": self._data.get("level_karma", 0),
+            "karma_max": karma_max,
+            "karma_single_max": karma_single_max,
+            "detection": self.get_detection(),
+            "realm_detections": {r: self.get_realm_detection(r) for r in REALMS},
+            "current_realm": self._data.get("current_realm", "hell"),
+            "current_realm_name": REALM_NAMES.get(self._data.get("current_realm", "hell"), "地狱道"),
+            "current_level": self._data.get("current_level", 0),
+            "level_turn_limit": self._data.get("turn_limit", 20),
+            "current_turn": self._data.get("current_turn", 0),
+            "total_levels_completed": self._data.get("total_levels_completed", 0),
+            "skill_points": self._data.get("skill_points", 0),
+            "no_cheat_this_level": self._data.get("no_cheat_this_level", True),
+            "cheat_count": self._data.get("cheat_count", 0),
+            "overdraft_count": self._data.get("overdraft_count", 0),
+            "sandbox_mode": self._data.get("sandbox_mode", False),
+            "allowed_classifications": allowed,
+            "skill_modifiers": modifiers,
+            "alignment": self.get_alignment(),
+            "detection_state": self.get_detection_state(),
+            "memory_fragments_unlocked": self.get_memory_fragments_unlocked(),
+            "endings_unlocked": self.get_endings_unlocked(),
+            "realm_progress": self._data.get("realm_progress", {}),
+            "prayer_count": self.get_prayer_count(),
+            "version": self._data.get("version", 3),
+        }

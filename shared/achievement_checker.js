@@ -8,6 +8,25 @@
 
     var HUB_URL = "http://localhost:8080";
 
+    // ── 跨页事件广播：BroadcastChannel + localStorage 双通道 ──
+    var _ch = null;
+    function _getChannel() {
+        if (_ch) return _ch;
+        try {
+            if (typeof BroadcastChannel !== "undefined") {
+                _ch = new BroadcastChannel("game-events");
+            }
+        } catch (e) { _ch = null; }
+        return _ch;
+    }
+    function _broadcast(type, payload) {
+        var ch = _getChannel();
+        if (ch) { try { ch.postMessage({ type: type, ...(payload || {}) }); } catch (e) {} }
+        // localStorage 兜底
+        try { localStorage.setItem("ge_" + type, JSON.stringify({ value: payload || {}, ts: Date.now() })); }
+        catch (e) {}
+    }
+
     // 成就定义（与 main.py ACHIEVEMENT_DEFINITIONS 同步）
     var ACHIEVEMENTS = {
         ambush:            { name: "十面埋伏",      icon: "♟",  desc: "象棋中你的棋子数量≥20" },
@@ -71,6 +90,11 @@
                 .then(function (data) {
                     if (data.newly_unlocked) {
                         checker._showPopup(def);
+                        // 通知所有页面（总坛 / 其它棋类）有成就解锁，含元成就信息
+                        var achPayload = {
+                            achievement: { id: achievementId, name: def.name, icon: def.icon, desc: def.desc, category: def.category, rarity: def.rarity, games: def.games }
+                        };
+                        _broadcast("achievement-unlocked", achPayload);
                         // 如果有元成就也解锁了
                         if (data.meta_unlocked && data.meta_unlocked.length > 0) {
                             data.meta_unlocked.forEach(function (mid, idx) {
@@ -78,6 +102,9 @@
                                 if (mdef) {
                                     setTimeout(function () {
                                         checker._showPopup(mdef);
+                                        _broadcast("achievement-unlocked", {
+                                            achievement: { id: mid, name: mdef.name, icon: mdef.icon, desc: mdef.desc, category: mdef.category, rarity: mdef.rarity, games: mdef.games }
+                                        });
                                     }, (idx + 1) * 1200);
                                 }
                             });

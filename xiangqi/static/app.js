@@ -36,6 +36,14 @@ class XiangqiBoard extends HTMLElement {
             extra_turns:    { icon: '⚡',  label: '额外回合', type: 'extra',  unit: '回合' },
             move_limits:    { icon: '🚶',  label: '多步行走', type: 'limit',  unit: '步'   },
         };
+
+        // ── 第二阶段 Bug 修复：事件驱动刷新 & 沙盒/主模式标记 ──
+        this._karmaPollingTimer = null;  // 轮询定时器（现已禁用，保留字段防旧代码崩溃）
+        this._broadcastChannel = null;   // BroadcastChannel("game-events")
+        this._bcBound = false;           // 是否已绑定跨页监听
+        this._visibilityBound = false;   // 是否已绑定 visibility / focus 兜底
+        this.isSandbox = false;          // 是否沙盒模式（主模式默认 false）
+        this._lastResolveRewards = null; // 最近一次胜负结算奖励（胜负弹窗显示用）
     }
 
     get apiBase() {
@@ -2830,6 +2838,7 @@ class XiangqiBoard extends HTMLElement {
 
     async init() {
         if (this._initialized) return;
+        // 第一步：常规棋盘+UI初始化
         await this.loadConfigs();
         this.renderBoard();
         this.renderPieces();
@@ -2841,10 +2850,235 @@ class XiangqiBoard extends HTMLElement {
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
-        this.loadSamsaraState();
-        this.startKarmaPolling();
+
+        // 第二步：初始化跨页广播 + 缓存兜底（事件驱动刷新基础）
+        this._initEventDrivenRefresh();
+
+        // 第三步：关卡/业力三件套（Bug 2 修复：开局必调用，第二关开始不残留）
+        try {
+            await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: false });
+        } catch (e) {
+            console.warn('[RPG] 开局三件套失败，继续走默认 loadSamsaraState：', e);
+        }
+        // 兜底：若三件套失败，仍以 Samsara 服务器为准刷一次
+        try { await this.loadSamsaraState(); } catch (e) {}
+        try { await this.loadLocalKarmaDetection(); } catch (e) {}
+
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 2 新增：统一 HTTP fetch（no-cache；返回 Response）
+    // ═══════════════════════════════════════════════════════════════
+    _fetchRaw(url, options = {}) {
+        const headers = Object.assign({ 'Pragma': 'no-cache' }, (options.headers || {}));
+        const opts = Object.assign({}, options, {
+            cache: 'no-store',
+            headers,
+        });
+        return fetch(url, opts);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 2 新增：事件驱动刷新（BroadcastChannel + visibility/focus）
+    // ═══════════════════════════════════════════════════════════════
+    _getBroadcastChannel() {
+        if (this._broadcastChannel) return this._broadcastChannel;
+        try {
+            if (typeof BroadcastChannel !== 'undefined') {
+                this._broadcastChannel = new BroadcastChannel('game-events');
+            }
+        } catch (e) { this._broadcastChannel = null; }
+        return this._broadcastChannel;
+    }
+    _fireLocalAndBroadcast(type, payload) {
+        const ch = this._getBroadcastChannel();
+        if (ch) {
+            try { ch.postMessage({ type: type, ...(payload || {}) }); } catch (e) {}
+        }
+        try {
+            localStorage.setItem('ge_' + type, JSON.stringify({ value: payload || {}, ts: Date.now() }));
+        } catch (e) {}
+    }
+    _initEventDrivenRefresh() {
+        const self = this;
+
+        // 1) BroadcastChannel 跨页广播
+        if (!this._bcBound) {
+            const ch = this._getBroadcastChannel();
+            if (ch) {
+                ch.addEventListener('message', (e) => {
+                    const t = e.data && e.data.type;
+                    if (!t) return;
+                    self._handleGameEvent(t, e.data);
+                });
+            }
+            // localStorage 兜底（同 tab 或老浏览器）
+            try {
+                window.addEventListener('storage', (ev) => {
+                    if (!ev || !ev.key || !ev.key.startsWith('ge_')) return;
+                    const t = ev.key.slice(3);
+                    let payload = {};
+                    try { payload = JSON.parse(ev.newValue || '{}').value || {}; } catch (e) {}
+                    self._handleGameEvent(t, payload);
+                });
+            } catch (e) {}
+            this._bcBound = true;
+        }
+
+        // 2) visibility / focus 兜底 1 次同步
+        if (!this._visibilityBound) {
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') self._syncFromServers();
+            });
+            window.addEventListener('focus', () => self._syncFromServers());
+            this._visibilityBound = true;
+        }
+
+        // 3) 禁用轮询（旧 startKarmaPolling 现在为 no-op）
+        this.stopKarmaPolling();
+    }
+    _handleGameEvent(type, payload) {
+        const self = this;
+        switch (type) {
+            case 'achievement-unlocked':
+                this._showAchievementToast((payload && payload.achievement) || payload || {});
+                this._syncFromServers();
+                break;
+            case 'karma-updated':
+            case 'reset-issued':
+            case 'level-advanced':
+            case 'level-started':
+                this._syncFromServers();
+                break;
+        }
+        // 兜底：不区分的事件也会尝试 apply payload 里的 karma_detection_state
+        if (payload && payload.karma_detection_state) this._applyKarmaDetectionState(payload.karma_detection_state);
+        if (payload && payload.state) { this.samsaraState = payload.state; this.updateSamsaraUI(); }
+    }
+    async _syncFromServers() {
+        try { await this.loadSamsaraState(); } catch (e) {}
+        try { await this.loadLocalKarmaDetection(); } catch (e) {}
+    }
+    _applyKarmaDetectionState(kd) {
+        if (!kd) return;
+        // 对齐 karma_detection 响应结构：karma.{current,max,single_max,initial} / detection
+        const karma = kd.karma || {};
+        this.samsaraState = Object.assign({}, (this.samsaraState || {}), {
+            karma: (typeof karma.current === 'number') ? karma.current : (this.samsaraState || {}).karma,
+            karma_max: (typeof karma.max === 'number') ? karma.max : (this.samsaraState || {}).karma_max,
+            karma_single_max: karma.single_max,
+            karma_initial: karma.initial,
+            detection: (typeof kd.detection === 'number') ? kd.detection : (this.samsaraState || {}).detection,
+        });
+        this.updateSamsaraUI();
+    }
+    _showAchievementToast(ach) {
+        if (!ach || !ach.id) return;
+        const host = this.shadowRoot.getElementById('board-container');
+        if (!host) return;
+        const el = document.createElement('div');
+        el.className = 'achievement-toast-float';
+        el.style.cssText = 'position:absolute;top:12px;right:12px;max-width:300px;z-index:9999;background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #b45309;border-radius:14px;padding:12px 16px;box-shadow:0 10px 30px rgba(0,0,0,.35);color:#422006;animation:ach-slide-in .4s ease-out both;pointer-events:none;font-family:system-ui,sans-serif;';
+        el.innerHTML = `
+            <div style="font-size:12px;opacity:.8;">🏆 成就解锁</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                <div style="font-size:28px;">${ach.icon || '🎖️'}</div>
+                <div>
+                    <div style="font-weight:700;font-size:14px;">${this._escapeHtml(ach.name || ach.id)}</div>
+                    <div style="font-size:12px;opacity:.9;">${this._escapeHtml(ach.desc || '')}</div>
+                </div>
+            </div>`;
+        host.style.position = host.style.position || 'relative';
+        host.appendChild(el);
+        setTimeout(() => {
+            el.style.animation = 'ach-slide-out .4s ease-in both';
+            setTimeout(() => el.remove(), 500);
+        }, 4200);
+    }
+    _escapeHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/[&<>"']/g, (m) => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+        }[m]));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Phase 2 新增：RPG 关卡重置三件套（apply_level → reset_battle → 刷新 UI）
+    // ═══════════════════════════════════════════════════════════════
+    async rpgResetBattleAndApply(opts = {}) {
+        const options = Object.assign({
+            doSamsaraResetLevel: false,   // 只重置当前关变量（不切关不换道）
+            doBroadcast: true,
+        }, opts || {});
+
+        // Step 0（可选）：六道当前关变量软重清 —— 用于「重置所有配置」
+        if (options.doSamsaraResetLevel && !this.isSandbox) {
+            try {
+                const rr = await this._fetchRaw('/samsara/api/levels/reset_level', { method: 'POST' });
+                const rj = await rr.json();
+                if (rj && rj.state) { this.samsaraState = rj.state; this.updateSamsaraUI(); }
+            } catch (e) { console.warn('samsara reset_level 失败', e); }
+        }
+
+        // Step 1：apply_level_config（Samsara → 本地难度/回合 并 reset_board）
+        let applyResp = null;
+        try {
+            if (!this.isSandbox) {
+                const r = await this._fetchRaw(`${this.apiBase}/api/level/apply`, { method: 'POST' });
+                applyResp = await r.json();
+                if (applyResp && applyResp.karma_detection_state) this._applyKarmaDetectionState(applyResp.karma_detection_state);
+                if (applyResp && applyResp.state) { this.samsaraState = applyResp.state; this.updateSamsaraUI(); }
+            }
+        } catch (e) {
+            console.warn('[RPG] apply_level_config 失败：', e);
+            applyResp = null;
+        }
+
+        // Step 2：rpg_reset_battle（主模式）→ 或 沙盒 fallback 到 /api/restart
+        let resetResp = null;
+        try {
+            const r = await this._fetchRaw(`${this.apiBase}/api/rpg/reset_battle`, { method: 'POST' });
+            resetResp = await r.json();
+            if (resetResp && resetResp.karma_detection_state) this._applyKarmaDetectionState(resetResp.karma_detection_state);
+            if (resetResp && resetResp.state) { this.samsaraState = resetResp.state; this.updateSamsaraUI(); }
+            if (resetResp && resetResp.board_state) { this.boardState = resetResp.board_state; }
+        } catch (e) {
+            // 沙盒 main.py 未实现 rpg_reset_battle → fallback /api/restart
+            try {
+                const r = await this._fetchRaw(`${this.apiBase}/api/restart`, { method: 'POST' });
+                resetResp = await r.json();
+            } catch (e2) {
+                console.warn('[RPG] reset_battle + restart 全部失败：', e, e2);
+            }
+        }
+
+        // Step 3：前端全量重绘（apply / reset 后需要棋盘/棋子刷新）
+        await this.loadConfigs();
+        this.lastMove = null;
+        this.clearSelection();
+        this.renderBoard();
+        this.renderPieces();
+        this.updateTurnIndicator();
+        this.updateActiveRules();
+        this.updateGameObjectives();
+        this.updateAIPersonality();
+        this.updateMechanisms();
+
+        // Step 4：刷新 Samsara state + level info（用于顶部业力/关卡条）
+        try { await this.loadSamsaraState(); } catch (e) {}
+        try { await this.loadLocalKarmaDetection(); } catch (e) {}
+
+        if (options.doBroadcast) {
+            this._fireLocalAndBroadcast('level-started', {
+                from_rpg_reset: true,
+                sandbox: this.isSandbox,
+                apply_success: !!(applyResp && applyResp.success),
+                reset_success: !!(resetResp && resetResp.success),
+            });
+        }
+        return { applyResp, resetResp };
     }
 
     async loadTokenStats() {
@@ -2901,10 +3135,12 @@ class XiangqiBoard extends HTMLElement {
     }
 
     startKarmaPolling() {
-        if (this._karmaPollingTimer) return;
-        this._karmaPollingTimer = setInterval(() => {
-            this.loadLocalKarmaDetection();
-        }, 5000);
+        // Phase 2: 已迁移到事件驱动刷新（BroadcastChannel + visibility/focus 兜底）。
+        // 此方法保留为空 no-op，以免旧代码 / 外部调用崩溃。所有实际刷新由 _initEventDrivenRefresh 管理。
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
+        }
     }
 
     stopKarmaPolling() {
@@ -4434,43 +4670,184 @@ class XiangqiBoard extends HTMLElement {
     }
 
     async showGameOver() {
-        const state = this.boardState?.game_status;
-        if (!state || state.state !== 'ended') return;
+        const gs = this.boardState?.game_status;
+        if (!gs || gs.state !== 'ended') return;
 
-        const winner = state.winner === 'red' ? '红方' : '黑方';
+        const isPlayerWin = gs.winner === 'red';
+        const winner = gs.winner === 'red' ? '红方（我方）' : '黑方（AI）';
         const container = this.shadowRoot.getElementById('board-container');
 
-        const existing = container.querySelector('.game-over-overlay');
-        if (existing) existing.remove();
+        // 清旧弹窗
+        for (const sel of ['.game-over-overlay', '.victory-reward-overlay']) {
+            const e = container.querySelector(sel);
+            if (e) e.remove();
+        }
+
+        // ── (1) 若胜，先拿到 progression / next_level 数据 ──
+        let rewards = null;
+        let next_level = null;
+        let noCheatThisLevel = !!(this.samsaraState && this.samsaraState.no_cheat_this_level);
+        if (isPlayerWin) {
+            try {
+                // 使用 body 方式（旧 query 参数也保留向后兼容）
+                const r = await this._fetchRaw(`${this.apiBase}/api/level/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ won: true, no_cheat: noCheatThisLevel, boss_defeated: false }),
+                });
+                const data = await r.json();
+                rewards = data && data.rewards ? data.rewards : data;
+                // next_level 可能在 rewards.next_level 或 data.next_level 或顶层 rewards
+                next_level = (rewards && rewards.next_level) || (data && data.next_level) || null;
+                this._lastResolveRewards = { rewards, next_level, isPlayerWin: true };
+                // 胜负结算完成：广播 level-advanced 给总坛刷新进度
+                this._fireLocalAndBroadcast('level-advanced', { isPlayerWin: true, next_level });
+                try {
+                    if (data && data.state) { this.samsaraState = data.state; this.updateSamsaraUI(); }
+                    else await this.loadSamsaraState();
+                } catch (e) {}
+            } catch (e) {
+                console.error('Failed to resolve level rewards:', e);
+            }
+        } else {
+            // 败北：也上报 progression 拿失败奖励/惩罚（若有）
+            try {
+                const r = await this._fetchRaw(`${this.apiBase}/api/level/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ won: false, no_cheat: noCheatThisLevel, boss_defeated: false }),
+                });
+                const data = await r.json();
+                rewards = data && data.rewards ? data.rewards : data;
+                this._lastResolveRewards = { rewards, next_level: null, isPlayerWin: false };
+            } catch (e) { console.warn('Lose resolve failed', e); }
+        }
+
+        // ── (2) 取最终业力 / 识破 供弹窗显示 ──
+        const karmaNow = (this.samsaraState && typeof this.samsaraState.karma === 'number')
+            ? this.samsaraState.karma
+            : null;
+        const karmaMax = (this.samsaraState && typeof this.samsaraState.karma_max === 'number')
+            ? this.samsaraState.karma_max
+            : null;
+        const detNow = (this.samsaraState && typeof this.samsaraState.detection === 'number')
+            ? Math.round(this.samsaraState.detection * 1000) / 10
+            : null;
+        const skillPointsEarned = (rewards && typeof rewards.skill_points === 'number')
+            ? rewards.skill_points : 0;
+        const bonusReasons = (rewards && Array.isArray(rewards.bonus_reasons)) ? rewards.bonus_reasons : [];
+        const sandboxUnlocked = rewards && rewards.sandbox_unlocked;
+        const realmAdvance = rewards && rewards.realm_advance;
+        const nextLvInfo = next_level && next_level.level ? next_level.level : null;
+
+        // ── (3) 构造三按钮可见性（主模式 vs 沙盒）──
+        // 沙盒：只显示「再来一次」+「返回沙盒总坛」
+        // 主模式胜：下一关（next_level 有才启用）/ 再来一次 / 返回总坛
+        // 主模式负：下一关灰 / 再来一次 / 返回总坛
+        const isSandbox = !!this.isSandbox;
+
+        let nextBtnLabel = '➡️ 下一关';
+        let nextBtnDisabled = true;
+        let showNextBtn = !isSandbox;
+        if (isSandbox) {
+            nextBtnLabel = '➡️ 下一关（沙盒无关卡）';
+            showNextBtn = false; // 沙盒完全遮罩
+        } else if (isPlayerWin) {
+            nextBtnDisabled = !next_level;
+        } else {
+            nextBtnLabel = '➡️ 下一关（需胜利才可推进）';
+            nextBtnDisabled = true;
+        }
+
+        // 返回总坛文案
+        let returnLabel = '🏠 返回总坛';
+        let returnHref = '/hub/index.html';
+        if (isSandbox) {
+            returnLabel = '🏠 返回沙盒总坛';
+            returnHref = '/hub/sandbox.html';
+        }
+
+        // ── (4) HTML 内容组装 ──
+        const titleHtml = isPlayerWin
+            ? '<h2>🏆 通关胜利</h2>'
+            : '<h2>💀 本局败北</h2>';
+        const summaryHtml = `
+            <div style="margin:10px 0 14px;padding:10px 14px;border-radius:10px;background:rgba(255,255,255,.06);color:#e5e7eb;">
+                <div style="margin-bottom:6px;"><b>${winner}</b> 获胜</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px;opacity:.95;">
+                    <div>业力：<b>${karmaNow !== null ? `${karmaNow}${karmaMax !== null ? ` / ${karmaMax}` : ''}` : '—'}</b></div>
+                    <div>识破：<b>${detNow !== null ? `${detNow}%` : '—'}</b></div>
+                    <div>无作弊通关：<b>${noCheatThisLevel ? '✅ 是' : '❌ 否'}</b></div>
+                    <div>技能点：<b style="color:#fde047;">${skillPointsEarned >= 0 ? '+' : ''}${skillPointsEarned}</b></div>
+                </div>
+                ${nextLvInfo ? `<div style="margin-top:10px;font-size:13px;">下一关：<b>${this._escapeHtml(nextLvInfo.name || '第' + (next_level.level_index + 1) + '关')}</b>${next_level && next_level.realm_name ? `（${this._escapeHtml(next_level.realm_name)}）` : ''}</div>` : ''}
+                ${realmAdvance && realmAdvance.realm_switched ? `<div style="margin-top:6px;font-size:13px;color:#a7f3d0;">🆙 道切换成功：进入「${this._escapeHtml(realmAdvance.new_realm_name || realmAdvance.new_realm || '')}」</div>` : ''}
+                ${sandboxUnlocked ? `<div style="margin-top:8px;font-size:13px;color:#a5f3fc;">🔓 沙盒模式已解锁</div>` : ''}
+                ${bonusReasons && bonusReasons.length ? `<ul style="margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6;">${bonusReasons.map(r => `<li>${this._escapeHtml(String(r))}</li>`).join('')}</ul>` : ''}
+            </div>
+        `;
+        const buttonsHtml = `
+            <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+                ${showNextBtn ? `<button class="btn-primary rpg-nextbtn" ${nextBtnDisabled ? 'disabled style="opacity:.55;cursor:not-allowed;"' : ''}>${nextBtnLabel}</button>` : ''}
+                <button class="btn-primary rpg-retrybtn">🔁 再来一次</button>
+                <button class="btn-primary rpg-returnbtn">${returnLabel}</button>
+            </div>
+        `;
 
         const overlay = document.createElement('div');
         overlay.className = 'game-over-overlay';
-        overlay.innerHTML = `
-            <h2>🎮 游戏结束</h2>
-            <p>${winner} 获胜！</p>
-            <button class="btn-primary">再来一局</button>
-        `;
-        const restartBtn = overlay.querySelector('button');
-        restartBtn.addEventListener('click', () => this.restart());
+        overlay.innerHTML = `${titleHtml}${summaryHtml}${buttonsHtml}`;
+        // 绑定按钮
+        const nextBtn = overlay.querySelector('.rpg-nextbtn');
+        const retryBtn = overlay.querySelector('.rpg-retrybtn');
+        const returnBtn = overlay.querySelector('.rpg-returnbtn');
+        if (nextBtn && !nextBtnDisabled) {
+            nextBtn.addEventListener('click', () => {
+                overlay.querySelector('.rpg-nextbtn').disabled = true;
+                overlay.querySelector('.rpg-nextbtn').textContent = '⏳ 进入下一关...';
+                this.advanceNextLevel(next_level).finally(() => {});
+            });
+        } else if (nextBtn) {
+            nextBtn.addEventListener('click', () => this.addMessage('⚠️ 下一关不可用（先赢得本局或已是最后一关）', 'info'));
+        }
+        retryBtn.addEventListener('click', () => this.restart());
+        returnBtn.addEventListener('click', () => {
+            window.location.href = returnHref;
+        });
         container.appendChild(overlay);
+    }
 
-        // 玩家获胜时, 调用 progression resolve 获取奖励并显示
+    /** 胜负页「下一关」按钮：推进关卡并进入下一局初始化。 */
+    async advanceNextLevel(prevNextLevel) {
+        if (this.isSandbox) {
+            this.addMessage('⚠️ 沙盒模式不支持推进关卡', 'info');
+            return;
+        }
         try {
-            const isPlayerWin = state.winner === 'red';
-            if (isPlayerWin) {
-                const resp = await fetch(`${this.apiBase}/api/level/complete?won=true&no_cheat=false&boss_defeated=false`, { method: 'POST' });
-                const data = await resp.json();
-                if (data && (data.skill_points > 0 || data.bonus_reasons?.length > 0 || data.sandbox_unlocked)) {
-                    this.showVictoryReward(data);
-                    await this.loadSamsaraState();
-                }
+            // 推进：用 Samsara /api/levels/advance（已返回 next_level + state）
+            const r = await this._fetchRaw('/samsara/api/levels/advance', { method: 'POST' });
+            const data = await r.json();
+            let nl = prevNextLevel;
+            if (data && data.next_level) nl = data.next_level;
+            if (data && data.state) { this.samsaraState = data.state; this.updateSamsaraUI(); }
+            this._fireLocalAndBroadcast('level-advanced', { next_level: nl });
+            // 清胜负弹窗
+            const bc = this.shadowRoot.getElementById('board-container');
+            for (const sel of ['.game-over-overlay', '.victory-reward-overlay']) {
+                const e = bc && bc.querySelector(sel); if (e) e.remove();
             }
+            // 下一关三件套
+            await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: true });
+            this.addMessage('➡️ 已进入下一关', 'success');
         } catch (e) {
-            console.error('Failed to resolve level rewards:', e);
+            console.error('advanceNextLevel failed:', e);
+            this.addMessage('❌ 进入下一关失败，请从总坛重试', 'error');
         }
     }
 
     showVictoryReward(rewards) {
+        // Phase 2 兼容：showVictoryReward 已在 showGameOver 合并显示。
+        // 外部调用仍允许显示一张独立奖励卡片，同时点击「继续」不关闭胜负弹窗。
         const container = this.shadowRoot.getElementById('board-container');
         const existing = container.querySelector('.victory-reward-overlay');
         if (existing) existing.remove();
@@ -4479,7 +4856,7 @@ class XiangqiBoard extends HTMLElement {
         const reasons = rewards?.bonus_reasons || [];
         const sandboxUnlocked = rewards?.sandbox_unlocked;
 
-        const reasonsHtml = reasons.map(r => `<li>${r}</li>`).join('');
+        const reasonsHtml = reasons.map(r => `<li>${this._escapeHtml(String(r))}</li>`).join('');
         const sandboxHtml = sandboxUnlocked ? '<div class="reward-sandbox">🔓 沙盒模式已解锁！</div>' : '';
 
         const overlay = document.createElement('div');
@@ -4501,21 +4878,35 @@ class XiangqiBoard extends HTMLElement {
     async restart() {
         const overlay = this.shadowRoot.querySelector('.game-over-overlay');
         if (overlay) overlay.remove();
+        const rewardOverlay = this.shadowRoot.querySelector('.victory-reward-overlay');
+        if (rewardOverlay) rewardOverlay.remove();
 
-        const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            await this.loadConfigs();
-            this.lastMove = null;
-            this.clearSelection();
-            this.renderBoard();
-            this.renderPieces();
-            this.updateTurnIndicator();
-            this.updateActiveRules();
-            this.updateGameObjectives();
-            this.updateAIPersonality();
-            this.updateMechanisms();
+        // Phase 2 修复：restart 不再仅 /api/restart，而是 RPG 三件套（apply_level + reset_battle + 全量重绘）
+        try {
+            await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: true });
             this.addMessage('🔄 游戏已重新开始', 'info');
+        } catch (e) {
+            // 极端 fallback
+            try {
+                const resp = await this._fetchRaw(`${this.apiBase}/api/restart`, { method: 'POST' });
+                const data = await resp.json();
+                if (data && data.success) {
+                    await this.loadConfigs();
+                    this.lastMove = null;
+                    this.clearSelection();
+                    this.renderBoard();
+                    this.renderPieces();
+                    this.updateTurnIndicator();
+                    this.updateActiveRules();
+                    this.updateGameObjectives();
+                    this.updateAIPersonality();
+                    this.updateMechanisms();
+                    this.addMessage('🔄 游戏已重新开始', 'info');
+                }
+            } catch (e2) {
+                this.addMessage('❌ 重新开始失败', 'error');
+                console.error(e, e2);
+            }
         }
     }
 

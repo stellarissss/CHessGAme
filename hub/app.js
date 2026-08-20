@@ -24,6 +24,32 @@ const REALM_NAMES = {
 
 // 防泄漏：模块级定时器ID，render() 中复用
 let _statusIntervalId = null;
+// BroadcastChannel：跨页面 / 跨标签事件广播（成就解锁、业力更新、关卡推进、重置）
+let _gameEventsChannel = null;
+function _getChannel() {
+    if (typeof BroadcastChannel === "undefined") return null;
+    if (!_gameEventsChannel) {
+        try {
+            _gameEventsChannel = new BroadcastChannel("game-events");
+        } catch (e) {
+            return null;
+        }
+    }
+    return _gameEventsChannel;
+}
+function _broadcastEvent(type, payload) {
+    const ch = _getChannel();
+    if (!ch) return;
+    try { ch.postMessage({ type, ...(payload || {}) }); } catch (e) {}
+}
+// storage 事件兜底（非当前 tab 写入 localStorage，其他 tab 会收到）
+function _storageSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify({ value, ts: Date.now() })); } catch (e) {}
+}
+function _fireLocalAndBroadcast(type, payload) {
+    _broadcastEvent(type, payload);
+    _storageSet(`ge_${type}`, payload || {});
+}
 
 const DEFAULT_GAMES = [
     {
@@ -416,42 +442,202 @@ function initSkillTreeModal() {
 }
 
 async function init() {
+    // 事件 + 按钮先初始化（这样第一次加载数据后任何跨页事件都能响应）
+    initEventListeners();
+    // 等待 DOM 就绪再挂载按钮（确保 rpg-overview 存在）
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initResetButtons, { once: true });
+    } else {
+        initResetButtons();
+    }
+
     const meta = document.getElementById("hub-meta");
+    let resolvedGames = null;
     try {
-        const res = await fetch("/api/games", { signal: AbortSignal.timeout(5000) });
+        const res = await fetch("/api/games", { cache: "no-store", signal: AbortSignal.timeout(5000) });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const games = await res.json();
+        resolvedGames = games;
         meta.textContent = `总坛在线 · 已发现 ${games.length} 重棋境`;
         render(games);
     } catch (err) {
         console.warn("无法从 /api/games 获取服务列表，使用默认配置", err);
         meta.textContent = "总坛在线 · 使用默认端口配置";
+        resolvedGames = DEFAULT_GAMES;
         render(DEFAULT_GAMES);
     }
 
-    try {
-        const achRes = await fetch("/api/achievements");
-        if (achRes.ok) {
-            const achData = await achRes.json();
-            const el = document.getElementById("ach-banner-progress");
-            if (el) {
-                el.textContent = `已解锁 ${achData.unlocked_count} / ${achData.total}`;
-            }
-        }
-    } catch (err) {
-        console.warn("无法获取成就进度", err);
-    }
+    try { await loadAchievementsBanner(); } catch (err) { console.warn("无法获取成就进度", err); }
 
     await loadSamsaraState();
     await loadSkillTree();
     initSkillTreeModal();
-    loadRpgOverview();
+    await loadRpgOverview();
+    // games 存在时刷新状态：避免 6s 轮询第一档延迟
+    refreshHubStatus({ reloadAchievements: false, reloadSkills: false, reloadOverview: false, games: resolvedGames });
+}
+
+// ═══ 统一刷新入口 ═══
+async function refreshHubStatus({ reloadAchievements = true, reloadSkills = true, reloadOverview = true, games = null } = {}) {
+    try { await loadSamsaraState(); } catch (e) {}
+    if (reloadSkills) { try { await loadSkillTree(); renderSkillTree(); } catch (e) {} }
+    if (reloadAchievements) { try { await loadAchievementsBanner(); } catch (e) {} }
+    if (reloadOverview) { try { await loadRpgOverview(); } catch (e) {} }
+    try {
+        if (!games) {
+            // 当前 DOM 内渲染的 games，如果有全局变量则复用，否则加载
+            const resp = await fetch("/api/games", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+            if (resp.ok) games = await resp.json();
+        }
+        if (games && games.length) {
+            updateStatuses(games);
+            await loadRealmProgress(games);
+        }
+    } catch (e) {}
+}
+
+async function loadAchievementsBanner() {
+    const achRes = await fetch("/api/achievements", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+    if (!achRes.ok) return;
+    const achData = await achRes.json();
+    const el = document.getElementById("ach-banner-progress");
+    if (el) {
+        el.textContent = `已解锁 ${achData.unlocked_count || 0} / ${achData.total || 0}`;
+    }
+}
+
+// ═══ Toast：成就解锁提示（所有页面统一实现）═══
+function showAchievementToast(ach) {
+    let root = document.getElementById("game-events-toast-root");
+    if (!root) {
+        root = document.createElement("div");
+        root.id = "game-events-toast-root";
+        Object.assign(root.style, {
+            position: "fixed", top: "16px", right: "16px", zIndex: "2147483647",
+            display: "flex", flexDirection: "column", gap: "10px", pointerEvents: "none",
+        });
+        document.body.appendChild(root);
+    }
+    const el = document.createElement("div");
+    Object.assign(el.style, {
+        minWidth: "260px", maxWidth: "360px", padding: "12px 16px",
+        borderRadius: "12px", border: "1px solid rgba(255,215,0,0.45)",
+        background: "linear-gradient(135deg, rgba(60,40,10,0.95), rgba(20,10,0,0.95))",
+        color: "#fff", boxShadow: "0 6px 20px rgba(0,0,0,0.45)", pointerEvents: "auto",
+        fontFamily: "system-ui,-apple-system,Segoe UI,sans-serif",
+    });
+    const icon = (ach && ach.icon) ? ach.icon : "🏆";
+    const name = (ach && ach.name) ? ach.name : (ach && ach.id ? ach.id : "新成就");
+    const desc = (ach && ach.desc) ? ach.desc : "";
+    el.innerHTML = `<div style="font-weight:600;font-size:14px;margin-bottom:4px;color:#ffd972;">${icon} 成就解锁</div>
+                    <div style="font-size:14px;font-weight:600;margin-bottom:3px;">${name}</div>
+                    <div style="font-size:12px;opacity:0.88;">${desc}</div>`;
+    root.appendChild(el);
+    setTimeout(() => { el.style.transition = "opacity 420ms"; el.style.opacity = "0"; }, 3600);
+    setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 4200);
+}
+
+// ═══ 存档重置按钮（双档）═══
+async function doResetArchive(mode) {
+    const cnName = mode === "hard" ? "全量重置（清空成就/技能/关卡全部）" : "软重置（保留技能/成就/结局，只清关卡进度）";
+    const confirmMsg = mode === "hard"
+        ? `即将执行：${cnName}。\n此操作会把所有进度恢复默认，并写入 .bak 备份。确认继续？`
+        : `即将执行：${cnName}。\n此操作会保留技能树/成就/结局/记忆碎片，只回到地狱第0关重开新周目。确认继续？`;
+    if (!confirm(confirmMsg)) return;
+    try {
+        const r1 = await fetch("/samsara/api/reset", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode }),
+        });
+        const d1 = await r1.json();
+        if (!d1.success) alert("六道存档重置失败");
+        if (mode === "hard") {
+            try { await fetch("/api/achievements/reset", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({mode:"all"}) }); } catch (e) {}
+        }
+        if (d1.state) { samsaraState = d1.state; updateSamsaraUI(); }
+        _fireLocalAndBroadcast("reset-issued", { mode });
+        await refreshHubStatus({ reloadAchievements: true, reloadSkills: true, reloadOverview: true });
+        alert("重置完成。页面已同步最新存档。");
+    } catch (e) {
+        alert(`重置失败：${e.message}`);
+    }
+}
+
+function initResetButtons() {
+    // 尝试挂到两个位置：
+    const mountIds = ["reset-buttons-slot", "rpg-overview"];
+    const mount = mountIds.map(id => document.getElementById(id)).find(Boolean)
+        || document.body;
+    let slot = document.getElementById("hub-reset-slot");
+    if (!slot) {
+        slot = document.createElement("div");
+        slot.id = "hub-reset-slot";
+        Object.assign(slot.style, {
+            display: "flex", gap: "8px", flexWrap: "wrap",
+            marginTop: "8px",
+        });
+        slot.innerHTML = `
+            <button id="btn-reset-soft" class="enter-btn" style="background:rgba(180,130,60,0.25);border:1px solid rgba(200,160,90,0.5);">🗘 软重置（保留技能/成就）</button>
+            <button id="btn-reset-hard" class="enter-btn" style="background:rgba(180,50,50,0.22);border:1px solid rgba(220,90,90,0.5);">🗑 全量重置（清空全部）</button>
+        `;
+        mount.appendChild(slot);
+    }
+    const s = document.getElementById("btn-reset-soft");
+    if (s) s.addEventListener("click", () => doResetArchive("soft"));
+    const h = document.getElementById("btn-reset-hard");
+    if (h) h.addEventListener("click", () => doResetArchive("hard"));
+}
+
+// ═══ 跨页事件监听 ═══
+function initEventListeners() {
+    const ch = _getChannel();
+    if (ch) {
+        ch.addEventListener("message", (e) => {
+            const t = e.data && e.data.type;
+            if (!t) return;
+            switch (t) {
+                case "achievement-unlocked":
+                    showAchievementToast(e.data.achievement || { id: e.data.id, name: e.data.name, desc: e.data.desc, icon: e.data.icon });
+                    refreshHubStatus({ reloadAchievements: true, reloadSkills: false, reloadOverview: false });
+                    break;
+                case "karma-updated":
+                case "reset-issued":
+                case "level-advanced":
+                case "level-started":
+                    refreshHubStatus({ reloadAchievements: (t === "reset-issued") });
+                    break;
+            }
+        });
+    }
+    // storage 兜底：BroadcastChannel 在老浏览器或同一 tab 不可靠时，这里也触发一次
+    window.addEventListener("storage", (ev) => {
+        if (!ev || !ev.key || !ev.key.startsWith("ge_")) return;
+        const t = ev.key.slice(3);
+        let payload = {};
+        try { payload = JSON.parse(ev.newValue || "{}").value || {}; } catch (e) {}
+        if (t === "achievement-unlocked") {
+            showAchievementToast(payload.achievement || payload);
+            refreshHubStatus({ reloadAchievements: true, reloadSkills: false, reloadOverview: false });
+        } else if (["karma-updated", "reset-issued", "level-advanced", "level-started"].includes(t)) {
+            refreshHubStatus({ reloadAchievements: (t === "reset-issued") });
+        }
+    });
+    // 页面可见性/焦点兜底
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            refreshHubStatus({ reloadAchievements: true });
+        }
+    });
+    window.addEventListener("focus", () => {
+        refreshHubStatus({ reloadAchievements: true });
+    });
 }
 
 // ═══ RPG 总览加载 ═══
 async function loadRpgOverview() {
     try {
-        const resp = await fetch("/samsara/story/api/rpg/overview");
+        const resp = await fetch("/samsara/story/api/rpg/overview", { cache: "no-store" });
         if (!resp.ok) return;
         const data = await resp.json();
 

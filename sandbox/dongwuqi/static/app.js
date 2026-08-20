@@ -2393,6 +2393,29 @@ class DongwuqiBoard extends HTMLElement {
         this.updateGameObjectives();
         this.updateAIPersonality();
         this.updateMechanisms();
+
+        // === 六道 RPG（沙盒遮罩版，无关卡不推进） ===
+        try {
+            if (window.GameSharedRPG) {
+                window.GameSharedRPG.install(this, {
+                    isSandbox: true,
+                    rerender: async (instance) => {
+                    instance.clearSelection();
+                    instance.renderBoard();
+                    instance.renderPieces();
+                    instance.updateTurnIndicator();
+                    instance.updateActiveRules();
+                    instance.updateGameObjectives();
+                    instance.updateAIPersonality();
+                    instance.updateMechanisms();
+                    },
+                });
+                // 沙盒不切关，只触发 reset_battle fallback + 事件监听兜底
+                try { await this.rpgResetBattleAndApply({ doSamsaraResetLevel: false, doBroadcast: false }); } catch(e) {}
+                if (typeof this.initRpgEventListeners === 'function') this.initRpgEventListeners();
+            }
+        } catch (e) { console.warn('[Sandbox RPG] init failed', e); }
+
         this.bindEvents();
         this.checkApiKey();
         this.loadTokenStats();
@@ -3716,49 +3739,17 @@ class DongwuqiBoard extends HTMLElement {
             console.error('Failed to refresh mechanisms:', e);
         }
     }
-
-    showGameOver() {
-        const state = this.boardState?.game_status;
-        if (!state || state.state !== 'ended') return;
-
-        const winner = state.winner === 'red' ? '红方' : '黑方';
-        const container = this.shadowRoot.getElementById('board-container');
-
-        const existing = container.querySelector('.game-over-overlay');
-        if (existing) existing.remove();
-
-        const overlay = document.createElement('div');
-        overlay.className = 'game-over-overlay';
-        overlay.innerHTML = `
-            <h2>🎮 游戏结束</h2>
-            <p>${winner} 获胜！</p>
-            <button class="btn-primary">再来一局</button>
-        `;
-        const restartBtn = overlay.querySelector('button');
-        restartBtn.addEventListener('click', () => this.restart());
-        container.appendChild(overlay);
+    async showGameOver() {
+        // 沙盒版：通用胜负弹窗 + 两按钮（无下一关）
+        return this.showRpgGameOver();
     }
 
+    
     async restart() {
-        const overlay = this.shadowRoot.querySelector('.game-over-overlay');
-        if (overlay) overlay.remove();
-
-        const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
-        const data = await resp.json();
-        if (data.success) {
-            await this.loadConfigs();
-            this.lastMove = null;
-            this.clearSelection();
-            this.renderBoard();
-            this.renderPieces();
-            this.updateTurnIndicator();
-            this.updateActiveRules();
-            this.updateGameObjectives();
-            this.updateAIPersonality();
-            this.updateMechanisms();
-            this.addMessage('🔄 游戏已重新开始', 'info');
-        }
+        // 沙盒：RPG 重玩（fallback /api/restart + 全重绘）
+        return this.rpgRestart();
     }
+
 
     getPieceName(pieceId) {
         const piece = this.boardState?.pieces?.find(p => p.id === pieceId);
@@ -3879,24 +3870,9 @@ class DongwuqiBoard extends HTMLElement {
         this.shadowRoot.getElementById('btn-restart').addEventListener('click', () => {
             this.restart();
         });
-
         this.shadowRoot.getElementById('btn-reset-configs').addEventListener('click', async () => {
-            if (!confirm('确定要重置所有配置吗？所有自定义规则将被清除。')) return;
-            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
-            const data = await resp.json();
-            if (data.success) {
-                await this.loadConfigs();
-                this.lastMove = null;
-                this.clearSelection();
-                this.renderBoard();
-                this.renderPieces();
-                this.updateTurnIndicator();
-                this.updateActiveRules();
-                this.updateGameObjectives();
-                this.updateAIPersonality();
-                this.updateMechanisms();
-                this.addMessage('✅ 所有配置已重置', 'success');
-            }
+            if (!confirm('确定要重置当前沙盒所有配置为默认值吗？')) return;
+            await this.rpgResetConfigsHandler('soft');
         });
 
         this.shadowRoot.getElementById('btn-logs').addEventListener('click', () => {
