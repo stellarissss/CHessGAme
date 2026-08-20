@@ -19,3 +19,5 @@ api密钥.txt
 
 # ── 发布产物（git-lfs 已托管，本地不再重复保留） ──
 .trae-html-share-packages/
+*.7z
+*.zip

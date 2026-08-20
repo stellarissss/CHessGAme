@@ -22,6 +22,7 @@
 """
 import os
 import shutil
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -91,16 +92,28 @@ def copy_tree(src: Path, dst: Path, rel: str = "") -> tuple[int, int]:
     return n_files, n_dirs
 
 
-def clean_old() -> None:
-    for path in (DIST_ROOT, WORK_PATH, WORKSPACE_ROOT / "build" / "chesssage"):
+def clean_old(skip_pyi: bool = False) -> None:
+    paths = [DIST_ROOT, WORK_PATH, WORKSPACE_ROOT / "build" / "chesssage"]
+    if skip_pyi:
+        # --skip-pyi 时保留 PyInstaller 已生成的 exe/_internal，只清工作区缓存
+        paths = [WORK_PATH]
+    for path in paths:
         if path.exists():
             shutil.rmtree(path, ignore_errors=True)
 
 
 def run_pyinstaller() -> None:
     print("\n[1/4] 运行 PyInstaller（onedir）...")
-    cmd = [
-        sys.executable, "-m", "PyInstaller",
+    # 支持通过 Wine 内的 Windows Python 构建真正的 .exe：
+    #   WINE_PYTHON='/usr/lib/wine/wine64 C:\\Python311\\python.exe' python3 build_game.py
+    wine_python = os.environ.get("WINE_PYTHON", "").strip()
+    if wine_python:
+        base = shlex.split(wine_python)
+        print(f"  使用 Wine 内 Windows Python: {wine_python}")
+    else:
+        base = [sys.executable]
+    cmd = base + [
+        "-m", "PyInstaller",
         "--clean", "-y",
         "--distpath", str(WORKSPACE_ROOT / "dist"),
         "--workpath", str(WORK_PATH),
@@ -189,14 +202,21 @@ def generate_start_scripts() -> None:
 
 
 def main() -> None:
+    # --skip-pyi: 跳过 PyInstaller 步骤，仅复制外部数据与生成启动脚本
+    #   （用于 PyInstaller 已单独执行，或 Wine 下分步构建的场景）
+    skip_pyi = "--skip-pyi" in sys.argv
+
     print("=" * 58)
     print("  棋圣 ChessSage RPG · 一键打包（PyInstaller onedir）")
     print("=" * 58)
     print(f"  项目目录: {WORKSPACE_ROOT}")
     print(f"  输出目录: {DIST_ROOT}")
 
-    clean_old()
-    run_pyinstaller()
+    clean_old(skip_pyi)
+    if not skip_pyi:
+        run_pyinstaller()
+    else:
+        print("\n[1/4] 跳过 PyInstaller（--skip-pyi）...")
     copy_external_data()
     generate_start_scripts()
 
