@@ -441,9 +441,36 @@ function initSkillTreeModal() {
     });
 }
 
+// ═══ 玩法教程弹窗 ═══
+function initTutorialModal() {
+    const btn = document.getElementById("tutorial-btn");
+    const modal = document.getElementById("tutorial-modal");
+    const closeBtn = document.getElementById("close-tutorial-btn");
+    if (!btn || !modal || !closeBtn) return;
+
+    const open = () => modal.classList.add("active");
+    const close = () => modal.classList.remove("active");
+
+    btn.addEventListener("click", open);
+    closeBtn.addEventListener("click", close);
+    // 点击遮罩关闭
+    modal.addEventListener("click", (e) => {
+        if (e.target === modal) close();
+    });
+    // 关闭按钮触控目标
+    closeBtn.style.minWidth = "36px";
+    closeBtn.style.minHeight = "36px";
+
+    return { open, close };
+}
+
 async function init() {
     // 事件 + 按钮先初始化（这样第一次加载数据后任何跨页事件都能响应）
     initEventListeners();
+
+    // 玩法教程：每次进入总坛自动弹出一次（可关闭，另有常驻悬浮按钮可随时打开）
+    const tutorial = initTutorialModal();
+    if (tutorial) setTimeout(() => tutorial.open(), 500);
     // 等待 DOM 就绪再挂载按钮（确保 rpg-overview 存在）
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initResetButtons, { once: true });
