@@ -64,7 +64,7 @@ class KarmaSystem:
     def consume(self, amount: int, allow_overdraft: bool = True) -> tuple[int, bool, float]:
         """作弊：增加业力。返回 (actual, is_overdraft, overshoot_amount)。"""
         current_karma = self.state.get_karma()
-        max_single = self.state.get("karma_single_max", 120)
+        max_single = self.state.get("karma_single_max", 150)
         modifiers = self.state.get_skill_modifiers()
         max_single += modifiers["karma_single_max_bonus"]
         if amount > max_single:
@@ -81,7 +81,7 @@ class KarmaSystem:
         return {
             "current": self.state.get_karma(),
             "max": self.state.get("karma_max", 120) + modifiers["karma_max_bonus"],
-            "single_max": self.state.get("karma_single_max", 120) + modifiers["karma_single_max_bonus"],
+            "single_max": self.state.get("karma_single_max", 150) + modifiers["karma_single_max_bonus"],
             "initial": self.state.get("initial_karma", 50) - modifiers["initial_karma_reduction"],
         }
 

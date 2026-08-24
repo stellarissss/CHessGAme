@@ -165,7 +165,7 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
                     state.ai_orchestrator.karma_assessor.set_local_karma_state(
                         karma=samsara_data.get("karma", 50),
                         karma_max=samsara_data.get("karma_max", 120),
-                        single_max=samsara_data.get("karma_single_max", 120),
+                        single_max=samsara_data.get("karma_single_max", 150),
                     )
                     state.ai_orchestrator.karma_assessor.set_realm_detection(
                         detection=samsara_data.get("detection", 0.0),

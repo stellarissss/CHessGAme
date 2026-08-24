@@ -38,11 +38,11 @@ KARMA_ASSESS_PROMPT = """
 
 ### 基础分类价目表
 - E 类（聊天/搞笑）：1 点（固定）
-- D 类（界面修改/外观）：5-15 点
-- A 类（机制修改）：20-40 点
-- B 类（棋盘变换/棋子位置）：15-35 点
-- C 类（规则修改/棋子走法）：30-60 点
-- C+ 类（创建新棋子）：50-100 点
+- D 类（界面修改/外观）：8-23 点
+- A 类（机制修改）：30-60 点
+- B 类（棋盘变换/棋子位置）：23-53 点
+- C 类（规则修改/棋子走法）：45-90 点
+- C+ 类（创建新棋子）：75-150 点
 
 ### 强度倍数（乘以基础价）
 - 改 1 个棋子/1 条规则：×1.0
@@ -50,11 +50,11 @@ KARMA_ASSESS_PROMPT = """
 - 改 3 个及以上：×3.0
 
 ### 跳棋具体示例（必须参考）
-- "让我的棋子可以跳两格"：35 点（C 类 ×1.0）
-- "创建一个能连跳5格的特殊棋"：80 点（C+ 类）
-- "改棋盘颜色"：10 点（D 类）
-- "让我的棋子可以斜着跳"：30 点（C 类，强度较低）
-- "让对手的棋子只能走一步"：45 点（A 类）
+- "让我的棋子可以跳两格"：53 点（C 类 ×1.0）
+- "创建一个能连跳5格的特殊棋"：120 点（C+ 类）
+- "改棋盘颜色"：15 点（D 类）
+- "让我的棋子可以斜着跳"：45 点（C 类，强度较低）
+- "让对手的棋子只能走一步"：68 点（A 类）
 - "你好" / "讲个笑话"：1 点（E 类，固定）
 
 ### 局势调整
@@ -63,7 +63,7 @@ KARMA_ASSESS_PROMPT = """
 
 ### 边界约束（绝对不可违反）
 - 最低 1 点（即使评估为 0 或负数，也必须输出 1）
-- 最高 120 点（即使评估超过 120，也必须输出 120）
+- 最高 150 点（即使评估超过 150，也必须输出 150）
 
 输出一个整数，不要任何解释。
 """
@@ -79,7 +79,7 @@ class KarmaAssessor:
         self._cache = {}
         self._local_karma = 50
         self._local_karma_max = 120
-        self._local_karma_single_max = 120
+        self._local_karma_single_max = 150
         self._initial_karma = 50
         self._realm_detection = 0.0
         self._current_realm = "human"
@@ -170,7 +170,7 @@ class KarmaAssessor:
         if self._current_realm in ("heaven", "asura") and skill_modifiers.get("heaven_asura_discount"):
             amount = int(amount * 0.75)
 
-        amount = max(1, min(amount, 120))
+        amount = max(1, min(amount, 150))
         self._cache[cache_key] = amount
         return amount
 

@@ -38,7 +38,7 @@ class SamsaraState:
             "current_level": 0,
             "skill_points": 0,
             "karma_max": 120,
-            "karma_single_max": 120,
+            "karma_single_max": 150,
             "initial_karma": 50,
             "realm_overshoot_carryover": 0,
             "realm_detections": {r: 0.0 for r in REALMS},
@@ -98,8 +98,8 @@ class SamsaraState:
         # 迁移：v1→v2 业障模型
         if self._data.get("karma_max") == 150:
             self._data["karma_max"] = 120
-        if self._data.get("karma_single_max") == 80:
-            self._data["karma_single_max"] = 120
+        if self._data.get("karma_single_max", 120) in (80, 120):
+            self._data["karma_single_max"] = 150
         if "initial_karma" not in self._data:
             self._data["initial_karma"] = 50
         if "realm_overshoot_carryover" not in self._data:
@@ -613,7 +613,7 @@ class SamsaraState:
             "skills": copy.deepcopy(self._data.get("skills", {})),
             "skill_points": self._data.get("skill_points", 0),
             "karma_max": self._data.get("karma_max", 120),
-            "karma_single_max": self._data.get("karma_single_max", 120),
+            "karma_single_max": self._data.get("karma_single_max", 150),
             "initial_karma": self._data.get("initial_karma", 50),
             "endings_unlocked": copy.deepcopy(
                 self._data.get("endings_unlocked", {
