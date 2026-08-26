@@ -1,0 +1,122 @@
+{
+  "hell": {
+    "game_type": "heibaiqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "hell_1", "label": "暗之始" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "hell_2", "label": "深渊" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "hell_3", "label": "挣扎" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "hell_4", "label": "逆转" },
+      { "id": "n7", "type": "boss",   "x": 3, "y": 1, "level_id": "hell_5", "label": "翻覆者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"]
+    ]
+  },
+  "hungry": {
+    "game_type": "tiaoqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "hungry_1", "label": "饥饿" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "hungry_2", "label": "吞噬" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "hungry_3", "label": "追逐" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "hungry_4", "label": "断桥" },
+      { "id": "n7", "type": "boss",   "x": 3, "y": 1, "level_id": "hungry_5", "label": "饕餮者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"]
+    ]
+  },
+  "animal": {
+    "game_type": "dongwuqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "animal_1", "label": "丛林法则" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "animal_2", "label": "弱肉强食" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "animal_3", "label": "等级" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "animal_4", "label": "逆袭" },
+      { "id": "n7", "type": "boss",   "x": 3, "y": 1, "level_id": "animal_5", "label": "秩序者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"]
+    ]
+  },
+  "human": {
+    "game_type": "xiangqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "human_1", "label": "楚河汉界" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "human_2", "label": "初窥天机" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "human_3", "label": "兵临城下" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "human_4", "label": "绝杀" },
+      { "id": "n7", "type": "objective", "x": 3, "y": 0, "level_id": "human_5", "label": "破军" },
+      { "id": "n8", "type": "boss",   "x": 3, "y": 1, "level_id": "human_6", "label": "算计者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"],
+      ["n7", "n8"]
+    ]
+  },
+  "asura": {
+    "game_type": "weiqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "asura_1", "label": "气之初始" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "asura_2", "label": "劫争" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "asura_3", "label": "天下布武" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "asura_4", "label": "活棋" },
+      { "id": "n7", "type": "objective", "x": 3, "y": 0, "level_id": "asura_5", "label": "屠龙" },
+      { "id": "n8", "type": "boss",   "x": 3, "y": 1, "level_id": "asura_6", "label": "狂乱者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"],
+      ["n7", "n8"]
+    ]
+  },
+  "heaven": {
+    "game_type": "wuziqi",
+    "grid": { "rows": 3, "cols": 4 },
+    "nodes": [
+      { "id": "n0", "type": "start",  "x": 0, "y": 1, "label": "轮回入口" },
+      { "id": "n1", "type": "battle", "x": 1, "y": 0, "level_id": "heaven_1", "label": "五子登仙" },
+      { "id": "n2", "type": "event",  "x": 1, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "事件房_待制作" },
+      { "id": "n3", "type": "battle", "x": 1, "y": 2, "level_id": "heaven_2", "label": "连珠" },
+      { "id": "n4", "type": "battle", "x": 2, "y": 0, "level_id": "heaven_3", "label": "悟道" },
+      { "id": "n5", "type": "reward", "x": 2, "y": 1, "level_id": null, "placeholder": true, "label": "？？？", "placeholder_note": "奖励房_待制作" },
+      { "id": "n6", "type": "puzzle", "x": 2, "y": 2, "level_id": "heaven_4", "label": "一步登天" },
+      { "id": "n7", "type": "objective", "x": 3, "y": 0, "level_id": "heaven_5", "label": "天光" },
+      { "id": "n8", "type": "boss",   "x": 3, "y": 1, "level_id": "heaven_6", "label": "禅定者" }
+    ],
+    "edges": [
+      ["n0", "n1"], ["n0", "n2"], ["n0", "n3"],
+      ["n1", "n4"], ["n2", "n5"], ["n3", "n6"],
+      ["n4", "n7"], ["n6", "n7"],
+      ["n7", "n8"]
+    ]
+  }
+}

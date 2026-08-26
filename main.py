@@ -338,6 +338,30 @@ def build_hub_app():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>六道众生总坛文件未找到</h1>", status_code=404)
 
+    @app.get("/world")
+    async def world_page():
+        # 世界地图（六道小世界：六块大陆，自由选择进入）
+        html_path = HUB_DIR / "world.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>世界地图文件未找到</h1>", status_code=404)
+
+    @app.get("/realm-map/{realm}")
+    async def realm_map_page(realm: str):
+        # 道内小地图（元气骑士式房间节点图）
+        html_path = HUB_DIR / "realm_map.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>道内小地图文件未找到</h1>", status_code=404)
+
+    @app.get("/play")
+    async def play_page():
+        # 对局容器（同窗口内嵌棋类 iframe）
+        html_path = HUB_DIR / "play.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>对局容器文件未找到</h1>", status_code=404)
+
     @app.get("/sandbox")
     async def sandbox_page():
         # 沙盒总坛（纯净棋类入口，与 RPG 隔离）

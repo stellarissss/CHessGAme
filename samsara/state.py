@@ -54,6 +54,9 @@ class SamsaraState:
             "sandbox_mode": False,
             "realm_progress": {r: {"completed": False, "levels_passed": 0, "no_cheat_full_clear": False} for r in REALMS},
             "level_karma": 50,
+            # ── 大地图字段（v4 六道小世界）──
+            "map_progress": {},           # {realm: {node_id: "locked"|"available"|"cleared"}}
+            "current_map_node": None,     # 玩家当前所在地图节点
             # ── RPG 字段 ──
             "alignment": {
                 "enlightenment": 0,   # 悟道值
@@ -110,6 +113,17 @@ class SamsaraState:
         # 迁移：v2→v3 RPG 字段
         if self._data.get("version", 1) < 3:
             self._data["version"] = 3
+        # 迁移：v3→v4 大地图字段（六道小世界：map_progress 懒初始化，由地图层按配置补齐）
+        if self._data.get("version", 1) < 4:
+            self._data["version"] = 4
+        if "map_progress" not in self._data or not isinstance(self._data.get("map_progress"), dict):
+            self._data["map_progress"] = {}
+        if "current_map_node" not in self._data:
+            self._data["current_map_node"] = None
+        # 补齐：每道地图进度缺省为空 dict（首次访问由 levels 层按 realm_maps.json 初始化）
+        for r in REALMS:
+            if not isinstance(self._data["map_progress"].get(r), dict):
+                self._data["map_progress"][r] = {}
         # 补齐 realm_progress 子字段（向后兼容）
         for r in REALMS:
             rp = self._data["realm_progress"].get(r, {})
@@ -316,6 +330,43 @@ class SamsaraState:
         if boss_id not in self._data["bosses_defeated"]:
             self._data["bosses_defeated"].append(boss_id)
             self._save()
+
+    # ══════════════════════════════════════════════════════════════
+    # 大地图进度（六道小世界 · v4）
+    # ══════════════════════════════════════════════════════════════
+
+    def get_map_progress(self, realm: str) -> dict:
+        """返回某道的大地图节点状态 {node_id: "locked"|"available"|"cleared"}"""
+        mp = self._data.get("map_progress") or {}
+        if not isinstance(mp, dict):
+            return {}
+        progress = mp.get(realm)
+        if not isinstance(progress, dict):
+            return {}
+        return progress
+
+    def set_map_node_status(self, realm: str, node_id: str, status: str):
+        """设置某道某节点的状态（locked / available / cleared）"""
+        mp = self._data.get("map_progress") or {}
+        if not isinstance(mp, dict):
+            mp = {}
+        realm_progress = mp.get(realm)
+        if not isinstance(realm_progress, dict):
+            realm_progress = {}
+        realm_progress[node_id] = status
+        mp[realm] = realm_progress
+        self._data["map_progress"] = mp
+        self._save()
+
+    def get_map_node_status(self, realm: str, node_id: str) -> str:
+        return self.get_map_progress(realm).get(node_id, "locked")
+
+    def set_current_map_node(self, realm: str, node_id: str):
+        self._data["current_map_node"] = node_id
+        self._save()
+
+    def get_current_map_node(self) -> str:
+        return self._data.get("current_map_node")
 
     def get_skill_modifiers(self):
         modifiers = {

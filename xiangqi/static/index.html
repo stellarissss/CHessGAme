@@ -8,6 +8,22 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>html, body { height: 100vh; margin: 0; overflow: hidden; } #app { height: 100%; }</style>
+    <script>
+        // embed=1 内嵌模式（六道小世界对局容器）：全屏适配 + 禁止额外新窗口
+        (function () {
+            if (location.search.indexOf('embed=1') === -1) return;
+            document.documentElement.classList.add('embed');
+            // 成就等外部页面改为 iframe 内跳转，避免弹出新标签打断地图流程
+            window.open = function (url) {
+                if (url) location.href = url;
+                return null;
+            };
+        })();
+    </script>
+    <style>
+        /* embed 内嵌模式：棋盘区撑满视口 */
+        html.embed body { overflow: hidden; }
+    </style>
 </head>
 <body>
     <div id="app"></div>

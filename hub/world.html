@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>html { zoom: 0.75; }</style>
+    <title>六道小世界 · 世界地图</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        .back-link {
+            position: fixed; top: 20px; left: 24px; z-index: 10;
+            color: var(--text-muted); text-decoration: none; font-size: 13px;
+            display: flex; align-items: center; gap: 6px;
+            transition: color 0.2s;
+        }
+        .back-link:hover { color: var(--gold); }
+
+        .samsara-status {
+            display: flex; align-items: center; justify-content: center;
+            gap: 36px; flex-wrap: wrap;
+            margin: 0 0 8px;
+            padding: 12px 24px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(14px);
+        }
+        .status-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .status-icon { font-size: 16px; }
+        .status-label { color: var(--text-muted); }
+        .status-value { color: var(--gold); font-weight: 600; font-family: var(--font-tech); min-width: 20px; }
+        .status-bar {
+            width: 120px; height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.08); overflow: hidden;
+        }
+        .status-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--crimson), var(--amber));
+            border-radius: 3px; transition: width 0.6s;
+        }
+
+        .world-toolbar {
+            display: flex; align-items: center; justify-content: center;
+            gap: 14px; margin: 18px 0 26px;
+        }
+        .tool-btn {
+            padding: 7px 20px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-panel);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            font-size: 13px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: border-color 0.25s, color 0.25s, transform 0.2s;
+        }
+        .tool-btn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+
+        /* ── 世界大陆网格（元气骑士式选择）── */
+        .world-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 22px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        @media (max-width: 900px) { .world-grid { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { .world-grid { grid-template-columns: 1fr; } }
+
+        .realm-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 30px 22px 26px;
+            border-radius: 18px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(16px);
+            cursor: pointer;
+            text-decoration: none;
+            color: var(--text-main);
+            overflow: hidden;
+            transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.3s, box-shadow 0.3s;
+            opacity: 0;
+            animation: fadeInUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        .realm-card::before {
+            content: "";
+            position: absolute; inset: 0;
+            background: radial-gradient(circle at 50% 0%, var(--rc-glow, rgba(212,175,55,0.14)), transparent 70%);
+            pointer-events: none;
+        }
+        .realm-card:hover {
+            transform: translateY(-8px);
+            border-color: var(--rc-accent, var(--gold));
+            box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 40px var(--rc-glow, rgba(212,175,55,0.2));
+        }
+        .realm-card.completed { border-color: var(--jade); }
+        .realm-card.completed:hover { box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 40px rgba(13,115,119,0.3); }
+
+        .realm-icon { font-size: 52px; margin-bottom: 12px; line-height: 1; filter: drop-shadow(0 3px 18px var(--rc-glow, rgba(212,175,55,0.35))); }
+        .realm-name { font-family: var(--font-display); font-size: 30px; color: var(--rc-accent, var(--gold)); margin: 0 0 4px; letter-spacing: 0.06em; }
+        .realm-sub { font-family: var(--font-tech); font-size: 10px; color: var(--gold-dim); letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 12px; }
+        .realm-desc { font-size: 12px; color: var(--text-muted); line-height: 1.8; margin-bottom: 16px; min-height: 66px; font-weight: 300; }
+
+        .realm-meta { display: flex; align-items: center; gap: 14px; font-size: 12px; color: var(--text-muted); }
+        .realm-meta .progress { color: var(--gold); font-family: var(--font-tech); }
+        .realm-badge {
+            padding: 3px 12px; border-radius: 20px; font-size: 11px;
+            border: 1px solid var(--border);
+        }
+        .realm-badge.cleared { color: var(--jade); border-color: var(--jade); }
+        .realm-badge.locked { color: var(--text-muted); }
+        .realm-badge.sandbox { color: var(--violet); border-color: var(--violet); }
+
+        .card-enter {
+            margin-top: 14px;
+            padding: 7px 22px;
+            border: 1px solid var(--rc-accent, var(--gold));
+            border-radius: 4px;
+            color: var(--rc-accent, var(--gold));
+            font-size: 13px;
+            letter-spacing: 0.1em;
+            transition: background 0.25s, color 0.25s;
+        }
+        .realm-card:hover .card-enter { background: var(--rc-accent, var(--gold)); color: var(--bg-deep); }
+
+        .world-footer { text-align: center; color: var(--text-muted); font-size: 12px; margin-top: 30px; line-height: 2; }
+
+        /* 大陆主题色 */
+        .realm-card[data-realm="hell"]    { --rc-accent: #c0392b; --rc-glow: rgba(192, 57, 43, 0.22); }
+        .realm-card[data-realm="hungry"]  { --rc-accent: #d68910; --rc-glow: rgba(214, 137, 16, 0.22); }
+        .realm-card[data-realm="animal"]  { --rc-accent: #16a085; --rc-glow: rgba(22, 160, 133, 0.22); }
+        .realm-card[data-realm="human"]   { --rc-accent: #d4af37; --rc-glow: rgba(212, 175, 55, 0.22); }
+        .realm-card[data-realm="asura"]   { --rc-accent: #8e44ad; --rc-glow: rgba(142, 68, 173, 0.24); }
+        .realm-card[data-realm="heaven"]  { --rc-accent: #5dade2; --rc-glow: rgba(93, 173, 226, 0.24); }
+    </style>
+</head>
+<body>
+    <div class="ambient">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <a href="/" class="back-link">← 返回标题页</a>
+
+    <main class="container">
+        <header class="hero">
+            <h1 class="hero-title">
+                <span class="title-main">六道小世界</span>
+                <span class="title-sub">WORLD MAP</span>
+            </h1>
+            <p class="hero-desc">
+                六重棋境，六块大陆。自由选择，随心闯荡。<br>
+                每一道都是一座小世界，只待你去征服。
+            </p>
+        </header>
+
+        <div class="samsara-status" id="samsara-status">
+            <div class="status-item">
+                <span class="status-icon">👁️</span>
+                <span class="status-label">识破</span>
+                <div class="status-bar">
+                    <div class="status-fill detection-fill" id="detection-fill"></div>
+                </div>
+                <span class="status-value" id="detection-value">0%</span>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">⭐</span>
+                <span class="status-label">技能点</span>
+                <span class="status-value" id="skill-points">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-icon">🏆</span>
+                <span class="status-label">通关道境</span>
+                <span class="status-value" id="realm-cleared">0 / 6</span>
+            </div>
+        </div>
+
+        <div class="world-toolbar">
+            <button class="tool-btn" id="btn-prologue">📜 序章剧情</button>
+            <button class="tool-btn" id="btn-skill-tree">🌳 技能树</button>
+            <button class="tool-btn" id="btn-achievements">🏅 成就殿堂</button>
+            <button class="tool-btn" id="btn-memory">💭 记忆相册</button>
+            <button class="tool-btn" id="btn-ending">🏮 结局</button>
+        </div>
+
+        <div class="world-grid" id="world-grid">
+            <p style="grid-column: 1/-1; text-align:center; color:var(--text-muted);">正在加载小世界…</p>
+        </div>
+
+        <footer class="world-footer">
+            <p>点击大陆进入其小世界地图 · 通关各道内容可解锁沙盒与更多结局</p>
+        </footer>
+    </main>
+
+    <script src="/static/world.js"></script>
+</body>
+</html>
