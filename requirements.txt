@@ -13,6 +13,11 @@ httpx>=0.27.0
 jsonschema>=4.21.0
 jsonpatch>=1.33.0
 
+# === 独立桌面窗口（pywebview） ===
+# 默认以原生 WebView 打开（Windows 优先 WebView2/EdgeChromium，Chromium 内核高性能），
+# 不再依赖外部浏览器。安装失败时主流程自动回退为浏览器模式。
+pywebview>=5.0
+
 # === 剧情编辑器可选依赖（角色立绘生成） ===
 # 安装这些之后才支持 AI 生图自动抠图
 Pillow>=10.0.0

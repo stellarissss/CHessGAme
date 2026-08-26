@@ -193,8 +193,9 @@ def generate_start_scripts() -> None:
         "说明：\n"
         "  1. 首次运行需在 config.json 中填写 API 密钥（api_key 字段）。\n"
         "  2. 启动后会自动拉起 1 个总坛 + 12 个棋类服务（端口 8000-8005 / 8010-8015 / 8080），\n"
-        "     并自动打开浏览器，访问 http://localhost:8080/ 。\n"
-        "  3. 关闭窗口即停止全部服务。\n"
+        "     并以 pywebview 独立桌面窗口打开（Windows 走 WebView2/Chromium 内核，高速）；\n"
+        "     关闭窗口即停止全部服务。\n"
+        "  3. 命令行可选：--browser 唤起系统浏览器；--no-browser 仅启动服务不打开界面。\n"
         "  4. 本目录不可拆分/移动单文件，整体分发（onedir 打包）。\n"
     )
     (DIST_ROOT / "使用说明.txt").write_text(readme, encoding="utf-8")

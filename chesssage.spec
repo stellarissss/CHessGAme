@@ -29,6 +29,7 @@ _RUNTIME_PKGS = [
     "h11",
     "certifi",
     "idna",
+    "webview",   # pywebview 独立桌面窗口（外部 main.py 运行时导入，需显式收集及其平台后端）
 ]
 hiddenimports = []
 for _pkg in _RUNTIME_PKGS:

@@ -551,10 +551,93 @@ def open_browser(url, no_browser=False):
         log_warn(f"\n  未能自动打开浏览器: {e}")
 
 
+def _hub_ready(port: int, timeout: float = 25.0) -> bool:
+    """等待总坛服务可访问（桌面窗口/浏览器打开前就绪检查）。"""
+    import urllib.request
+
+    url = f"http://127.0.0.1:{port}/api/health"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=1) as resp:
+                if resp.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(0.3)
+    return False
+
+
+def open_desktop_window(url: str) -> None:
+    """以 pywebview 原生 WebView 打开总坛，替代外部浏览器。
+
+    高性能说明：
+    - Windows 优先使用 WebView2/EdgeChromium（Chromium 内核），
+      与系统浏览器无关，渲染与渲染后的交互性能最佳，且无浏览器工具栏。
+    - macOS 使用 WKWebView，Linux 使用 GTK(WKWebKit2)。
+    在 pygame 设置下，主线程运行 GUI 事件循环，阻塞直至窗口关闭。
+    """
+    import webview  # 延迟导入：仅桌面窗口模式需要
+
+    webview.create_window(
+        "棋圣 ChessSage · 六道众生",
+        url=url,
+        width=1440,
+        height=900,
+        min_size=(1024, 640),
+        background_color="#0a0a16",
+        text_select=False,
+        zoomable=True,
+        easy_drag=True,
+    )
+    log_info(f"\n  [独立桌面窗口] 已打开: {url}")
+    log_info("  " + "=" * 54)
+    log_info("  关闭窗口即停止全部服务。")
+    log_info("  Windows 使用 WebView2(Chromium) 内核，性能最佳。")
+    log_info("  " + "=" * 54)
+    # GUI 事件循环在主线程运行，阻塞直至所有窗口关闭
+    webview.start(gui=None, private_mode=False, debug=False)
+
+
+def _hold_and_monitor(processes):
+    """浏览器 / 纯服务模式：保持主流程存活并按需健康告警（Ctrl+C 后返回）。"""
+    _alerted_exits = {i: False for i in range(len(processes))}
+    _health_tick = 0
+    try:
+        while True:
+            time.sleep(1)
+            _health_tick += 1
+            # 每 30 秒轮询一次子进程存活状态（仅告警不重启，避免覆盖副作用重置棋盘状态）
+            if _health_tick % 30 == 0:
+                for idx, (name, proc) in enumerate(processes):
+                    rc = proc.poll()
+                    if rc is not None and not _alerted_exits[idx]:
+                        log_error(f"  ⚠ 进程异常退出: {name} (退出码 {rc})，请检查日志或手动重启")
+                        _alerted_exits[idx] = True
+    except KeyboardInterrupt:
+        print()
+
+
+def _stop_all(processes):
+    """终止全部棋类子服务。"""
+    log_info("\n  正在停止所有服务...")
+    for name, proc in processes:
+        log_info(f"    停止 {name}...")
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+    log_info("  所有服务已停止")
+
+
 def main():
     print_banner()
 
     no_browser = "--no-browser" in sys.argv
+    browser_mode = "--browser" in sys.argv or "--no-window" in sys.argv
+    # 默认（未指定参数）：独立桌面窗口模式
+    window_mode = not no_browser and not browser_mode
 
     if not check_dependencies():
         sys.exit(1)
@@ -591,14 +674,6 @@ def main():
 
     hub_url = f"http://localhost:{HUB_PORT}/"
 
-    # 3. 自动打开浏览器（可选）
-    browser_thread = threading.Thread(
-        target=open_browser,
-        args=(hub_url, no_browser),
-        daemon=True,
-    )
-    browser_thread.start()
-
     print(_c("cyan", "\n" + "=" * 58))
     log_info("  服务启动完成！")
     print(_c("cyan", "  " + "=" * 56))
@@ -609,35 +684,39 @@ def main():
     print(_c("dim", "\n  沙盒棋类入口（纯净模式）:"))
     for game in SANDBOX_GAMES:
         print(_c("green", f"    [沙盒]{game['name']}: http://localhost:{game['port']}/"))
-    print(_c("yellow", "\n  按 Ctrl+C 停止所有服务"))
+    print(_c("yellow", "\n  关闭窗口 / 按 Ctrl+C 停止所有服务"))
     print(_c("cyan", "  " + "=" * 56))
 
-    # 进程健康守护：记录已告警过的进程退出状态，避免重复刷屏
-    _alerted_exits = {i: False for i in range(len(processes))}
-    _health_tick = 0
-
-    try:
-        while True:
-            time.sleep(1)
-            _health_tick += 1
-            # 每 30 秒轮询一次子进程存活状态（仅告警不重启，避免覆盖副作用重置棋盘状态）
-            if _health_tick % 30 == 0:
-                for idx, (name, proc) in enumerate(processes):
-                    rc = proc.poll()
-                    if rc is not None and not _alerted_exits[idx]:
-                        log_error(f"  ⚠ 进程异常退出: {name} (退出码 {rc})，请检查日志或手动重启")
-                        _alerted_exits[idx] = True
-    except KeyboardInterrupt:
-        print()
-        log_warn("\n  正在停止所有服务...")
-        for name, proc in processes:
-            log_info(f"    停止 {name}...")
+    # 3. 打开方式：
+    #    默认：pywebview 独立桌面窗口（原生 WebView，Chromium 高性能）
+    #    --browser / --no-window：兼容旧版，唤起系统浏览器
+    #    --no-browser：仅启动服务，不打开任何界面
+    if window_mode:
+        if _hub_ready(HUB_PORT):
             try:
-                proc.terminate()
-                proc.wait(timeout=5)
-            except Exception:
-                proc.kill()
-        log_info("  所有服务已停止")
+                open_desktop_window(hub_url)  # 阻塞直至窗口关闭
+            except Exception as e:
+                log_warn(f"\n  pywebview 启动失败: {e}")
+                log_warn("  若需独立窗口请安装: pip install pywebview")
+                log_warn("  本次退回浏览器模式")
+                browser_mode = True
+            else:
+                _stop_all(processes)
+                return
+        else:
+            log_warn("  总坛服务启动超时，退回浏览器模式")
+            browser_mode = True
+
+    if browser_mode:
+        browser_thread = threading.Thread(
+            target=open_browser,
+            args=(hub_url, no_browser),
+            daemon=True,
+        )
+        browser_thread.start()
+
+    _hold_and_monitor(processes)
+    _stop_all(processes)
 
 
 if __name__ == "__main__":
