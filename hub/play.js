@@ -18,8 +18,8 @@ const frame = document.getElementById("game-frame");
 const railTitle = document.getElementById("play-title");
 const backBtn = document.getElementById("btn-back-map");
 
-// iframe 指向对应棋类服务，带 embed=1 内嵌模式（隐藏返回/新窗口等外部元素）
-const gameUrl = `http://localhost:${port}/?embed=1`;
+// iframe 指向对应棋类服务，带 embed=1 内嵌模式（隐藏返回/新窗口等外部元素）+ realm（供胜负页“返回地图”）
+const gameUrl = `http://localhost:${port}/?embed=1&realm=${encodeURIComponent(realm)}`;
 frame.src = gameUrl;
 railTitle.textContent = `${REALM_NAMES[realm] || realm} · 对局`;
 

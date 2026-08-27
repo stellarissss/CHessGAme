@@ -31,16 +31,17 @@ async function loadWorld() {
         ]);
         const realms = Array.isArray(realmsResp) ? realmsResp : realmsResp.realms || [];
         const mapProgress = progressResp.progress || {};
+        const nodeStats = progressResp.node_stats || {};
         const realmProgress = progressResp.realm_progress || {};
         const sandboxUnlocked = progressResp.sandbox_unlocked || [];
-        renderRealms(realms, mapProgress, realmProgress, sandboxUnlocked);
+        renderRealms(realms, mapProgress, nodeStats, realmProgress, sandboxUnlocked);
     } catch (e) {
         $("world-grid").innerHTML =
             `<p style="grid-column:1/-1; text-align:center; color:var(--crimson);">加载世界地图失败: ${e.message}</p>`;
     }
 }
 
-function renderRealms(realms, mapProgress, realmProgress, sandboxUnlocked) {
+function renderRealms(realms, mapProgress, nodeStats, realmProgress, sandboxUnlocked) {
     const grid = $("world-grid");
     grid.innerHTML = "";
     REALM_META.forEach((meta, idx) => {
@@ -51,12 +52,13 @@ function renderRealms(realms, mapProgress, realmProgress, sandboxUnlocked) {
         card.style.animationDelay = `${0.06 * idx}s`;
 
         const progress = mapProgress[meta.id] || {};
-        const states = Object.values(progress);
-        let clearedCount = 0;
-        states.forEach((s) => { if (s === "cleared") clearedCount += 1; });
-        const totalNodes = states.length || 8; // 未拉取到地图节点时给个友好占位
+        const stats = nodeStats[meta.id] || {};
+        // 以非占位玩家房间数为分母，占位房不计入“通过”判定
+        const totalNodes = stats.total || 8;
+        const clearedCount = stats.cleared != null ? stats.cleared
+            : Object.values(progress).filter((s) => s === "cleared").length;
         const rp = realmProgress[meta.id] || {};
-        const completed = !!rp.completed;
+        const completed = completedFlag(stats, rp);
         const unlocked = sandboxUnlocked.includes(meta.id);
 
         const badgeHtml = completed
@@ -75,10 +77,16 @@ function renderRealms(realms, mapProgress, realmProgress, sandboxUnlocked) {
                 <span class="progress">${clearedCount} / ${totalNodes} 节点</span>
                 ${badgeHtml}
             </div>
-            <span class="card-enter">踏入此道 ▶</span>
+            <span class="card-enter">${completed ? "再入此道 ▶" : "踏入此道 ▶"}</span>
         `;
         grid.appendChild(card);
     });
+}
+
+function completedFlag(stats, rp) {
+    // 优先用后端地图摘要（守道者已击败），回退用线性道进度
+    if (stats.completed != null) return !!stats.completed;
+    return !!rp.completed;
 }
 
 /* ── 顶部状态条 ── */

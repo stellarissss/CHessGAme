@@ -688,7 +688,10 @@ def register_common_routes(
                     json={"won": won, "no_cheat": no_cheat, "boss_defeated": boss_defeated}
                 )
                 data = resp.json()
-                if won:
+                # 六道小世界地图模式：resolve 响应里带 map_node 表示该局来自地图节点，
+                # 进度由地图分支驱动，不再线性推进关卡（否则会打乱桌面地图选择）。
+                stayed_on_map = won and "map_node" in (data.get("rewards") or {})
+                if won and not stayed_on_map:
                     await client.post(f"{SAMSARA_API_URL}/api/levels/advance")
                 return data
         except Exception as e:

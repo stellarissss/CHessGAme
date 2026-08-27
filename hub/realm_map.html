@@ -21,6 +21,21 @@
         .map-header { text-align: center; margin-bottom: 10px; }
         .realm-title { font-family: var(--font-display); font-size: 44px; color: var(--rc-accent, var(--gold)); margin: 0; letter-spacing: 0.08em; text-shadow: 0 0 30px var(--rc-glow, rgba(212,175,55,0.3)); }
         .realm-sub { font-family: var(--font-tech); font-size: 11px; color: var(--gold-dim); letter-spacing: 0.3em; margin-top: 6px; }
+        .map-progress-stat { font-family: var(--font-tech); font-size: 12px; letter-spacing: 0.12em; margin-top: 6px; }
+        .map-banner {
+            display: inline-flex; align-items: center; gap: 8px;
+            margin-top: 10px; padding: 6px 18px;
+            border-radius: 999px; font-size: 13px; letter-spacing: 0.08em;
+            opacity: 0; transform: translateY(-4px);
+            transition: opacity 0.35s, transform 0.35s;
+        }
+        .map-banner.active { opacity: 1; transform: translateY(0); }
+        .map-banner.won {
+            color: var(--jade);
+            border: 1px solid rgba(13,115,119,0.5);
+            background: rgba(13,115,119,0.12);
+            box-shadow: 0 0 24px rgba(13,115,119,0.25);
+        }
         .map-legend {
             display: flex; justify-content: center; gap: 18px; flex-wrap: wrap;
             margin: 14px 0 6px; font-size: 12px; color: var(--text-muted);
@@ -159,6 +174,20 @@
         .modal-btn.primary { border-color: var(--rc-accent, var(--gold)); color: var(--rc-accent, var(--gold)); }
         .modal-btn.primary:hover { background: var(--rc-accent, var(--gold)); color: var(--bg-deep); }
         .modal-btn.ghost:hover { border-color: var(--text-muted); color: var(--text-muted); }
+
+        /* 键盘可达性：可挑战节点获得焦点时高亮 */
+        .node[data-status="available"]:focus-visible {
+            outline: 3px solid var(--rc-accent, var(--gold));
+            outline-offset: 3px;
+            transform: translate(-50%,-50%) scale(1.08);
+        }
+
+        /* 减少动态偏好：禁用呼吸/跳跃类动画 */
+        @media (prefers-reduced-motion: reduce) {
+            .node[data-status="available"],
+            .node.boss[data-status="available"] { animation: none; }
+            .node-tip, .map-banner { transition: none; }
+        }
     </style>
 </head>
 <body>
@@ -174,6 +203,8 @@
         <header class="map-header">
             <h1 class="realm-title" id="realm-title">…</h1>
             <div class="realm-sub" id="realm-sub">LOADING</div>
+            <div class="map-progress-stat" id="map-progress-stat"></div>
+            <div class="map-banner" id="map-banner" role="status"></div>
             <div class="map-legend">
                 <span>🟢 可挑战</span>
                 <span>✅ 已通关</span>

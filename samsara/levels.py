@@ -199,6 +199,43 @@ class LevelSystem:
             "placeholder_count": sum(1 for n in map_data.get("nodes", []) if n.get("placeholder")),
         }
 
+    def realm_map_stats(self, realm: str) -> dict:
+        """某道地图的进度摘要（供世界地图 / 道内抬头聚合展示）。
+
+        仅统计非占位节点（占位互动项后续制作，不计入“通过”判定），
+        并透出本道是否已通关（守道者已击败）。
+        """
+        map_data = self.realm_maps.get(realm)
+        if not map_data:
+            return {"total": 0, "cleared": 0, "available": 0, "placeholder": 0,
+                    "completed": False, "current_map_node": None}
+        if not self.state.get_map_progress(realm):
+            self._init_map_state(realm, map_data)
+        nodes = map_data.get("nodes", [])
+        progress = self.state.get_map_progress(realm)
+        cleared = available = placeholder = 0
+        for n in nodes:
+            if n.get("placeholder"):
+                placeholder += 1
+                continue
+            # 入口（start）不算“玩家房间”：既不算分母也不算已通过，避免新道误显“进行中”
+            if n.get("type") == "start":
+                continue
+            st = progress.get(n["id"], "locked")
+            if st == "cleared":
+                cleared += 1
+            elif st == "available":
+                available += 1
+        rp = self.state.get("realm_progress", {}).get(realm, {})
+        return {
+            "total": len(nodes) - placeholder - sum(1 for n in nodes if n.get("type") == "start"),
+            "cleared": cleared,
+            "available": available,
+            "placeholder": placeholder,
+            "completed": bool(rp.get("completed")),
+            "current_map_node": self.state.get("current_map_node"),
+        }
+
     def _init_map_state(self, realm: str, map_data: dict) -> None:
         """首次访问某道地图时初始化节点状态：
         - start 节点 → cleared（入口已通，不可再战斗）

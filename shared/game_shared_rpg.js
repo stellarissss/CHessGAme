@@ -201,6 +201,9 @@
         const sideMap = { red: '红方', black: '黑方', white: '白方' };
         const winLabel = (sideMap[winner] || winner) + (isPlayerWin ? '（我方）' : '（AI）');
 
+        // 六道小世界地图模式（内嵌对局容器嵌入 iframe）：胜负页提示“返回地图”
+        const isEmbed = !!target.isEmbed;
+
         // 清旧弹窗
         _removeOverlays(target);
         const container = target.shadowRoot && target.shadowRoot.getElementById('board-container');
@@ -260,7 +263,7 @@
         // 主/沙盒 按钮可见性
         let nextBtnLabel = '➡️ 下一关';
         let nextBtnDisabled = true;
-        let showNextBtn = !isSandbox;
+        let showNextBtn = !isSandbox && !isEmbed;  // 地图模式无“下一关”，改走“返回地图”
         if (isSandbox) {
             nextBtnLabel = '➡️ 下一关（沙盒无关卡）';
             showNextBtn = false;
@@ -278,7 +281,24 @@
             returnHref = '/hub/sandbox.html';
         }
 
-        const titleHtml = isPlayerWin ? '<h2>🏆 通关胜利</h2>' : '<h2>💀 本局败北</h2>';
+        // 六道小世界地图模式：地图结算信息 + “返回地图”主按钮
+        const mapNode = (isEmbed && rewards && rewards.map_node) ? rewards.map_node : null;
+        const mapRealm = (isEmbed
+            && (target.mapRealm || (target.samsaraState && target.samsaraState.current_realm))) || null;
+        const mapReturnHref = mapRealm ? `/realm-map/${encodeURIComponent(mapRealm)}?r=${Date.now()}` : null;
+        const mapSummaryHtml = mapNode && mapNode.won ? `
+            <div style="margin-top:8px;font-size:13px;line-height:1.8;">
+                <div style="color:#bbf7d0;">🗺️ 该节点已通关，通往更深处的大门已然开启</div>
+                ${Array.isArray(mapNode.unlocked) && mapNode.unlocked.length
+                    ? `<div style="color:#fde68a;">🔓 解锁相邻区域：${_escapeHtml(mapNode.unlocked.join(' · '))}</div>` : ''}
+                ${mapNode.realm_completed
+                    ? `<div style="color:#fbbf24;">👑 此道已全部通关 · 守道者伏法，沙盒已解锁 🎉</div>` : ''}
+            </div>` : '';
+
+        // 内嵌地图模式：胜利标题聚焦“节点通关”，而非“整局/整道过关”
+        const titleHtml = isPlayerWin
+            ? (isEmbed ? '<h2>🗺️ 节点通关</h2>' : '<h2>🏆 通关胜利</h2>')
+            : '<h2>💀 本局败北</h2>';
         const rpgStatsHtml = isSandbox ? '' : `
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;font-size:13px;opacity:.95;">
                 <div>业力：<b>${karmaNow !== null ? `${karmaNow}${karmaMax !== null ? ` / ${karmaMax}` : ''}` : '—'}</b></div>
@@ -295,13 +315,18 @@
                 ${realmAdvance && realmAdvance.realm_switched ? `<div style="margin-top:6px;font-size:13px;color:#a7f3d0;">🆙 道切换成功：进入「${_escapeHtml(realmAdvance.new_realm_name || realmAdvance.new_realm || '')}」</div>` : ''}
                 ${sandboxUnlocked ? `<div style="margin-top:8px;font-size:13px;color:#a5f3fc;">🔓 沙盒模式已解锁</div>` : ''}
                 ${bonusReasons && bonusReasons.length ? `<ul style="margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.6;">${bonusReasons.map(r => `<li>${_escapeHtml(String(r))}</li>`).join('')}</ul>` : ''}
+                ${mapSummaryHtml}
             </div>
         `;
+        // 地图模式：以「返回地图」为主按钮（胜负皆可返回，复盘或改道）
+        const mapBtnHtml = isEmbed && mapReturnHref
+            ? `<button class="btn-primary rpg-mapbtn">🗺️ 返回道内地图</button>` : '';
         const buttonsHtml = `
             <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+                ${mapBtnHtml}
                 ${showNextBtn ? `<button class="btn-primary rpg-nextbtn" ${nextBtnDisabled ? 'disabled style="opacity:.55;cursor:not-allowed;"' : ''}>${nextBtnLabel}</button>` : ''}
                 <button class="btn-primary rpg-retrybtn">🔁 再来一次</button>
-                <button class="btn-primary rpg-returnbtn">${returnLabel}</button>
+                ${isEmbed ? '' : `<button class="btn-primary rpg-returnbtn">${returnLabel}</button>`}
             </div>
         `;
 
@@ -312,6 +337,10 @@
         const nextBtn = overlay.querySelector('.rpg-nextbtn');
         const retryBtn = overlay.querySelector('.rpg-retrybtn');
         const returnBtn = overlay.querySelector('.rpg-returnbtn');
+        const mapBtn = overlay.querySelector('.rpg-mapbtn');
+        if (mapBtn) {
+            mapBtn.addEventListener('click', () => { window.location.href = mapReturnHref; });
+        }
         if (nextBtn && !nextBtnDisabled) {
             nextBtn.addEventListener('click', () => {
                 nextBtn.disabled = true;
@@ -324,10 +353,14 @@
                     target.addMessage('⚠️ 下一关不可用（先赢得本局或已是最后一关）', 'info');
             });
         }
-        retryBtn.addEventListener('click', () => {
-            if (typeof target.rpgRestart === 'function') target.rpgRestart();
-        });
-        returnBtn.addEventListener('click', () => { window.location.href = returnHref; });
+        if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+                if (typeof target.rpgRestart === 'function') target.rpgRestart();
+            });
+        }
+        if (returnBtn) {
+            returnBtn.addEventListener('click', () => { window.location.href = returnHref; });
+        }
 
         container.appendChild(overlay);
     }
@@ -485,6 +518,11 @@
     function install(instance, opts) {
         opts = opts || {};
         instance.isSandbox = !!opts.isSandbox;
+        // 六道小世界地图模式（内嵌对局容器嵌入 iframe）：胜负页提示“返回地图”
+        instance.isEmbed = !!opts.isEmbed
+            || (typeof document !== 'undefined' && document.documentElement.classList.contains('embed'));
+        instance.mapRealm = opts.realm
+            || new URLSearchParams(location.search).get('realm') || null;
         if (typeof opts.rerender === 'function') instance._rpgRerender = opts.rerender;
 
         // 通用工具：_fetchRaw（若未定义则提供 fetch 封装）

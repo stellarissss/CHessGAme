@@ -179,6 +179,12 @@ async def start_level(request: Request):
 
 @app.post("/api/levels/advance")
 async def advance_level():
+    # 地图模式：进度由地图分支结算，目标关卡由 map_start 显式指定，
+    # 这里不再线性推进 current_level，避免“下一关”计数与地图错位。
+    if state.get("current_map_node"):
+        result = {"success": False, "reason": "地图模式由节点结算驱动"}
+        result["state"] = _frontend_state()
+        return _nc(result)
     result = levels.advance_to_next_level()
     next_level = None
     if result["success"]:
@@ -295,6 +301,21 @@ async def resolve_level(request: Request):
     no_cheat = body.get("no_cheat", False)
     boss_defeated = body.get("boss_defeated", False)
     rewards = progression.resolve_level(won, no_cheat, boss_defeated)
+
+    # ── 六道小世界大地图：从地图节点进入的对局，结算该节点并返回地图 ──
+    # 进入节点时 levels.map_start 会写入 current_map_node；此处把该节点
+    # 的胜负结算给地图系统，确保节点 cleared / 相邻解锁 / Boss 通关生效。
+    map_node = state.get("current_map_node")
+    if map_node:
+        realm = state.get("current_realm", "hell")
+        map_result = levels.map_resolve(realm, map_node, won)
+        rewards["map_node"] = map_result
+        if map_result.get("unlocked"):
+            rewards["bonus_reasons"].append("解锁新地图节点")
+        # 结算后清空当前节点：后续挑战需玩家在地图上重新进入
+        state.set("current_map_node", None)
+        return _nc({"success": True, "rewards": rewards, "state": _frontend_state()})
+
     if won:
         advance_result = progression.advance_realm()
         rewards["realm_advance"] = advance_result
@@ -414,6 +435,7 @@ async def get_map_progress():
     """返回全部道的节点进度（供世界地图聚合显示）。"""
     return _nc({
         "progress": {r: state.get_map_progress(r) for r in REALMS},
+        "node_stats": {r: levels.realm_map_stats(r) for r in REALMS},
         "realm_progress": state.get("realm_progress", {}),
         "sandbox_unlocked": state.get("sandbox_unlocked", []),
         "current_map_node": state.get("current_map_node"),
@@ -426,6 +448,7 @@ async def get_realm_map(realm: str):
     result = levels.load_map(realm)
     if not result:
         return _nc({"success": False, "message": f"未知道: {realm}"})
+    result["realm_completed"] = levels.realm_map_stats(realm).get("completed", False)
     result["state"] = _frontend_state()
     return _nc({"success": True, "map": result})
 

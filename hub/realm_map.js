@@ -124,20 +124,43 @@ async function loadMap() {
     const nodes = map.nodes || [];
     const edges = map.edges || [];
     const grid = map.grid || { rows: 3, cols: 4 };
+    const completed = !!data.realm_completed;
 
     if (nodes.length === 0) {
         $(canvasId).innerHTML = `<p style="inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">此道地图暂未配置</p>`;
         return;
     }
 
+    updateHeaderBar(nodes, completed);
     renderMap(nodes, edges, grid);
+}
+
+function updateHeaderBar(nodes, completed) {
+    // 该道通关状态（守道者已击败）
+    const banner = $("map-banner");
+    if (banner) {
+        if (completed) {
+            banner.textContent = "✦ 此道已通关 · 守道者已伏法 ✦";
+            banner.classList.add("active", "won");
+        } else {
+            banner.textContent = "";
+            banner.classList.remove("active", "won");
+        }
+    }
+    // 进度摘要（不含占位房、不含入口房；与后端 realm_map_stats 口径一致）
+    const stat = $("map-progress-stat");
+    if (stat) {
+        const active = nodes.filter((n) => !n.placeholder && n.type !== "start");
+        const cleared = active.filter((n) => statusOf(n) === "cleared").length;
+        stat.textContent = `${cleared} / ${active.length} 房间`;
+        stat.style.color = cleared === active.length && active.length > 0 ? "var(--jade)" : "var(--gold-dim)";
+    }
 }
 
 function renderMap(nodes, edges, grid) {
     const wrap = $( canvasId );
     wrap.innerHTML = "";
 
-    const hasBoss = nodes.some((n) => n.type === "boss");
     const cols = Math.max(...nodes.map((n) => n.x)) + 1;
     const rows = Math.max(...nodes.map((n) => n.y)) + 1;
 
@@ -150,6 +173,10 @@ function renderMap(nodes, edges, grid) {
         return { x: padX + gx * (100 - 2 * padX), y: padY + gy * (100 - 2 * padY) };
     };
 
+    // O(1) 查找：避免连线/节点循环内反复 O(n) find
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    const statusById = new Map(nodes.map((n) => [n.id, statusOf(n)]));
+
     // SVG 连线层
     const svgNs = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNs, "svg");
@@ -159,14 +186,16 @@ function renderMap(nodes, edges, grid) {
     wrap.appendChild(svg);
 
     edges.forEach(([a, b]) => {
-        const na = nodes.find((n) => n.id === a);
-        const nb = nodes.find((n) => n.id === b);
+        const na = nodeById.get(a);
+        const nb = nodeById.get(b);
         if (!na || !nb) return;
         const pa = posOf(na), pb = posOf(nb);
         const line = document.createElementNS(svgNs, "line");
         line.setAttribute("x1", pa.x); line.setAttribute("y1", pa.y);
         line.setAttribute("x2", pb.x); line.setAttribute("y2", pb.y);
-        line.setAttribute("class", "line");
+        // 高亮“朝向可挑战节点”的连线（元气骑士式可行动路径）
+        const lit = statusById.get(b) === "available";
+        line.setAttribute("class", lit ? "line lit" : "line");
         svg.appendChild(line);
     });
 
@@ -177,6 +206,8 @@ function renderMap(nodes, edges, grid) {
         const status = statusOf(n);
         el.className = "node";
         el.dataset.status = status;
+        el.setAttribute("tabindex", status === "available" ? "0" : "-1");
+        el.setAttribute("aria-hidden", status !== "available" ? "true" : "false");
         if (n.type === "boss") el.classList.add("boss");
         if (n.type === "start") el.classList.add("n-start");
         if (n.placeholder) el.classList.add("placeholder");
@@ -198,6 +229,12 @@ function renderMap(nodes, edges, grid) {
             </div>
         `;
         el.addEventListener("click", () => showModal(n));
+        el.addEventListener("keydown", (ev) => {
+            if (status === "available" && (ev.key === "Enter" || ev.key === " ")) {
+                ev.preventDefault();
+                showModal(n);
+            }
+        });
         wrap.appendChild(el);
     });
 
