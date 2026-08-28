@@ -338,21 +338,24 @@ def build_hub_app():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>六道众生总坛文件未找到</h1>", status_code=404)
 
-    @app.get("/world")
-    async def world_page():
-        # 世界地图（六道小世界：六块大陆，自由选择进入）
-        html_path = HUB_DIR / "world.html"
+    @app.get("/overworld")
+    async def overworld_page():
+        # 2.5D 六道大陆大地图（Phaser 3 · 剧情模式唯一入口）
+        html_path = HUB_DIR / "overworld.html"
         if html_path.exists():
             return HTMLResponse(html_path.read_text(encoding="utf-8"))
-        return HTMLResponse("<h1>世界地图文件未找到</h1>", status_code=404)
+        return HTMLResponse("<h1>大陆大地图文件未找到</h1>", status_code=404)
 
-    @app.get("/realm-map/{realm}")
-    async def realm_map_page(realm: str):
-        # 道内小地图（元气骑士式房间节点图）
-        html_path = HUB_DIR / "realm_map.html"
-        if html_path.exists():
-            return HTMLResponse(html_path.read_text(encoding="utf-8"))
-        return HTMLResponse("<h1>道内小地图文件未找到</h1>", status_code=404)
+    @app.get("/api/overworld/config")
+    async def overworld_config():
+        # 返回坐标级大陆大地图配置（只读，禁止浏览器缓存）
+        cfg_path = WORKSPACE_ROOT / "configs" / "overworld.json"
+        if cfg_path.exists():
+            try:
+                return _nc(json.loads(cfg_path.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError):
+                pass
+        return JSONResponse({"error": "overworld.json 缺失或损坏"}, headers=NO_STORE, status_code=404)
 
     @app.get("/play")
     async def play_page():

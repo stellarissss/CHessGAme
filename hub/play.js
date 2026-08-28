@@ -6,7 +6,6 @@
 
 const params = new URLSearchParams(location.search);
 const realm = params.get("realm") || "hell";
-const node = params.get("node") || "";
 const port = params.get("port") || "8000";
 
 const REALM_NAMES = {
@@ -23,10 +22,10 @@ const gameUrl = `http://localhost:${port}/?embed=1&realm=${encodeURIComponent(re
 frame.src = gameUrl;
 railTitle.textContent = `${REALM_NAMES[realm] || realm} · 对局`;
 
-// 返回道内小地图并强制刷新状态（?r=时间戳）
+// 返回 2.5D 大陆大地图并强制刷新状态（?r=时间戳）
 backBtn.addEventListener("click", (e) => {
     e.preventDefault();
-    location.href = `/realm-map/${realm}?r=${Date.now()}`;
+    location.href = `/overworld?r=${Date.now()}`;
 });
 
 // 服务就绪前显示加载态（iframe 正常加载即可，不阻塞）
