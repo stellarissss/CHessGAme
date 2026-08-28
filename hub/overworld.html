@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六道大陆 · 剧情模式大地图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Serif+SC:wght@300;400;600;700&family=Orbitron:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+:root {
+    --bg-deep: #070708;
+    --bg-panel: rgba(18,18,22,0.78);
+    --paper: #f3e9d2;
+    --gold: #d4af37;
+    --gold-dim: #8f7a3d;
+    --jade: #0d7377;
+    --crimson: #9b2335;
+    --amber: #e67e22;
+    --violet: #7b68ee;
+    --text-main: #eceae4;
+    --text-muted: #99948a;
+    --border: rgba(212,175,55,0.20);
+    --font-display: "Ma Shan Zheng", cursive;
+    --font-body: "Noto Serif SC", "Songti SC", serif;
+    --font-tech: "Orbitron", "Courier New", monospace;
+}
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: var(--bg-deep); color: var(--text-main); font-family: var(--font-body); }
+#game-container { position: fixed; inset: 0; z-index: 1; }
+#game-container canvas { display: block; }
+
+/* ── DOM Overlay ── */
+.ow-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.ow-radio { pointer-events: auto; }
+
+/* HUD 顶部 */
+#hud {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+    padding: 12px 18px;
+    background: linear-gradient(180deg, rgba(7,7,8,0.85), rgba(7,7,8,0.25));
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto;
+}
+.hud-item { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.hud-item .hud-icon { font-size: 17px; filter: drop-shadow(0 0 8px rgba(212,175,55,0.35)); }
+.hud-label { color: var(--text-muted); font-size: 12px; letter-spacing: 0.05em; }
+.hud-value { color: var(--gold); font-family: var(--font-tech); font-weight: 600; min-width: 22px; }
+.hud-skill .hud-value { color: #a78bfa; }
+.detection-wrap { display: flex; align-items: center; gap: 8px; }
+.detection-bar { width: 120px; height: 7px; border-radius: 4px; background: rgba(255,255,255,0.09); overflow: hidden; }
+.detection-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#fbbf24,#f97316,#ef4444); border-radius: 4px; transition: width 0.6s ease; }
+.hud-spacer { flex: 1; }
+.hud-btn {
+    pointer-events: auto; cursor: pointer;
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-main);
+    border-radius: 10px; padding: 7px 14px; font-size: 13px; font-family: var(--font-body);
+    transition: border-color .25s, color .25s, transform .2s;
+}
+.hud-btn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+.hud-btn.exits { border-color: rgba(155,35,53,.45); color: var(--text-muted); }
+.hud-btn.exits:hover { border-color: var(--crimson); color: var(--crimson); }
+
+/* 底部互动提示条 */
+#interact-hint {
+    position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+    display: none; align-items: center; gap: 10px;
+    padding: 9px 20px; border-radius: 999px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    font-size: 14px; color: var(--text-main);
+}
+#interact-hint.visible { display: inline-flex; animation: hintPop .3s cubic-bezier(.22,1,.36,1); }
+#interact-key {
+    display: inline-grid; place-items: center; min-width: 28px; height: 28px;
+    padding: 0 8px; border-radius: 8px;
+    background: var(--gold); color: var(--bg-deep);
+    font-family: var(--font-tech); font-weight: 700; font-size: 15px;
+    box-shadow: 0 0 14px rgba(212,175,55,0.35);
+    animation: ePulse 1.4s ease-in-out infinite;
+}
+#interact-label { color: var(--paper); letter-spacing: 0.03em; }
+@keyframes hintPop { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes ePulse { 0%,100% { box-shadow: 0 0 14px rgba(212,175,55,.35);} 50% { box-shadow: 0 0 22px rgba(212,175,55,.7);} }
+
+/* ── 通用弹窗外壳 ── */
+.modal {
+    position: absolute; inset: 0; display: none;
+    align-items: center; justify-content: center; padding: 24px;
+    background: rgba(0,0,0,0.72); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    pointer-events: auto; z-index: 60;
+}
+.modal.active { display: flex; }
+.modal-box {
+    position: relative; width: 100%; max-width: 620px; max-height: 86vh; overflow: auto;
+    background: var(--bg-panel); border: 1px solid var(--border); border-radius: 22px;
+    box-shadow: var(--shadow); padding: 26px 28px;
+    animation: modalIn .32s cubic-bezier(.22,1,.36,1);
+}
+@keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98);} to { opacity: 1; transform: none; } }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.07); }
+.modal-head h2 { margin: 0; font-family: var(--font-display); font-size: 26px; color: var(--gold); letter-spacing: .05em; }
+.modal-close {
+    background: none; border: 1px solid rgba(255,255,255,0.16); color: var(--text-muted);
+    width: 34px; height: 34px; border-radius: 50%; font-size: 16px; cursor: pointer;
+    transition: all .2s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.08); color: var(--paper); }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; border: 1px solid var(--border); color: var(--text-muted); margin-left: 8px; vertical-align: middle; }
+.chip.cleared { color: var(--jade); border-color: var(--jade); }
+.chip.sandbox { color: var(--violet); border-color: var(--violet); }
+.chip.locked { color: var(--text-muted); }
+
+/* ── 选关列表 ── */
+.level-item {
+    display: block; width: 100%; text-align: left;
+    margin-bottom: 10px; padding: 13px 16px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: rgba(255,255,255,0.03); color: var(--text-main);
+    font-family: var(--font-body); font-size: 14px; cursor: pointer;
+    transition: all .25s ease; line-height: 1.4;
+}
+.level-item:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.level-item:hover:not(:disabled) { border-color: var(--gold); background: rgba(255,255,255,0.06); transform: translateX(4px); }
+.level-item.completed { border-color: rgba(74,222,128,0.35); }
+.level-item.current { border-color: var(--gold); background: rgba(212,175,55,0.06); }
+.level-item:disabled, .level-item.locked { opacity: 0.45; cursor: not-allowed; }
+.level-item.locked:hover { transform: none; border-color: var(--border); }
+.level-item.sandbox { border-color: rgba(250,204,21,0.45); background: rgba(250,204,21,0.05); }
+.lv-top { display: flex; align-items: center; gap: 10px; }
+.lv-name { font-size: 16px; font-weight: 600; }
+.lv-badge { font-size: 11px; padding: 1px 8px; border-radius: 5px; background: rgba(255,255,255,0.1); color: var(--text-muted); }
+.lv-badge.boss { color: #ff6b6b; border: 1px solid rgba(255,107,107,.5); }
+.lv-stars { font-size: 12px; color: var(--gold); letter-spacing: 0.1em; margin-left: auto; }
+.lv-desc { font-size: 12px; color: var(--text-muted); margin-top: 5px; }
+.lv-status { font-size: 12px; margin-top: 6px; }
+.lv-status.done { color: #4ade80; }
+.lv-status.now { color: var(--gold); }
+.lv-status.lock { color: var(--text-muted); }
+
+/* ── 技能树 ── */
+#skill-balance { font-family: var(--font-tech); font-size: 13px; color: var(--text-muted); margin-bottom: 14px; }
+#skill-balance b { color: #a78bfa; font-size: 16px; }
+.skill-branches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+@media (max-width: 720px) { .skill-branches { grid-template-columns: 1fr; } }
+.skill-branch { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 16px; }
+.skill-branch-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.skill-branch-icon { font-size: 20px; }
+.skill-branch-name { font-family: var(--font-tech); font-size: 12px; letter-spacing: .12em; color: var(--gold); }
+.skill-branch-desc { font-size: 11px; color: var(--text-muted); margin: 4px 0 12px; line-height: 1.5; }
+.skill-item, .skill-placeholder {
+    display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+    margin-bottom: 8px; padding: 9px 10px; border-radius: 9px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    color: var(--text-main); font-family: var(--font-body); font-size: 13px;
+}
+.skill-placeholder { opacity: .5; cursor: not-allowed; }
+.skill-item.unlocked { border-color: rgba(74,222,128,.3); background: rgba(74,222,128,.07); }
+.skill-item.available { cursor: pointer; border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.1); }
+.skill-item.available:hover { background: rgba(139,92,246,.2); }
+.skill-item.available:focus-visible { outline: 2px solid #a78bfa; outline-offset: 1px; }
+.skill-item:disabled, .skill-item.blocked { opacity: .5; cursor: not-allowed; }
+.skill-tier-tag { font-family: var(--font-tech); font-size: 10px; color: var(--text-muted); flex: 0 0 40px; text-align: center; }
+.skill-body { flex: 1; min-width: 0; }
+.skill-name { font-size: 13px; font-weight: 600; }
+.skill-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+.skill-cost { font-family: var(--font-tech); font-size: 11px; color: #a78bfa; white-space: nowrap; }
+.skill-item.unlocked .skill-cost { color: #4ade80; }
+.skill-mark { width: 16px; text-align: center; }
+
+/* ── 总览 ── */
+.ov-row {
+    display: flex; align-items: center; gap: 12px; width: 100%;
+    margin-bottom: 10px; padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: rgba(255,255,255,0.03); color: var(--text-main);
+    font-family: var(--font-body); font-size: 14px; cursor: pointer;
+    transition: all .25s;
+}
+.ov-row:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.ov-row:hover { border-color: var(--gold); background: rgba(255,255,255,0.06); transform: translateX(3px); }
+.ov-icon { font-size: 22px; }
+.ov-name { font-weight: 600; min-width: 80px; }
+.ov-progress { color: var(--gold); font-family: var(--font-tech); font-size: 13px; margin-left: auto; }
+.ov-name-realm { margin-left: 8px; }
+
+/* ── Toast ── */
+#toast-container { position: absolute; top: 84px; right: 20px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; pointer-events: none; z-index: 80; }
+.toast {
+    position: relative; padding: 12px 18px; border-radius: 12px; max-width: 320px;
+    background: var(--bg-panel); border: 1px solid var(--border);
+    box-shadow: var(--shadow); color: var(--text-main); font-size: 14px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    animation: toastIn .3s cubic-bezier(.22,1,.36,1);
+}
+.toast.leaving { opacity: 0; transform: translateX(20px); transition: all .3s; }
+@keyframes toastIn { from { opacity: 0; transform: translateX(24px);} to { opacity: 1; transform: none; } }
+
+/* ── 加载遮罩 ── */
+.full-mask {
+    position: absolute; inset: 0; z-index: 100; display: flex;
+    align-items: center; justify-content: center; flex-direction: column; gap: 18px;
+    background: var(--bg-deep); pointer-events: auto;
+}
+.full-mask.hidden { display: none; }
+.spinner {
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 3px solid rgba(212,175,55,0.18); border-top-color: var(--gold);
+    animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.full-mask p { margin: 0; color: var(--text-muted); font-size: 14px; letter-spacing: .04em; }
+.full-mask .mask-title { font-family: var(--font-display); font-size: 24px; color: var(--gold); }
+
+/* ── 错误遮罩 ── */
+#error-overlay .mask-title { color: var(--crimson); }
+.error-msg { color: var(--text-muted); font-size: 14px; text-align: center; max-width: 560px; line-height: 1.8; padding: 0 20px; }
+.retry-btn {
+    cursor: pointer; border: 1px solid var(--crimson); background: rgba(155,35,53,.25); color: var(--paper);
+    border-radius: 999px; padding: 10px 30px; font-size: 14px; font-family: var(--font-body);
+    transition: all .25s;
+}
+.retry-btn:hover { background: var(--crimson); color: #fff; transform: translateY(-2px); }
+
+/* ── 无障碍：键盘焦点 ── */
+.ow-overlay :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* ── 降低动画 ── */
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; }
+
+@media (max-width: 640px) {
+    #hud { gap: 10px; padding: 10px 12px; }
+    .hud-label { display: none; }
+    .detection-bar { width: 80px; }
+    .modal { padding: 12px; }
+    .modal-box { padding: 20px 16px; }
+}
+</style>
+</head>
+<body>
+<div id="game-container" role="application" aria-label="六道大陆大地图"></div>
+
+<div class="ow-overlay" id="ow-root">
+    <!-- 顶部 HUD -->
+    <div id="hud">
+        <div class="hud-item hud-skill"><span class="hud-icon">⭐</span><span class="hud-label">技能点</span><span class="hud-value" id="hud-skill-points">0</span></div>
+        <div class="hud-item"><span class="hud-icon">👁️</span><span class="hud-label">识破</span>
+            <div class="detection-wrap">
+                <div class="detection-bar"><div class="detection-fill" id="hud-detection-fill"></div></div>
+                <span class="hud-value" id="hud-detection-value">0%</span>
+            </div>
+        </div>
+        <div class="hud-item"><span class="hud-icon">🏆</span><span class="hud-label">通关道境</span><span class="hud-value" id="hud-realm-cleared">0 / 6</span></div>
+        <div class="hud-spacer"></div>
+        <button class="hud-btn" id="btn-overview" type="button">🧭 大陆总览</button>
+        <a class="hud-btn exits" id="btn-exit" href="/">← 回标题</a>
+    </div>
+
+    <!-- 底部互动提示条 -->
+    <div id="interact-hint"><span id="interact-key">E</span><span id="interact-label"></span></div>
+
+    <!-- 总览弹窗 -->
+    <div class="modal" id="overview-modal" role="dialog" aria-modal="true" aria-labelledby="overview-title">
+        <div class="modal-box">
+            <div class="modal-head"><h2 id="overview-title">🌍 六道大陆总览</h2>
+                <button class="modal-close" id="close-overview" type="button" aria-label="关闭总览">✕</button>
+            </div>
+            <div id="overview-realms"></div>
+        </div>
+    </div>
+
+    <!-- 选关弹窗 -->
+    <div class="modal" id="realm-modal" role="dialog" aria-modal="true" aria-labelledby="realm-modal-title">
+        <div class="modal-box">
+            <div class="modal-head"><h2 id="realm-modal-title">选择关卡</h2>
+                <button class="modal-close" id="close-realm-modal" type="button" aria-label="关闭选关">✕</button>
+            </div>
+            <div id="realm-levels"></div>
+        </div>
+    </div>
+
+    <!-- 技能树弹窗 -->
+    <div class="modal" id="skill-modal" role="dialog" aria-modal="true" aria-labelledby="skill-modal-title">
+        <div class="modal-box">
+            <div class="modal-head"><h2 id="skill-modal-title">🌳 技能树</h2>
+                <button class="modal-close" id="close-skill-modal" type="button" aria-label="关闭技能树">✕</button>
+            </div>
+            <div id="skill-balance">技能点余额：<b id="skill-points-balance">0</b></div>
+            <div class="skill-branches" id="skill-branches"></div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div id="toast-container" aria-live="polite"></div>
+
+    <!-- 加载遮罩 -->
+    <div class="full-mask" id="loading-overlay">
+        <div class="spinner" aria-hidden="true"></div>
+        <div class="mask-title">六道大陆 · 载入中</div>
+        <p id="loading-text">正在铺展山河…</p>
+    </div>
+
+    <!-- 错误遮罩 -->
+    <div class="full-mask hidden" id="error-overlay" role="alertdialog" aria-modal="true" aria-labelledby="error-title">
+        <div class="spinner" aria-hidden="true" style="animation:none;border-color:#9b2335;border-top-color:transparent;"></div>
+        <div class="mask-title" id="error-title">山河破碎</div>
+        <p class="error-msg" id="error-text">大陆加载失败。</p>
+        <button class="retry-btn" id="error-retry" type="button">↻ 重新加载</button>
+    </div>
+</div>
+
+<script src="/static/vendor/phaser.min.js"></script>
+<script src="/static/overworld.js"></script>
+<script src="/static/overworld-ui.js"></script>
+</body>
+</html>

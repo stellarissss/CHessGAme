@@ -1,16 +1,38 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.2 · 六道大陆
 
-> **六重棋境，一念改规。业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
+> **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
-以六种棋类为战斗场景、"AI 作弊改规"为核心玩法的 Roguelike 大游戏。玩家以自然语言驱动 AI 实时改写棋盘、棋子、规则、UI 与机制，在六道关卡中一路轮回，直到天道识破或悟道超脱。
+以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行，使用 Kenney 像素资产（Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon）与 Phaser 3 离线烘焙 RenderTexture 渲染。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
 ---
 
-## 一、核心玩法
+## 一、核心玩法（剧情模式 · 六道大陆）
 
-玩家是一缕在六道中轮回的灵魂，从地狱道逐级向上轮转至天道，每道由 5-6 个预制关卡组成，最后一关为守道者 Boss。玩家通过正常下棋推进局势，必要时用自然语言向 AI 发出"作弊指令"以修改棋盘、规则或棋子，从而打开局面。
+点击标题页「剧情模式」即进入 2.5D 大地图。玩家操控像素骑士在大陆自由四向行走（WASD / 方向键），按 **E** 与附近的六道入口 / 技能 NPC 交互。
+
+**探索架构**
+
+- 地图尺寸 112 × 84 瓦片，视觉尺寸 3584 × 2688（每瓦片 16px × 2 倍渲染）。
+- 九大地理区域：北境雪原、西北密林、幽邃湾、中央平原、东部丘陵、南部沙漠、西南地牢、东南石林、怒涛海岸。
+- 非规则大陆形状：天然海域 / 河流 / 山脉屏障分割地域，半岛、海湾、谷地错落分布。
+- 碰撞系统：水域（battle 72/73）与山脉（dungeon 50-52 / battle 0-2）为天然不可通行区域，装饰（树林 / 岩石 / 石林）会阻挡行走。
+
+**六道入口（大陆角落，金色呼吸光圈引导）**
+
+| 道 | 分布 | 大陆坐标（瓦片） | 景观 |
+|:--:|:----|:----------------:|:----|
+| 👹 饿鬼道 | 西北密林 · 幽邃湾 | (6, 22) | 密林小径尽头，被古树环绕的海湾凹地 |
+| ☸️ 天道 | 北境雪原 · 天墙脚下 | (50, 10) | 雪原中央，冰川围绕的山巅之门 |
+| 🐅 畜生道 | 怒涛海岸 · 东南海角 | (106, 20) | 海岸最东端的礁石半岛 |
+| ☯ 地狱道 | 西南地牢 · 熔岩裂隙 | (14, 68) | 地牢深处、山涧背角的封印门 |
+| 🧠 人道 | 南部沙漠 · 绿洲南缘 | (58, 78) | 绿洲边缘，沙漠南部开阔处 |
+| ⚔️ 阿修罗道 | 东南石林 · 赤岩峰 | (104, 72) | 石林深处的赤色峭壁 |
+
+**技能兑换**：中央平原西北侧的「**菩提老者**」(56, 42) 处按 E 打开技能树，用通关获得的技能点解锁四维 12 项技能。
+
+**玩家出生点**：中央平原 · 生灭台 (58, 46) — 距离六道入口与菩提老者均有行程，鼓励探索。
 
 ### 核心循环
 
@@ -191,12 +213,13 @@
 
 11 种目标：`checkmate`（将死）/ `capture_count`（吃子数）/ `turn_limit`（竞速）/ `evacuation`（撤离）/ `board_coverage`（覆盖率）/ `color_coverage`（颜色覆盖率）/ `formation`（阵型）/ `survival`（生存）/ `assassination`（刺杀）/ `escort`（护送）/ `compound`（复合条件）。
 
-### 升降道
+### 关卡推进
 
-- 通过一关：进入本道下一关
-- 通关整道：解锁该道沙盒，升入下一道
-- 无透支通关：跳级 +2（如地狱道 → 畜生道）
-- 普通通关：升 1 级（如地狱道 → 饿鬼道）
+剧情模式采用「**大地图自由探索 + 道内线性关卡**」。六道入口在大地图上独立分布，玩家在任何入口均可交互进入选关弹窗。
+
+- **道内推进**：每道由 5-6 个预制关卡组成，最后一关为守道者 Boss。进入关卡后胜利则 `levels_passed += 1`，可挑战下一关；失败不推进，可随时重试。
+- **整道通关**：完成本道最后一关（Boss 战胜利），该道标记为 `completed`，自动解锁对应棋类的**沙盒模式**入口。
+- **自由选关**：取消节点路径制，道内关卡以线性列表展示在选关弹窗中（完成 ✓ / 当前 ▶ / 锁定 🔒）。玩家可在大陆自由穿梭，顺序不做强制规定。
 
 ---
 
@@ -205,25 +228,46 @@
 ### 整体架构
 
 ```
-                    ┌──────────────────┐
-                    │  轮回之门（Hub）  │
-                    │  hub/index.html  │   端口 8080
-                    │  + samsara 引擎   │
-                    └────────┬─────────┘
-                             │ FastAPI
-         ┌───────────────────┼───────────────────┐
-         │                   │                   │
-  ┌──────▼──────┐     ┌──────▼──────┐    ┌──────▼──────┐
-  │ 人道·象棋    │     │ 天道·五子棋  │    │ 阿修罗·围棋  │
-  │ xiangqi/    │     │  wuziqi/     │    │   weiqi/    │
-  │ 端口 8000   │     │ 端口 8001    │    │ 端口 8002   │
-  └─────────────┘     └──────────────┘    └─────────────┘
-         │                   │                   │
-  ┌──────▼──────┐     ┌──────▼──────┐    ┌──────▼──────┐
-  │ 畜生·动物棋  │     │ 饿鬼·跳棋    │    │ 地狱·黑白棋  │
-  │ dongwuqi/   │     │  tiaoqi/     │    │  heibaiqi/   │
-  │ 端口 8003   │     │ 端口 8004    │    │ 端口 8005   │
-  └─────────────┘     └──────────────┘    └─────────────┘
+                    ┌───────────────────────────────┐
+                    │  轮回之门（Hub） 端口 8080      │
+                    │  hub/index.html                │
+                    │  ├ 标题页 / 成就 / 结局        │
+                    │  ├ RPG 对话 / 记忆 / Boss战    │
+                    │  └ 六道大陆                     │
+                    │    hub/overworld.html          │
+                    │    hub/overworld.js (Phaser 3) │
+                    │    hub/overworld-ui.js (DOM)   │
+                    └──────────────┬────────────────┘
+                                   │ FastAPI
+                                   │ /api/overworld/config
+         ┌─────────────────────────┼─────────────────────────┐
+         │                         │                         │
+  ┌──────▼──────┐           ┌──────▼──────┐          ┌──────▼──────┐
+  │ 人道·象棋    │           │ 天道·五子棋  │          │ 阿修罗·围棋  │
+  │ xiangqi/    │           │  wuziqi/     │          │   weiqi/    │
+  │ 端口 8000   │           │ 端口 8001    │          │ 端口 8002   │
+  └─────────────┘           └──────────────┘          └─────────────┘
+         │                         │                         │
+  ┌──────▼──────┐           ┌──────▼──────┐          ┌──────▼──────┐
+  │ 畜生·动物棋  │           │ 饿鬼·跳棋    │          │ 地狱·黑白棋  │
+  │ dongwuqi/   │           │  tiaoqi/     │          │  heibaiqi/   │
+  │ 端口 8003   │           │ 端口 8004    │          │ 端口 8005   │
+  └─────────────┘           └──────────────┘          └─────────────┘
+```
+
+**六道大陆（Phaser 3 · RenderTexture 烘焙）**
+
+```
+地图数据 → configs/overworld.json
+├ world:  112×84 瓦片 / tile=16px / scale=2 → 视觉 3584×2688
+├ tilesets: town / farm / battle / dungeon (Kenney CC0)
+├ regions: 九大区域 + 子区域主题色/底瓦
+├ decor_plant: 每区域独立装饰密度与精灵池
+├ water_overlays / river_snow / river_ridge: 非规则水域/河流
+├ mountain_overlays: 非规则山脉屏障
+├ roads: 连接 POI 的道路瓦片（town 48 石板）
+├ pois: 6 个 realm 入口 + 1 个 skill NPC + 1 个 spawn 生灭台
+└ player: initial / speed / radius_px / interact_tiles
 ```
 
 ### 每棋类统一骨架
@@ -295,7 +339,8 @@ python main.py
 
 | 入口 | URL |
 |:-----|:---|
-| 轮回之门（Hub） | http://localhost:8080/ |
+| 标题页 / Hub | http://localhost:8080/ |
+| **六道大陆 · 剧情模式** | http://localhost:8080/overworld |
 | 人道·象棋 | http://localhost:8000/ |
 | 天道·五子棋 | http://localhost:8001/ |
 | 阿修罗·围棋 | http://localhost:8002/ |
@@ -313,12 +358,16 @@ python main.py
 
 ```
 workspace/
-├── main.py                      # 统一启动器 + Hub 后端
+├── main.py                      # 统一启动器 + Hub 后端（+ Overworld 路由）
 ├── config.json                  # API 密钥配置
 ├── requirements.txt
 │
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
+│   ├── overworld.html           # ★ 六道大陆页（Phaser 3 · 游戏容器 + DOM HUD）
+│   ├── overworld.js             # ★ 大陆渲染：RenderTexture 烘焙 + 四向玩家 + 碰撞 + POI
+│   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
+│   ├── vendor/phaser.min.js     # Phaser 3 (v3.87, 本地单文件)
 │   ├── achievements.html        # 成就殿堂
 │   ├── dialogue.html            # RPG 剧情对话系统
 │   ├── dialogue.js              # 打字机/立绘/选择面板逻辑
@@ -332,20 +381,23 @@ workspace/
 │   └── style.css
 │
 ├── shared/                      # 共享模块
+│   ├── assets/
+│   │   └── map/                 # ★ Kenney 像素大地图瓦片
+│   │       └── atlas/           # tiles_tiny-{town,farm,battle,dungeon}.png
 │   ├── json_patch_utils.py      # RFC 6902 JSON Patch
 │   ├── schema_validator.py      # JSON Schema 校验
 │   └── achievement_checker.js   # 成就检测
 │
 ├── samsara/                     # 六道轮回核心引擎
 │   ├── api.py                   # FastAPI 路由（业力/识破/技能/关卡/进度）
-│   ├── state.py                 # 轮回元状态管理（含 carryover + RPG 字段）
+│   ├── state.py                 # 轮回元状态管理（含 carryover + RPG 字段 + sandbox_unlocked）
 │   ├── karma.py                 # 业力系统（业障模型）
 │   ├── karma_assessor.py        # samsara 端 AI 业力评估
 │   ├── detection.py             # 识破概率系统（概率判定式）
 │   ├── bosses.py                # Boss 技能系统
 │   ├── skills.py                # 技能树系统
-│   ├── progression.py           # 升降道与技能点获取
-│   ├── levels.py                # 关卡管理
+│   ├── progression.py           # 关卡结算、技能点、沙盒解锁
+│   ├── levels.py                # 六道线性关卡池（已移除路径制 map_* 方法）
 │   ├── objectives.py            # 11 种目标判定
 │   ├── turn_limit.py            # 回合限制系统
 │   ├── story_api.py             # RPG 剧情 API
@@ -355,9 +407,10 @@ workspace/
 │   └── heaven_boss.py           # 天道 Boss 战模块
 │
 ├── configs/                     # 全局配置
+│   ├── overworld.json           # ★ 六道大陆权威配置：区域/装饰/水域/山脉/POI/玩家
 │   ├── samsara_state.json       # 轮回存档（含 RPG 字段）
-│   ├── story.json               # RPG 剧情权威源（序章/六道/结局/祈求/天道Boss对白/识破判词/资产映射）
-│   ├── tiandao_boss.json        # 天道 Boss 战机械配置（棋子/规则/AI，对白已迁至 story.json）
+│   ├── story.json               # RPG 剧情权威源
+│   ├── tiandao_boss.json        # 天道 Boss 战机械配置
 │   ├── boss_definitions.json    # Boss 定义
 │   ├── skill_tree.json          # 技能树
 │   ├── karma_events.json        # 业力事件映射（各棋类消业数值）
@@ -365,6 +418,13 @@ workspace/
 │   ├── objective_types.json     # 胜利条件 Schema
 │   ├── formations.json          # 阵型定义库
 │   └── puzzles.json             # 预制残局数据库
+│
+├── tests/                       # 单元/集成测试
+│   ├── test_overworld.py        # ★ overworld.json 结构校验、POI/区域覆盖
+│   └── test_samsara_linear.py   # ★ 线性关卡推进、沙盒解锁、API 回归
+│
+├── scripts/
+│   └── build_map_atlas.py       # ★ Kenney 瓦片打包 → shared/assets/map/atlas/
 │
 ├── xiangqi/                     # 人道·象棋（端口 8000）
 ├── wuziqi/                      # 天道·五子棋（端口 8001）
@@ -431,7 +491,9 @@ workspace/
 
 | 方法 | 路径 | 说明 |
 |:----:|:-----|:-----|
-| GET | `/` | 轮回之门首页 |
+| GET | `/` | 轮回之门首页（标题页） |
+| GET | `/overworld` | **六道大陆 · 剧情模式大地图**（Phaser 3 场景） |
+| GET | `/api/overworld/config` | 六道大陆权威 JSON 配置（regions / tilesets / POI / 地形） |
 | GET | `/achievements` | 成就殿堂 |
 | GET | `/api/games` | 获取六棋类列表（含端口和 URL） |
 | GET | `/api/health` | 健康检查 |
@@ -466,11 +528,15 @@ workspace/
 
 | 层 | 技术 |
 |:---|:-----|
-| 前端 | 原生 Web Components + Shadow DOM |
-| 后端 | FastAPI + Uvicorn（多进程架构） |
-| AI | DeepSeek（deepseek-chat / deepseek-v4-flash），两级流水线 |
-| 配置修改 | RFC 6902 JSON Patch + JSON Schema |
-| 存档 | JSON 文件持久化（`configs/samsara_state.json`） |
+| **大地图前端** | Phaser 3 (v3.87, 本地单文件) · RenderTexture 离线烘焙 · Container 玩家精灵 · 预计算碰撞网格 |
+| **UI / HUD** | 原生 HTML + CSS (DOM Overlay) · 无障碍弹窗 · A11y 焦点圈陷阱 |
+| **对局前端** | 原生 Web Components + Shadow DOM |
+| **大地图像素资产** | Kenney Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon (CC0) |
+| **后端** | FastAPI + Uvicorn（多进程架构） |
+| **AI** | DeepSeek（deepseek-chat / deepseek-v4-flash），两级流水线 |
+| **配置修改** | RFC 6902 JSON Patch + JSON Schema |
+| **存档** | JSON 文件持久化（`configs/samsara_state.json`） |
+| **测试** | pytest + FastAPI TestClient；大地图 DOM-over-Phaser 用 Playwright 端到端验证 |
 
 ---
 
@@ -533,6 +599,7 @@ workspace/
 
 | 页面 | 路径 | 说明 |
 |:-----|:-----|:-----|
+| 六道大陆大地图 | `/overworld` | 剧情模式 2.5D 大陆入口：自由行走、六道选关、技能兑换 |
 | 序章/剧情对话 | `/dialogue?mode=prologue` | 序章 + 各道关卡对话 |
 | 记忆相册 | `/memory-album` | 六道记忆碎片展示 |
 | 结局展示 | `/ending` | 自动判定或指定结局 |

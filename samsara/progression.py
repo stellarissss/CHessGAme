@@ -34,18 +34,14 @@ class ProgressionSystem:
         self.state.add_skill_point(rewards["skill_points"])
         self.state.set("total_levels_completed", self.state.get("total_levels_completed", 0) + 1)
 
-        # 六道小世界地图模式：关卡数/道通关由地图系统（levels.map_resolve）统一驱动，
-        # 避免与线性模式重复计数或在未击败守道者时提前判通关。
-        current_map_node = self.state.get("current_map_node")
-        if not current_map_node:
-            self.state.increment_realm_levels_passed(self.state.get("current_realm"))
-            current_realm = self.state.get("current_realm")
-            levels_passed = self.state.get("realm_progress", {}).get(current_realm, {}).get("levels_passed", 0)
-            total_levels = self._get_realm_level_count(current_realm)
-            if levels_passed >= total_levels:
-                self.state.mark_realm_completed(current_realm)
-                self.state.unlock_sandbox(current_realm)
-                rewards["sandbox_unlocked"] = True
+        self.state.increment_realm_levels_passed(self.state.get("current_realm"))
+        current_realm = self.state.get("current_realm")
+        levels_passed = self.state.get("realm_progress", {}).get(current_realm, {}).get("levels_passed", 0)
+        total_levels = self._get_realm_level_count(current_realm)
+        if levels_passed >= total_levels:
+            self.state.mark_realm_completed(current_realm)
+            self.state.unlock_sandbox(current_realm)
+            rewards["sandbox_unlocked"] = True
         return rewards
 
     def advance_realm(self) -> dict:

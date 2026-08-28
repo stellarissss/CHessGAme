@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from .state import SamsaraState, REALM_NAMES, REALMS
+from .state import SamsaraState, REALM_NAMES
 from .karma import KarmaSystem
 from .karma_assessor import KarmaAssessor
 from .detection import DetectionSystem
@@ -179,12 +179,6 @@ async def start_level(request: Request):
 
 @app.post("/api/levels/advance")
 async def advance_level():
-    # 地图模式：进度由地图分支结算，目标关卡由 map_start 显式指定，
-    # 这里不再线性推进 current_level，避免“下一关”计数与地图错位。
-    if state.get("current_map_node"):
-        result = {"success": False, "reason": "地图模式由节点结算驱动"}
-        result["state"] = _frontend_state()
-        return _nc(result)
     result = levels.advance_to_next_level()
     next_level = None
     if result["success"]:
@@ -302,20 +296,6 @@ async def resolve_level(request: Request):
     boss_defeated = body.get("boss_defeated", False)
     rewards = progression.resolve_level(won, no_cheat, boss_defeated)
 
-    # ── 六道小世界大地图：从地图节点进入的对局，结算该节点并返回地图 ──
-    # 进入节点时 levels.map_start 会写入 current_map_node；此处把该节点
-    # 的胜负结算给地图系统，确保节点 cleared / 相邻解锁 / Boss 通关生效。
-    map_node = state.get("current_map_node")
-    if map_node:
-        realm = state.get("current_realm", "hell")
-        map_result = levels.map_resolve(realm, map_node, won)
-        rewards["map_node"] = map_result
-        if map_result.get("unlocked"):
-            rewards["bonus_reasons"].append("解锁新地图节点")
-        # 结算后清空当前节点：后续挑战需玩家在地图上重新进入
-        state.set("current_map_node", None)
-        return _nc({"success": True, "rewards": rewards, "state": _frontend_state()})
-
     if won:
         advance_result = progression.advance_realm()
         rewards["realm_advance"] = advance_result
@@ -424,63 +404,3 @@ async def start_sandbox(request: Request):
 async def reset_on_detection():
     state.reset_on_detection()
     return _nc({"success": True, "message": detection.get_reset_message(), "state": _frontend_state()})
-
-
-# ══════════════════════════════════════════════════════════════
-# 六道小世界大地图 API（v4）
-# ══════════════════════════════════════════════════════════════
-
-@app.get("/api/map/progress")
-async def get_map_progress():
-    """返回全部道的节点进度（供世界地图聚合显示）。"""
-    return _nc({
-        "progress": {r: state.get_map_progress(r) for r in REALMS},
-        "node_stats": {r: levels.realm_map_stats(r) for r in REALMS},
-        "realm_progress": state.get("realm_progress", {}),
-        "sandbox_unlocked": state.get("sandbox_unlocked", []),
-        "current_map_node": state.get("current_map_node"),
-    })
-
-
-@app.get("/api/map/{realm}")
-async def get_realm_map(realm: str):
-    """返回某道大地图全量：节点/连线/状态/关卡信息/占位标记。"""
-    result = levels.load_map(realm)
-    if not result:
-        return _nc({"success": False, "message": f"未知道: {realm}"})
-    result["realm_completed"] = levels.realm_map_stats(realm).get("completed", False)
-    result["state"] = _frontend_state()
-    return _nc({"success": True, "map": result})
-
-
-@app.post("/api/map/start")
-async def map_start(request: Request):
-    """进入某道地图节点（校验可进 → 置当前节点 → 复用关卡启动逻辑）。"""
-    body = await request.json()
-    realm = body.get("realm", "")
-    node_id = body.get("node_id", "")
-    result = levels.map_start(realm, node_id)
-    if not result.get("success"):
-        return _nc({"success": False, "message": result.get("reason", "无法进入节点")})
-    # 复用现有关卡启动流程：重置业力/回合限制/Boss 技能
-    state.reset_level_state()
-    state.set_sandbox_mode(False)
-    level = result.get("level")
-    if level:
-        turn_limit.reset(level.get("turn_limit", 40 if level.get("game_type") == "weiqi" else 20))
-    bosses.reset_boss_skills()
-    result["level"] = level
-    result["state"] = _frontend_state()
-    return _nc(result)
-
-
-@app.post("/api/map/resolve")
-async def map_resolve(request: Request):
-    """结算某道地图节点（胜利置 cleared + 解锁相邻 + 推进道进度）。"""
-    body = await request.json()
-    realm = body.get("realm", "")
-    node_id = body.get("node_id", "")
-    win = bool(body.get("win", False))
-    result = levels.map_resolve(realm, node_id, win)
-    result["state"] = _frontend_state()
-    return _nc(result)

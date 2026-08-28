@@ -21,3 +21,11 @@ api密钥.txt
 .trae-html-share-packages/
 *.7z
 *.zip
+
+# ── Agent 工作区临时产物（截图 / 草案 / 缓存 / 审查工件） ──
+.trae/screenshots/
+.trae/specs/
+.trae/documents/
+.trae/review_receipt_*.txt
+.trae/agent_pr_review_*.md
+.pytest_cache/

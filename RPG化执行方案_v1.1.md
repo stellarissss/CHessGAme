@@ -1,7 +1,8 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v1.1
+# 棋圣·六道轮回 —— RPG化技术执行方案 v1.2
 
-> 本方案为"棋圣·六道轮回"项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
-> **变更说明**：同步资产与前端升级（rembg ML 抠图 + alpha 二值化修复半透明、75% 透明对话框、CSS transform 立绘微幅动画、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一）。剧情数据源统一到 `configs/story.json`。
+> 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
+> **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
+> **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、75% 透明对话框、CSS transform 立绘微幅动画、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
 
 ---
 
@@ -13,18 +14,21 @@
 ### 1.2 核心系统
 | 系统 | 职责 | 关键文件 |
 | --- | --- | --- |
+| **六道大陆（剧情模式入口）** | 2.5D 顶视角自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键） | `hub/overworld.html` `hub/overworld.js` `hub/overworld-ui.js` `configs/overworld.json` |
 | 剧情数据管理 | 集中存储角色、六道、关卡、结局、记忆碎片数据 | `configs/story.json` |
-| 选择系统 | 处理玩家在关卡中的分支选择，影响四维属性 | `choices.py` |
-| 记忆碎片 | 无作弊通关解锁，收集后影响真结局 | `memory_fragments.py` |
-| 结局系统 | 根据属性差距/真结局条件/识破状态判定 5 种结局 | `endings.py` |
-| 识破系统 | 每次 AI 修改后概率结算，命中则锁定并触发 Boss 战 | `detection.py` |
+| 关卡推进（线性） | 道内 5-6 个关卡，胜利推进 levels_passed；整道通关解锁沙盒（取消节点路径制） | `samsara/levels.py` `samsara/progression.py` `samsara/state.py` |
+| 选择系统 | 处理玩家在关卡中的分支选择，影响四维属性 | `samsara/choices.py` |
+| 记忆碎片 | 无作弊通关解锁，收集后影响真结局 | `samsara/memory_fragments.py` |
+| 结局系统 | 根据属性差距/真结局条件/识破状态判定 5 种结局 | `samsara/endings.py` |
+| 识破系统 | 每次 AI 修改后概率结算，命中则锁定并触发 Boss 战 | `samsara/detection.py` |
 | 天道 Boss 战 | 被识破后通关六道触发的特殊对局 | 主棋类逻辑 + 前端特化 |
 
 ### 1.3 设计原则
-- **最小改动实现游戏整体 RPG 化**：复用现有棋类引擎与 API 框架，新增模块以"挂载"方式接入，不重构核心对局逻辑。
-- 数据与逻辑分离：剧情文本全部存放于 `story.json`，代码仅做读取与运算。
-- 二周目友好：通关后保留记忆碎片与结局记录，支持 New Game+。
+- **剧情模式以大陆探索为骨架**：不再有节点路径制 UI；所有选关动作在大陆上通过六道入口 E 键交互发起。
+- 数据与逻辑分离：大地图权威配置为 `configs/overworld.json`，剧情文本存放于 `story.json`，代码仅做读取与运算。
+- 二周目友好：通关后保留记忆碎片、技能树、六道徽章进度与沙盒解锁状态，支持 New Game+。
 - 概率与确定性平衡：识破系统使用概率判定，但触发后状态完全锁定，避免反复横跳。
+- 大地图合理性优先：大陆地理、景观、POI 分布按真实地图逻辑铺展，空地比例充足，入口分布于角落以激发探索欲。
 
 ---
 
@@ -536,6 +540,46 @@ app.mount("/story", story_router)
 - [ ] Boss 战失败可无限重试，胜利后正确返回 `exposed` 结局。
 - [ ] 二周目功能正常：记忆碎片与结局记录保留，其余状态重置。
 
+### 8.4 六道大陆（剧情模式入口）
+- [ ] `GET /overworld` 返回 200 并正确加载 Phaser 3 场景（`scene=overworld`, `sceneActive=true`）。
+- [ ] `GET /api/overworld/config` 返回 overworld.json 权威内容，字段合法（world / tilesets / regions / roads / decor_plant / water_overlays / mountain_overlays / river_snow / river_ridge / pois / player）。
+- [ ] 大陆瓦片覆盖：所有 112×84 瓦片均归属至少一个区域；POI 瓦片在合法范围且非实体（solid=false）。
+- [ ] 六道入口 ×6、技能 NPC ×1、生灭台 ×1，总数正确；每个 POI 均能被交互命中（_updateInteraction 识别 closestPoi）。
+- [ ] 玩家四向移动（WASD / 方向键）+ 相机跟随：连续驱动 2 秒位移 ≥ 200px，碰撞检测阻挡水体与山脉。
+- [ ] 线性关卡推进：六道整道通关 `levels_passed == total_levels` 后 `state.realm_progress[realm].completed = true` 且 `sandbox_unlocked` 含该道；失败不推进。
+- [ ] 浏览器端到端：入口 / 总览 / 选关弹窗 / 技能弹窗 无 console.error；badge 进度与后端同步。
+
 ---
 
-> 版本：v1.1 ｜ 项目：棋圣·六道轮回 ｜ 状态：待实施
+## 九、六道大陆（Phaser 3）实现规范
+
+### 9.1 物理与渲染
+- **引擎**：Phaser 3 v3.87（本地单文件 `hub/vendor/phaser.min.js`），Canvas/WebGL 自适应。
+- **逻辑尺寸**：游戏逻辑视口 1280×720，大陆世界尺寸 3584×2688（112×84 瓦片 × 32px/tile，16px 原瓦片 × 2 倍 scale）。
+- **烘焙**：`baseRt` + `waterRt` + `mountainRt` + `decorRt` 四张 RenderTexture 分层离线烘焙，底图只绘制一次，运行时仅移动相机和动态物体（玩家 / halo / 徽章）。
+- **相机**：`cameras.main` 跟随玩家 container，线性插值 0.10；世界边界与物理边界与视觉世界等大。
+
+### 9.2 碰撞与几何
+- **碰撞网格**：`solid[H][W]` 由 `buildSolidGrid` 预计算，水体、山脉、装饰锚点、配置 `solid_regions` 均为实体。
+- **边界**：玩家半径 `playerR=13`；对玩家四角采样瓦片实体状态（`_willCollide`）。
+- **水体/山脉网格**：`_fillRectGrid` 支持 `["rect", name, x1, y1, x2, y2]` 矩形区域集合，生成 `waterGrid` / `mountainGrid`。河流（`river_snow` / `river_ridge`）统一汇入水网格。
+
+### 9.3 装饰与分层
+- **装饰**：区域级 `decor_plant.{regionId}`，字段 `base_density` + 精灵池 `sprites` + `collide` 标志。植物/岩石锚点被记录进实体网格。
+- **分层（z 轴 / depth）**：烘焙底图 depth=0，生灭台 depth=2，玩家容器 depth=5，POI halo / 徽章 depth=3+6；保证玩家覆盖地面、阴影在地。
+- **特殊装饰**：山脉顶面撒 battle 6/7（冰川）与 dungeon 66（岩石），岸线 battle 72/73 做浅滩，绿洲 farm 15 棕榈树，密林 farm 1 常青树 ＋ farm 3 矮灌木。
+
+### 9.4 POI 与交互
+- **六道入口**：Emoji 徽章 + 金色呼吸光圈（0xd4af37 外发光 + 主题色内晕），tween 缩放 1.0 ↔ 1.15。
+- **技能 NPC**：🧙 菩提老者 + 发光光圈，触发时打开 `skill-tree-modal`。
+- **E 键互动**：Phaser `Keyboard.JustDown(keyE)` → `_onInteract` → realm 调 `UI.openRealmSelect(realm)`；npc 调 `UI.openSkillTree()`。
+- **8s 轮询**：`startPolling()` 每 8 秒刷新 Samsara 状态（levels_passed / completed / sandbox_unlocked），更新徽章与 HUD。
+
+### 9.5 配置与接口
+- 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回，由启动器挂载在 main.py 的 FastAPI 应用。
+- 前端运行路径：`hub/overworld.html` → `overworld-ui.js`（Overlay UI）+ `overworld.js`（Phaser 场景）。
+- 测试：`tests/test_overworld.py` 校验 JSON 结构与覆盖，`tests/test_samsara_linear.py` 校验线性推进/沙盒解锁/API 回归。
+
+---
+
+> 版本：v1.2 · 六道大陆 ｜ 项目：棋圣·六道轮回 ｜ 状态：已落地
