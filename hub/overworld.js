@@ -1,8 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════
    六道大陆 · 2.5D 剧情模式大地图（Phaser 3）
-   职责：RenderTexture 离线烘焙大陆底图 / 四向玩家移动与碰撞 /
+   职责：纯色轮廓大陆底图（单 Graphics 一次性绘制）/ 四向玩家移动与碰撞 /
          POI 与六道入口徽章 / E 键互动 / 按 8s 轮询刷新状态。
-   支持：海域边界 / 河流 / 山脉屏障 / 非规则大陆形状 / 半岛海湾。
+   支持：海域边界 / 河流 / 山脉屏障 / 非规则大陆形状 / 半岛海湾 / 各入口不动。
    依赖：window.OverworldUI（overworld-ui.js）
    ═══════════════════════════════════════════════════════════════ */
 (function () {
@@ -16,16 +16,6 @@
         hell: '地狱道', hungry: '饿鬼道', animal: '畜生道',
         human: '人道', asura: '阿修罗道', heaven: '天道'
     };
-
-    function mulberry32(seed) {
-        var a = seed >>> 0;
-        return function () {
-            a |= 0; a = (a + 0x6D2B79F5) | 0;
-            var t = Math.imul(a ^ (a >>> 15), 1 | a);
-            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-    }
 
     var OverworldScene = new Phaser.Class({
         Extends: Phaser.Scene,
@@ -108,9 +98,6 @@
             this.BAKE_W = this.W * this.TILE;
             this.BAKE_H = this.H * this.TILE;
 
-            this.seed = ow.world.seed || 20260828;
-            this.rand = mulberry32(this.seed);
-
             /* 区域归属 */
             this.regionByTile = [];
             for (var i = 0; i < this.H; i++) this.regionByTile.push(new Array(this.W));
@@ -143,7 +130,38 @@
             }
             this._fillRectGrid(this.mountainGrid, ow.mountain_overlays);
 
-            /* 碰撞：水域 + 山脉 + 配置 solid_regions + 装饰锚点(稍后) */
+            /* ── 道路网格：当前地图改为纯色轮廓，道路用 O(1) 布尔网格查询 ── */
+            this.roadGrid = [];
+            for (var ry = 0; ry < this.H; ry++) {
+                var rrow = new Array(this.W);
+                for (var rx = 0; rx < this.W; rx++) rrow[rx] = false;
+                this.roadGrid.push(rrow);
+            }
+            (ow.roads || []).forEach((function (r) {
+                var i;
+                if (r.x !== undefined) {
+                    for (i = r.y0; i <= r.y1; i++) {
+                        if (r.x >= 0 && r.x < this.W && i >= 0 && i < this.H) this.roadGrid[i][r.x] = true;
+                    }
+                } else if (r.y !== undefined) {
+                    for (i = r.x0; i <= r.x1; i++) {
+                        if (i >= 0 && i < this.W && r.y >= 0 && r.y < this.H) this.roadGrid[r.y][i] = true;
+                    }
+                }
+            }).bind(this));
+
+            /* ── 纯色轮廓调色板（地图待手动制作，先给清晰扁平的基础色块） ── */
+            this.C_WATER = 0x1E6A96;
+            this.C_MOUNT = 0x5A5650;
+            this.C_ROAD  = 0xC9B37E;
+            this.C_BASE  = 0x4F7A52;
+            this.REG_COLOR = {
+                nw_forest: 0x2E5E3B,  n_snow: 0xCBD8E0, ne_pasture: 0x6FA05A,
+                w_waste: 0x9C8B5A,   c_plain: 0x8FA84F, east_ridge: 0x7C8B7B,
+                sw_dungeon: 0x4A4252, s_desert: 0xD6B65C, se_battle: 0x9C5A45
+            };
+
+            /* 碰撞：水域 + 山脉 + 配置 solid_regions（装饰已清空，纯轮廓） */
             this.buildSolidGrid(ow);
         },
 
@@ -195,13 +213,8 @@
         },
 
         _isRoad: function (x, y) {
-            var roads = this.ow.roads;
-            for (var i = 0; i < roads.length; i++) {
-                var r = roads[i];
-                if (r.x !== undefined && r.x === x && y >= r.y0 && y <= r.y1) return true;
-                if (r.y !== undefined && r.y === y && x >= r.x0 && x <= r.x1) return true;
-            }
-            return false;
+            if (y < 0 || y >= this.H || x < 0 || x >= this.W) return false;
+            return this.roadGrid[y][x];
         },
         _isWater: function (x, y) {
             if (y < 0 || y >= this.H || x < 0 || x >= this.W) return false;
@@ -212,295 +225,45 @@
             return this.mountainGrid[y][x];
         },
 
-        /* 确定性二维值噪声(整数哈希 + 平滑双线性)：无种子、跨刷新稳定，
-           低频采样 → 同主题瓦片自然成片，替代逐瓦片独立的椒盐噪声。 */
-        _noise: function (x, y) {
-            var hash = function (ix, iy) {
-                var n = ix * 374761393 + iy * 668265263 + 1103515245;
-                n = (n ^ (n >>> 13)) * 1274126177;
-                n = (n ^ (n >>> 16));
-                return ((n >>> 0) % 100000) / 100000;
-            };
-            var xi = Math.floor(x), yi = Math.floor(y);
-            var fx = x - xi, fy = y - yi;
-            var sx = fx * fx * (3 - 2 * fx);
-            var sy = fy * fy * (3 - 2 * fy);
-            var a = hash(xi, yi), b = hash(xi + 1, yi);
-            var c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
-            return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
-        },
-
-        /* 用一个低频值噪声把池子切成连续区块，选出一块合理的地面变体 */
-        _pickFromPool: function (pool, x, y, freq) {
-            var n = this._noise(x / (freq || 6), y / (freq || 6));
-            return pool[Math.floor(n * pool.length) % pool.length];
-        },
-
-        /* 瓦片优先级：水域 > 山脉 > 道路 > 区域地面。
-           每一层都用确定性噪声/伪随机，保证跨刷新稳定；并用低频噪声让
-           相邻瓦片成片，避免逐格乱撒的“盐椒”噪点。 */
-        _pickTile: function (x, y) {
+        /* 纯色轮廓配色：水域 > 山脉 > 道路 > 区域色 > 兜底地面色 */
+        _colorAt: function (x, y) {
+            if (this.waterGrid[y][x]) return this.C_WATER;
+            if (this.mountainGrid[y][x]) return this.C_MOUNT;
+            if (this.roadGrid[y][x]) return this.C_ROAD;
             var rg = this.regionByTile[y] ? this.regionByTile[y][x] : null;
-            var theme = rg ? rg.theme : 'town';
-
-            if (this._isWater(x, y)) {
-                /* 水域：低频噪声成片分布 battle 72 深水 / 73 浪纹 */
-                return { pack: 'battle', index: this._noise(x / 6, y / 6) < 0.85 ? 72 : 73 };
-            }
-
-            if (this._isMountain(x, y)) {
-                /* 山脉为岩石地貌（battle 5/6/7 山岩 + dungeon 50/51/52/65 石地），
-                   低频噪声成片混合，绝不混入草地瓦片。 */
-                var rocks = [['battle', 5], ['battle', 6], ['battle', 7],
-                             ['dungeon', 50], ['dungeon', 51], ['dungeon', 52], ['dungeon', 65]];
-                var rp = this._noise(x / 5, y / 5);
-                var rock = rocks[Math.floor(rp * rocks.length) % rocks.length];
-                return { pack: rock[0], index: rock[1] };
-            }
-
-            if (this._isRoad(x, y)) {
-                /* 道路按区域主题选材质：石板 / 土路 / 地牢砖 / 战道泥 */
-                var roadIdx = theme === 'town' ? 48 : theme === 'farm' ? 48
-                             : theme === 'dungeon' ? 50 : 77;
-                return { pack: theme, index: roadIdx };
-            }
-
-            /* —— 区域地面 + 相邻区域柔和过渡 —— */
-            var pool = (rg && rg.ground) || [0];
-            var curId = rg && rg.id;
-
-            /* 过渡带：墨西哥帽式向邻区地面的概率性渐变，让区域边界更自然 */
-            var BORDER = 3, blend = null, blendD = BORDER + 1;
-            for (var dy = -BORDER; dy <= BORDER; dy++) {
-                for (var dx = -BORDER; dx <= BORDER; dx++) {
-                    var nx = x + dx, ny = y + dy;
-                    if (nx < 0 || ny < 0 || nx >= this.W || ny >= this.H) continue;
-                    var other = this.regionByTile[ny][nx];
-                    if (!other || other.id === curId) continue;
-                    var d = Math.max(Math.abs(dx), Math.abs(dy));
-                    if (d < blendD) { blendD = d; blend = other; }
-                }
-            }
-            if (blend) {
-                var bn = this._noise(x / 4, y / 4);
-                var bp = (blend.ground) || [0];
-                var t;
-                if (blendD === 1) t = 0.45;      /* 紧贴区域边界：较多过渡 */
-                else if (blendD === 2) t = 0.22; /* 向内 1 格：中等过渡 */
-                else if (blendD === 3) t = 0.08; /* 向内 2 格：轻微过渡 */
-                else t = 0;
-                if (t > 0 && bn < t) {
-                    return { pack: blend.theme, index: this._pickFromPool(bp, x, y, 4) };
-                }
-            }
-
-            return { pack: theme, index: this._pickFromPool(pool, x, y, 6) };
+            if (rg && this.REG_COLOR[rg.id]) return this.REG_COLOR[rg.id];
+            return this.C_BASE;
         },
 
-        _getFrame: function (pack, index) {
-            if (!this.textures.exists(pack)) return null;
-            return this.textures.get(pack).get(index);
+        /* ── 绘制纯色轮廓：逐行扫描 + 同色连续段合并为一个 fillRect。
+           单次 Graphics 千把个矩形，远快于旧版逐瓦片烘焙。 ── */
+        _renderSilhouette: function (g) {
+            var T = this.TILE;
+            for (var y = 0; y < this.H; y++) {
+                var x = 0;
+                while (x < this.W) {
+                    var color = this._colorAt(x, y);
+                    var x0 = x;
+                    x++;
+                    while (x < this.W && this._colorAt(x, y) === color) x++;
+                    g.fillStyle(color, 1);
+                    g.fillRect(x0 * T, y * T, (x - x0) * T, T);
+                }
+            }
         },
 
-        /* ── 离线烘焙整块大陆底图（仅一次） ── */
+        /* ── 大陆轮廓底图（纯色，单 Graphics，一次性） ── */
         buildMap: function () {
-            var rt = this.add.renderTexture(0, 0, this.BAKE_W, this.BAKE_H);
-            rt.setOrigin(0, 0);
-
-            for (var y = 0; y < this.H; y++) {
-                for (var x = 0; x < this.W; x++) {
-                    var tile = this._pickTile(x, y);
-                    var frame = this._getFrame(tile.pack, tile.index);
-                    if (!frame) continue;
-                    rt.draw(frame, x * this.TILE, y * this.TILE);
-                }
-            }
-
-            rt.saveTexture('ow_ground');
-            rt.destroy();
-            this.textures.get('ow_ground').setFilter(1);
-            this.groundImg = this.add.image(0, 0, 'ow_ground')
-                .setOrigin(0, 0).setScale(this.SCALE).setDepth(0);
-
-            /* ── 山脉附加装饰：山峰岩石层（在底图上再绘制） ── */
-            this._drawMountainDecor();
-            /* ── 水域附加装饰：浅滩与岸石 ── */
-            this._drawShoreDecor();
-
-            return this.groundImg;
+            var g = this.add.graphics().setDepth(0);
+            this._renderSilhouette(g);
+            this.groundImg = g;
+            return g;
         },
 
-        /* 山脉区域上叠加突出岩石(视觉强调，不改碰撞) */
-        _drawMountainDecor: function () {
-            var decorRt = this.add.renderTexture(0, 0, this.BAKE_W, this.BAKE_H);
-            decorRt.setOrigin(0, 0);
-            var count = 0;
-            for (var y = 0; y < this.H; y++) {
-                for (var x = 0; x < this.W; x++) {
-                    if (!this._isMountain(x, y)) continue;
-                    /* 山峰顶的岩石：概率撒 battle 6/7 与 dungeon 66，确定性伪随机 */
-                    var r = this.rand();
-                    var pick = null;
-                    if (r < 0.18) {
-                        /* 山巅大岩 */
-                        pick = r < 0.08 ? ['battle', 7] : ['battle', 6];
-                    } else if (r < 0.28) {
-                        pick = ['dungeon', 66];
-                    } else if (r < 0.34) {
-                        pick = ['dungeon', 67];
-                    }
-                    if (pick) {
-                        var f = this._getFrame(pick[0], pick[1]);
-                        if (f) { decorRt.draw(f, x * this.TILE, y * this.TILE); count++; }
-                    }
-                }
-            }
-            /* 山麓过渡：紧贴山脉的地面撒零星坠岩(岩屑)，软化硬边缘，不改碰撞 */
-            var DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
-            for (var y2 = 0; y2 < this.H; y2++) {
-                for (var x2 = 0; x2 < this.W; x2++) {
-                    if (this._isMountain(x2, y2)) continue;
-                    var nearMount = false;
-                    for (var d = 0; d < 4; d++) {
-                        if (this._isMountain(x2 + DIRS[d][0], y2 + DIRS[d][1])) { nearMount = true; break; }
-                    }
-                    if (!nearMount) continue;
-                    /* 山脚零星碎石：battle 5(坠岩) 少量 */
-                    var fr = this.rand();
-                    if (fr < 0.05) {
-                        var ff = this._getFrame('battle', 5);
-                        if (ff) { decorRt.draw(ff, x2 * this.TILE, y2 * this.TILE); count++; }
-                    } else if (fr < 0.07) {
-                        var fg = this._getFrame('town', 10);
-                        if (fg) { decorRt.draw(fg, x2 * this.TILE, y2 * this.TILE); count++; }
-                    }
-                }
-            }
-            if (count > 0) {
-                decorRt.saveTexture('ow_mt_decor');
-                decorRt.destroy();
-                this.textures.get('ow_mt_decor').setFilter(1);
-                this.add.image(0, 0, 'ow_mt_decor')
-                    .setOrigin(0, 0).setScale(this.SCALE).setDepth(1);
-            } else {
-                decorRt.destroy();
-            }
-        },
-
-        /* 水域岸线：浅滩沙粒与岸边小石 */
-        _drawShoreDecor: function () {
-            var rt = this.add.renderTexture(0, 0, this.BAKE_W, this.BAKE_H);
-            rt.setOrigin(0, 0);
-            var count = 0;
-            var DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
-            for (var y = 0; y < this.H; y++) {
-                for (var x = 0; x < this.W; x++) {
-                    if (this._isWater(x, y)) continue;
-                    if (this._isMountain(x, y)) continue;
-                    /* 寻找邻接水瓦片的陆瓦片 = 岸线 */
-                    var shore = false;
-                    for (var d = 0; d < 4; d++) {
-                        if (this._isWater(x + DIRS[d][0], y + DIRS[d][1])) { shore = true; break; }
-                    }
-                    if (!shore) continue;
-                    var r = this.rand();
-                    var pick = null;
-                    var region = this.regionByTile[y][x];
-                    var theme = region ? region.theme : 'town';
-                    if (r < 0.18) {
-                        /* 岸边卵石 */
-                        if (theme === 'farm' || theme === 'town') pick = ['town', 10];
-                        else pick = ['battle', 6];
-                    } else if (r < 0.26) {
-                        pick = ['town', 9];
-                    } else if (r < 0.32 && theme === 'farm') {
-                        pick = ['farm', 4];
-                    }
-                    if (pick) {
-                        var f = this._getFrame(pick[0], pick[1]);
-                        if (f) { rt.draw(f, x * this.TILE, y * this.TILE); count++; }
-                    }
-                }
-            }
-            if (count > 0) {
-                rt.saveTexture('ow_shore');
-                rt.destroy();
-                this.textures.get('ow_shore').setFilter(1);
-                this.add.image(0, 0, 'ow_shore')
-                    .setOrigin(0, 0).setScale(this.SCALE).setDepth(1);
-            } else {
-                rt.destroy();
-            }
-        },
-
-        /* ── 装饰 + 玩家 + POI ── */
+        /* ── 玩家 + POI（大地图为纯色轮廓，无装饰撒点/锚点） ── */
         buildActors: function () {
-            var self = this;
-            var ow = this.ow;
-
-            if (typeof this._anchorSet !== 'object') {
-                this._anchorSet = {};
-                (ow.decor_anchors || []).forEach(function (d) { self._anchorSet[d.x + ',' + d.y] = true; });
-            }
-
-            var poiGuard = [];
-            (ow.pois || []).forEach(function (p) { poiGuard.push([p.x, p.y]); });
-            var inPoiGuard = function (tx, ty) {
-                for (var i = 0; i < poiGuard.length; i++) {
-                    if (Math.abs(poiGuard[i][0] - tx) <= 2 && Math.abs(poiGuard[i][1] - ty) <= 2) return true;
-                }
-                return false;
-            };
-
-            /* 装饰锚点 */
-            (ow.decor_anchors || []).forEach(function (d) {
-                if (!self._getFrame(d.tile[0], d.tile[1])) return;
-                /* 跳过落在水域或山脉上的锚点（防止装饰物漂浮） */
-                if (self._isWater(d.x, d.y) || self._isMountain(d.x, d.y)) return;
-                self.add.image(
-                    d.x * self.TILE + (self.TILE / 2),
-                    d.y * self.TILE + (self.TILE / 2),
-                    d.tile[0], d.tile[1]
-                ).setScale(self.SCALE).setDepth(2);
-                if (d.solid) self._setSolidTile(d.x, d.y, true);
-            });
-
-            /* 装饰撒点（跳过：路、水、山、锚点、POI 保护区、已有碰撞物） */
-            Object.keys(ow.decor_plant || {}).forEach(function (regionId) {
-                var cfg = ow.decor_plant[regionId];
-                var region = ow.regions.filter(function (r) { return r.id === regionId; })[0];
-                if (!region) return;
-                var r = region.rect;
-                var area = (r[2] - r[0] + 1) * (r[3] - r[1] + 1);
-                var count = Math.floor(area * (cfg.density || 0));
-                if (count <= 0) return;
-                var placed = 0, guard = 0;
-                while (placed < count && guard < count * 8) {
-                    guard++;
-                    var tx = r[0] + Math.floor(self.rand() * (r[2] - r[0] + 1));
-                    var ty = r[1] + Math.floor(self.rand() * (r[3] - r[1] + 1));
-                    if (self._isRoad(tx, ty) || self._isWater(tx, ty) || self._isMountain(tx, ty)) continue;
-                    if (self._anchorSet[tx + ',' + ty]) continue;
-                    if (self.solid[ty] && self.solid[ty][tx]) continue;
-                    if (inPoiGuard(tx, ty)) continue;
-                    var choices = cfg.tiles || [];
-                    if (!choices.length) continue;
-                    var it = choices[Math.floor(self.rand() * choices.length)];
-                    if (!it) continue;
-                    var pack = it[0], pick = it[1];
-                    if (!self._getFrame(pack, pick)) continue;
-                    self.add.image(
-                        tx * self.TILE + (self.TILE / 2),
-                        ty * self.TILE + (self.TILE / 2),
-                        pack, pick
-                    ).setScale(self.SCALE).setDepth(2);
-                    if (cfg.solid) self._setSolidTile(tx, ty, true);
-                    placed++;
-                }
-            });
-
-            this._buildPlayer(ow);
-            this._buildPois(ow);
+            this._buildPlayer(this.ow);
+            this._buildPois(this.ow);
 
             this.cameras.main.setBounds(0, 0, this.WORLD_W, this.WORLD_H);
             this.cameras.main.startFollow(this.player, true, 0.10, 0.10);
