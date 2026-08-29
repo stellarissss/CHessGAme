@@ -212,29 +212,50 @@
             return this.mountainGrid[y][x];
         },
 
+        /* 确定性二维值噪声(整数哈希 + 平滑双线性)：无种子、跨刷新稳定，
+           低频采样 → 同主题瓦片自然成片，替代逐瓦片独立的椒盐噪声。 */
+        _noise: function (x, y) {
+            var hash = function (ix, iy) {
+                var n = ix * 374761393 + iy * 668265263 + 1103515245;
+                n = (n ^ (n >>> 13)) * 1274126177;
+                n = (n ^ (n >>> 16));
+                return ((n >>> 0) % 100000) / 100000;
+            };
+            var xi = Math.floor(x), yi = Math.floor(y);
+            var fx = x - xi, fy = y - yi;
+            var sx = fx * fx * (3 - 2 * fx);
+            var sy = fy * fy * (3 - 2 * fy);
+            var a = hash(xi, yi), b = hash(xi + 1, yi);
+            var c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+            return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+        },
+
+        /* 用一个低频值噪声把池子切成连续区块，选出一块合理的地面变体 */
+        _pickFromPool: function (pool, x, y, freq) {
+            var n = this._noise(x / (freq || 6), y / (freq || 6));
+            return pool[Math.floor(n * pool.length) % pool.length];
+        },
+
         /* 瓦片优先级：水域 > 山脉 > 道路 > 区域地面。
-           每一层都用确定性伪随机，保证跨刷新稳定。 */
+           每一层都用确定性噪声/伪随机，保证跨刷新稳定；并用低频噪声让
+           相邻瓦片成片，避免逐格乱撒的“盐椒”噪点。 */
         _pickTile: function (x, y) {
             var rg = this.regionByTile[y] ? this.regionByTile[y][x] : null;
             var theme = rg ? rg.theme : 'town';
 
             if (this._isWater(x, y)) {
-                /* 水域分两种：近海/大河用 battle 72 深水，偶尔 73 浪纹 */
-                var wr = this.rand();
-                if (wr < 0.88) return { pack: 'battle', index: 72 };
-                return { pack: 'battle', index: 73 };
+                /* 水域：低频噪声成片分布 battle 72 深水 / 73 浪纹 */
+                return { pack: 'battle', index: this._noise(x / 6, y / 6) < 0.85 ? 72 : 73 };
             }
 
             if (this._isMountain(x, y)) {
-                /* 山脉：崎岖石地(dungeon 50/51/52) 与 山土(battle 0/1) 混合 */
-                var mr = this.rand();
-                if (mr < 0.55) {
-                    var mp = [50, 51, 52];
-                    return { pack: 'dungeon', index: mp[Math.floor(this.rand() * 3)] };
-                } else if (mr < 0.88) {
-                    return { pack: 'battle', index: this.rand() < 0.5 ? 0 : 1 };
-                }
-                return { pack: 'battle', index: 2 };
+                /* 山脉为岩石地貌（battle 5/6/7 山岩 + dungeon 50/51/52/65 石地），
+                   低频噪声成片混合，绝不混入草地瓦片。 */
+                var rocks = [['battle', 5], ['battle', 6], ['battle', 7],
+                             ['dungeon', 50], ['dungeon', 51], ['dungeon', 52], ['dungeon', 65]];
+                var rp = this._noise(x / 5, y / 5);
+                var rock = rocks[Math.floor(rp * rocks.length) % rocks.length];
+                return { pack: rock[0], index: rock[1] };
             }
 
             if (this._isRoad(x, y)) {
@@ -244,9 +265,36 @@
                 return { pack: theme, index: roadIdx };
             }
 
+            /* —— 区域地面 + 相邻区域柔和过渡 —— */
             var pool = (rg && rg.ground) || [0];
-            var pick = pool[Math.floor(this.rand() * pool.length)];
-            return { pack: theme, index: pick };
+            var curId = rg && rg.id;
+
+            /* 过渡带：墨西哥帽式向邻区地面的概率性渐变，让区域边界更自然 */
+            var BORDER = 3, blend = null, blendD = BORDER + 1;
+            for (var dy = -BORDER; dy <= BORDER; dy++) {
+                for (var dx = -BORDER; dx <= BORDER; dx++) {
+                    var nx = x + dx, ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= this.W || ny >= this.H) continue;
+                    var other = this.regionByTile[ny][nx];
+                    if (!other || other.id === curId) continue;
+                    var d = Math.max(Math.abs(dx), Math.abs(dy));
+                    if (d < blendD) { blendD = d; blend = other; }
+                }
+            }
+            if (blend) {
+                var bn = this._noise(x / 4, y / 4);
+                var bp = (blend.ground) || [0];
+                var t;
+                if (blendD === 1) t = 0.45;      /* 紧贴区域边界：较多过渡 */
+                else if (blendD === 2) t = 0.22; /* 向内 1 格：中等过渡 */
+                else if (blendD === 3) t = 0.08; /* 向内 2 格：轻微过渡 */
+                else t = 0;
+                if (t > 0 && bn < t) {
+                    return { pack: blend.theme, index: this._pickFromPool(bp, x, y, 4) };
+                }
+            }
+
+            return { pack: theme, index: this._pickFromPool(pool, x, y, 6) };
         },
 
         _getFrame: function (pack, index) {
@@ -290,8 +338,8 @@
             for (var y = 0; y < this.H; y++) {
                 for (var x = 0; x < this.W; x++) {
                     if (!this._isMountain(x, y)) continue;
-                    /* 山峰顶的岩石：概率撒 battle 6/7 与 dungeon 66 */
-                    var r = Math.random();
+                    /* 山峰顶的岩石：概率撒 battle 6/7 与 dungeon 66，确定性伪随机 */
+                    var r = this.rand();
                     var pick = null;
                     if (r < 0.18) {
                         /* 山巅大岩 */
@@ -304,6 +352,27 @@
                     if (pick) {
                         var f = this._getFrame(pick[0], pick[1]);
                         if (f) { decorRt.draw(f, x * this.TILE, y * this.TILE); count++; }
+                    }
+                }
+            }
+            /* 山麓过渡：紧贴山脉的地面撒零星坠岩(岩屑)，软化硬边缘，不改碰撞 */
+            var DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
+            for (var y2 = 0; y2 < this.H; y2++) {
+                for (var x2 = 0; x2 < this.W; x2++) {
+                    if (this._isMountain(x2, y2)) continue;
+                    var nearMount = false;
+                    for (var d = 0; d < 4; d++) {
+                        if (this._isMountain(x2 + DIRS[d][0], y2 + DIRS[d][1])) { nearMount = true; break; }
+                    }
+                    if (!nearMount) continue;
+                    /* 山脚零星碎石：battle 5(坠岩) 少量 */
+                    var fr = this.rand();
+                    if (fr < 0.05) {
+                        var ff = this._getFrame('battle', 5);
+                        if (ff) { decorRt.draw(ff, x2 * this.TILE, y2 * this.TILE); count++; }
+                    } else if (fr < 0.07) {
+                        var fg = this._getFrame('town', 10);
+                        if (fg) { decorRt.draw(fg, x2 * this.TILE, y2 * this.TILE); count++; }
                     }
                 }
             }
@@ -334,7 +403,7 @@
                         if (this._isWater(x + DIRS[d][0], y + DIRS[d][1])) { shore = true; break; }
                     }
                     if (!shore) continue;
-                    var r = Math.random();
+                    var r = this.rand();
                     var pick = null;
                     var region = this.regionByTile[y][x];
                     var theme = region ? region.theme : 'town';
