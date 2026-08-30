@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六道大地图编辑器</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════════ 顶栏 ═══════════ -->
+  <header id="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <h1>六道大地图编辑器</h1>
+      <span class="sub" id="worldInfo">未载入地图</span>
+    </div>
+    <div class="actions">
+      <label class="btn ghost" for="fileImport">导入 JSON</label>
+      <input type="file" id="fileImport" accept=".json,application/json" hidden>
+      <button class="btn ghost" id="btnLoadTemplate">载入模板</button>
+      <button class="btn primary" id="btnExport">导出 overworld.json</button>
+      <button class="btn primary" id="btnCopyToGame">写入 configs/overworld.json</button>
+    </div>
+  </header>
+
+  <div id="workspace">
+
+    <!-- ═══════════ 左侧：图层与工具 ═══════════ -->
+    <aside id="leftbar">
+      <section class="panel" id="layersPanel">
+        <h2>编辑图层</h2>
+        <ul id="layerList"></ul>
+      </section>
+
+      <section class="panel" id="regionsPanel">
+        <h2>区域</h2>
+        <div class="row">
+          <button class="btn sm" id="btnNewRegion">＋新增区域</button>
+          <button class="btn sm" id="btnDelRegion" disabled>删除</button>
+        </div>
+        <ul id="regionList"></ul>
+      </section>
+    </aside>
+
+    <!-- ═══════════ 中部：画布 ═══════════ -->
+    <main id="stage">
+      <div id="canvasWrap">
+        <canvas id="mapCanvas" width="8" height="8"></canvas>
+        <div id="emptyState" class="hidden">
+          <div class="empty-card">
+            <p>还没有地图……</p>
+            <p>点 <b>载入模板</b> 从 <code>template/overworld.json</code> 开始，<br>
+               或 <b>导入 JSON</b> 打开现有地图。</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ═══════════ 右侧：属性 ═══════════ -->
+    <aside id="rightbar">
+      <section class="panel" id="toolPanel">
+        <h2>画笔</h2>
+        <div id="toolGrid"></div>
+        <div class="field">
+          <label>画笔大小</label>
+          <div class="row center">
+            <input type="range" id="brushSize" min="1" max="12" value="1">
+            <b id="brushSizeVal">1</b>
+          </div>
+        </div>
+        <div id="fillTargetRow" class="field hidden">
+          <label>油漆桶填充目标</label>
+          <select id="fillTarget">
+            <option value="water">水域</option>
+            <option value="mountain">山脉</option>
+            <option value="road">道路</option>
+            <option value="erase">擦除地形</option>
+            <option value="region">当前区域</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel" id="palettePanel">
+        <h2>图格贴纸</h2>
+        <div class="row">
+          <select id="paletteTileset"></select>
+        </div>
+        <div id="tilePalette" class="tile-palette"></div>
+        <label class="check"><input type="checkbox" id="solidChk" checked> 放置为实体（不可通行）</label>
+        <div class="actions">
+          <button class="btn sm" id="btnClearDeco">清空我的贴纸</button>
+        </div>
+      </section>
+
+      <section class="panel" id="infoPanel">
+        <h2>光标信息</h2>
+        <dl id="tileInfo">
+          <dt>坐标</dt><dd>—</dd>
+          <dt>区域</dt><dd class="region-dd">—</dd>
+          <dt>水域</dt><dd>—</dd>
+          <dt>山脉</dt><dd>—</dd>
+          <dt>道路</dt><dd>—</dd>
+          <dt>贴纸</dt><dd>—</dd>
+        </dl>
+      </section>
+    </aside>
+  </div>
+
+  <!-- ═══════════ 底栏 ═══════════ -->
+  <footer id="statusbar">
+    <div class="hint">左键 = 绘制 / <b>右键拖动</b> = 平移 / 滚轮 = 缩放</div>
+    <div id="statusMsg">就绪</div>
+    <div class="stat" id="statCounts"></div>
+  </footer>
+
+</div>
+
+<!-- 区域编辑弹窗 -->
+<div id="modal" class="modal hidden">
+  <div class="modal-card">
+    <h3 id="modalTitle">区域属性</h3>
+    <div class="field">
+      <label>ID（唯一、英文下划线）</label>
+      <input id="f_id" type="text" placeholder="e.g. nw_forest">
+    </div>
+    <div class="field">
+      <label>显示名称</label>
+      <input id="f_name" type="text" placeholder="e.g. 西北密林·幽邃湾畔">
+    </div>
+    <div class="row">
+      <div class="field grow">
+        <label>主题图集 (theme)</label>
+        <select id="f_theme"></select>
+      </div>
+      <div class="field grow">
+        <label>轮廓色 (color)</label>
+        <div class="row center">
+          <input id="f_color" type="color" value="#4F7A52">
+          <button class="btn sm" id="f_colorClear" title="恢复默认配色">默认</button>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>ground 图格下标（逗号分隔）<span class="muted">（可选，配合主题图集）</span></label>
+      <input id="f_ground" type="text" placeholder="0,1,2,42">
+    </div>
+    <div class="field">
+      <label>形状</label>
+      <div class="statline">当前覆盖 <b id="f_area">0</b> 格。用“区域画笔”在画布上直接绘制本区域边界。</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="f_cancel">取消</button>
+      <button class="btn primary" id="f_done">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- 图格里嵌 2x 模式：用 CSS 放大，避免每次重绘缩放射击 -->
+<script src="js/geom.js"></script>
+<script src="js/editor.js"></script>
+</body>
+</html>

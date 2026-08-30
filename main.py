@@ -295,7 +295,7 @@ def start_process(name, script_path, port, cwd=None):
 def build_hub_app():
     """构建总界面的 FastAPI 应用"""
     from fastapi import FastAPI, Request
-    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, Response
     from fastapi.staticfiles import StaticFiles
     from fastapi.middleware.cors import CORSMiddleware
 
@@ -356,6 +356,37 @@ def build_hub_app():
             except (json.JSONDecodeError, OSError):
                 pass
         return JSONResponse({"error": "overworld.json 缺失或损坏"}, headers=NO_STORE, status_code=404)
+
+    @app.post("/api/overworld/save")
+    async def overworld_save(request: Request):
+        # 地图编辑器：“写入 configs/overworld.json，供游戏直接替换”
+        try:
+            data = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "请求体不是合法 JSON"}, status_code=400)
+        if not isinstance(data, dict) or not isinstance(data.get("regions"), list):
+            return JSONResponse({"ok": False, "error": "缺少 regions（地图数据不合法）"}, status_code=400)
+        cfg_path = WORKSPACE_ROOT / "configs" / "overworld.json"
+        try:
+            tmp = cfg_path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(cfg_path)
+            return JSONResponse({"ok": True, "path": str(cfg_path)})
+        except OSError as e:
+            return JSONResponse({"ok": False, "error": "写入失败: " + str(e)}, status_code=500)
+
+    @app.get("/map-editor/{rest:path}")
+    async def map_editor_static(rest: str):
+        # 地图编辑器：独立静态资源目录
+        root = WORKSPACE_ROOT / "map-editor"
+        if rest in ("", "/"):
+            rest = "index.html"
+        p = (root / rest).resolve()
+        if not str(p).startswith(str(root)) or not p.is_file():
+            return HTMLResponse("<h1>地图编辑器资源未找到</h1>", status_code=404)
+        import mimetypes
+        mime = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
+        return Response(p.read_bytes(), media_type=mime)
 
     @app.get("/play")
     async def play_page():

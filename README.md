@@ -269,6 +269,14 @@
 └ player: initial / speed / radius_px / interact_tiles
 ```
 
+**地图编辑器（`map-editor/`）**
+- 独立、离线的可视化工具，用「点、拖、涂」的画笔方式制作/重制 `overworld.json`。
+- 支持导入现有配置 → 编辑 → 导出/写回 `configs/overworld.json`，供游戏直接替换。
+- 输出兼容游戏解析器（已扩展支持任意形状区域 `rects[]`、矩形道路 `rect`、区域自定义 `color`）。
+- 使用：`python map-editor/serve.py` -> `http://localhost:5173/map-editor/`；
+  或经游戏主服务 `python main.py` -> `/map-editor/`（并支持「写入 configs」一键写盘）。
+- 详细玩法见 `map-editor/README.md`。
+
 ### 每棋类统一骨架
 
 ```
@@ -425,6 +433,14 @@ workspace/
 ├── scripts/
 │   └── build_map_atlas.py       # ★ Kenney 瓦片打包 → shared/assets/map/atlas/
 │
+├── map-editor/                  # ★ 六道大陆地图编辑器（独立工具，见下方「地图编辑器」）
+│   ├── index.html               # 编辑器入口（可视化涂画 / 拖拽 / 导出）
+│   ├── js/                      # 编辑核心 + 矩形压缩几何工具
+│   ├── css/style.css
+│   ├── template/overworld.json  # 大陆原始配置模板
+│   ├── assets/atlas/            # 游戏贴图副本
+│   └── serve.py                 # 本地静态服务器（python serve.py）
+│
 ├── xiangqi/                     # 人道·象棋（端口 8000）
 ├── wuziqi/                      # 天道·五子棋（端口 8001）
 ├── weiqi/                       # 阿修罗·围棋（端口 8002）
@@ -493,6 +509,8 @@ workspace/
 | GET | `/` | 轮回之门首页（标题页） |
 | GET | `/overworld` | **六道大陆 · 剧情模式大地图**（Phaser 3 场景） |
 | GET | `/api/overworld/config` | 六道大陆权威 JSON 配置（regions / tilesets / POI / 地形） |
+| POST | `/api/overworld/save` | **地图编辑器**: 把新的大陆配置写回 `configs/overworld.json` |
+| GET | `/map-editor/*` | **地图编辑器** 独立静态资源（可视化制作大陆配置） |
 | GET | `/achievements` | 成就殿堂 |
 | GET | `/api/games` | 获取六棋类列表（含端口和 URL） |
 | GET | `/api/health` | 健康检查 |

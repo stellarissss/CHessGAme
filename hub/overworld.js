@@ -98,14 +98,19 @@
             this.BAKE_W = this.W * this.TILE;
             this.BAKE_H = this.H * this.TILE;
 
-            /* 区域归属 */
+            /* 区域归属：支持单个 rect 或 rects[]（地图编辑器导出的任意形状） */
             this.regionByTile = [];
             for (var i = 0; i < this.H; i++) this.regionByTile.push(new Array(this.W));
             ow.regions.forEach((function (rg) {
-                var r = rg.rect, y, x;
-                for (y = r[1]; y <= r[3]; y++) {
-                    for (x = r[0]; x <= r[2]; x++) {
-                        if (y >= 0 && y < this.H && x >= 0 && x < this.W) this.regionByTile[y][x] = rg;
+                var rects = rg.rects && rg.rects.length ? rg.rects : (rg.rect ? [rg.rect] : []);
+                for (var k = 0; k < rects.length; k++) {
+                    var r = rects[k], y, x, x0 = r[0], x1 = r[2], y0 = r[1], y1 = r[3];
+                    if (x0 > x1) { var t = x0; x0 = x1; x1 = t; }
+                    if (y0 > y1) { var s = y0; y0 = y1; y1 = s; }
+                    for (y = y0; y <= y1; y++) {
+                        for (x = x0; x <= x1; x++) {
+                            if (y >= 0 && y < this.H && x >= 0 && x < this.W) this.regionByTile[y][x] = rg;
+                        }
                     }
                 }
             }).bind(this));
@@ -139,7 +144,16 @@
             }
             (ow.roads || []).forEach((function (r) {
                 var i;
-                if (r.x !== undefined) {
+                if (r.rect) {
+                    var x0 = r.rect[0], x1 = r.rect[2], y0 = r.rect[1], y1 = r.rect[3];
+                    if (x0 > x1) { var tx0 = x0; x0 = x1; x1 = tx0; }
+                    if (y0 > y1) { var ty0 = y0; y0 = y1; y1 = ty0; }
+                    for (i = x0; i <= x1; i++) {
+                        for (var j = y0; j <= y1; j++) {
+                            if (i >= 0 && i < this.W && j >= 0 && j < this.H) this.roadGrid[j][i] = true;
+                        }
+                    }
+                } else if (r.x !== undefined) {
                     for (i = r.y0; i <= r.y1; i++) {
                         if (r.x >= 0 && r.x < this.W && i >= 0 && i < this.H) this.roadGrid[i][r.x] = true;
                     }
@@ -225,13 +239,13 @@
             return this.mountainGrid[y][x];
         },
 
-        /* 纯色轮廓配色：水域 > 山脉 > 道路 > 区域色 > 兜底地面色 */
+        /* 纯色轮廓配色：水域 > 山脉 > 道路 > 区域色(可自定义) > 兜底地面色 */
         _colorAt: function (x, y) {
             if (this.waterGrid[y][x]) return this.C_WATER;
             if (this.mountainGrid[y][x]) return this.C_MOUNT;
             if (this.roadGrid[y][x]) return this.C_ROAD;
             var rg = this.regionByTile[y] ? this.regionByTile[y][x] : null;
-            if (rg && this.REG_COLOR[rg.id]) return this.REG_COLOR[rg.id];
+            if (rg) return rg.color || this.REG_COLOR[rg.id] || this.C_BASE;
             return this.C_BASE;
         },
 
