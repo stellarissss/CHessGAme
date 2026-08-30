@@ -2,7 +2,7 @@
    六道大陆 · overworld-ui.js（DOM Overlay）
    承载：HUD / 互动提示条 / 总览弹窗 / 选关弹窗 / 技能树弹窗 / Toast /
          加载遮罩 / 错误遮罩。提供无障碍（dialog / 焦点圈 / Tab/Enter/Esc）。
-   依赖：overworld.html 中的 DOM；与 overworld.js 场景互操作。
+   依赖：overworld.html 中的 DOM；与 overworld-iso.js 场景互操作。
    ═══════════════════════════════════════════════════════════════ */
 (function () {
     'use strict';

@@ -1,0 +1,745 @@
+/* ═══════════════════════════════════════════════════════════════
+   六道大陆 · 等距大地图（iso-engine 版）
+   用 iso-engine 以 CSS 3D Transform 渲染整片大陆：
+     · 地面以"色块"区分景观（绿/黄绿/黄/红/黑/白/灰…）
+     · 水域 / 道路 / 山脉叠色
+     · 依区域散布岩石 / 草丛 / 各类树木 / 雪堆 / 沙丘等景观物体
+     · 全局光照渐变 + 立方体三面明暗 + 场景暗角 = 光影层次
+   玩家 / POI 标点采用"DOM Overlay + 仿射投影"叠在 3D 场景之上，
+   与等距底面完全对齐，且始终保持正面朝向。
+   兼容 overworld-ui.js（HUD / 互动提示 / 选关 / 技能树）契约。
+   ═══════════════════════════════════════════════════════════════ */
+import './vendor/iso-engine/isometric-engine.js';
+
+(function () {
+    'use strict';
+
+    var UI = null;
+    var reduced = false;
+    try { reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { reduced = false; }
+
+    var REALM_NAMES = {
+        hell: '地狱道', hungry: '饿鬼道', animal: '畜生道',
+        human: '人道', asura: '阿修罗道', heaven: '天道'
+    };
+
+    /* ── 等距投影常量（rotateX=60°→cosX=0.5；rotateZ=45°→cosZ=√2/2）── */
+    var COS_Z = Math.SQRT1_2;
+    var SIN_ZX = Math.SQRT1_2 * 0.5;
+    var CELL = 30;          // 每格等距边长（像素）
+    var MARGIN = 10 * CELL; // 地图四边留白
+
+    var OverworldGame = {
+        _levelTotals: {},
+
+        /* ── overworld-ui.js 契约接口 ── */
+        getSamsara: function () { return this.samsara; },
+        getGames: function () { return this.games; },
+        syncSamsara: function (state) {
+            if (!state) return;
+            this.samsara = state;
+            this._syncBadges((state.realm_progress || {}));
+            if (UI) UI.refreshHUD();
+        },
+        refreshSamsara: function () {
+            var self = this;
+            return fetch('/samsara/api/state')
+                .then(function (r) { return r.json(); })
+                .then(function (s) { self.syncSamsara(s); return s; })
+                .catch(function () { return null; });
+        },
+        refreshFromUI: function () { return this.refreshSamsara(); },
+        startPolling: function () {
+            var self = this;
+            this.pollTimer = setInterval(function () { self.refreshSamsara(); }, 8000);
+        },
+        stopPolling: function () {
+            if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+        },
+        isOpen: function () { return UI ? UI.isModalOpen() : false; },
+
+        _fetchGamesAndState: function () {
+            var self = this;
+            self.games = [];
+            fetch('/api/games')
+                .then(function (r) { return r.json(); })
+                .then(function (g) { self.games = g || []; if (UI) UI.setGames(self.games); })
+                .catch(function () { });
+            self.refreshSamsara();
+        },
+
+        /* ── 网格构建 ── */
+        _fillRectGrid: function (grid, list) {
+            if (!Array.isArray(list)) return;
+            for (var i = 0; i < list.length; i++) {
+                var it = list[i];
+                if (!Array.isArray(it) || it[0] !== 'rect') continue;
+                var x0 = it[2], y0 = it[3], x1 = it[4], y1 = it[5];
+                if (x0 > x1) { var t = x0; x0 = x1; x1 = t; }
+                if (y0 > y1) { var s = y0; y0 = y1; y1 = s; }
+                for (var y = y0; y <= y1; y++) {
+                    for (var x = x0; x <= x1; x++) {
+                        if (y >= 0 && y < this.H && x >= 0 && x < this.W) grid[y][x] = true;
+                    }
+                }
+            }
+        },
+
+        bootstrapGeometry: function (ow) {
+            var self = this;
+            this.W = ow.world.width;
+            this.H = ow.world.height;
+            this.ow = ow;
+
+            this.regionByTile = [];
+            for (var i = 0; i < this.H; i++) this.regionByTile.push(new Array(this.W));
+            (ow.regions || []).forEach(function (rg) {
+                var rects = rg.rects && rg.rects.length ? rg.rects : (rg.rect ? [rg.rect] : []);
+                for (var k = 0; k < rects.length; k++) {
+                    var r = rects[k];
+                    var x0 = r[0], x1 = r[2], y0 = r[1], y1 = r[3];
+                    if (x0 > x1) { var t = x0; x0 = x1; x1 = t; }
+                    if (y0 > y1) { var s = y0; y0 = y1; y1 = s; }
+                    for (var y = y0; y <= y1; y++)
+                        for (var x = x0; x <= x1; x++)
+                            if (y >= 0 && y < self.H && x >= 0 && x < self.W) self.regionByTile[y][x] = rg;
+                }
+            });
+
+            this.waterGrid = [];
+            this.mountainGrid = [];
+            this.roadGrid = [];
+            for (var wy = 0; wy < this.H; wy++) {
+                this.waterGrid.push(new Array(this.W));
+                this.mountainGrid.push(new Array(this.W));
+                this.roadGrid.push(new Array(this.W));
+                for (var wx = 0; wx < this.W; wx++) {
+                    this.waterGrid[wy][wx] = false;
+                    this.mountainGrid[wy][wx] = false;
+                    this.roadGrid[wy][wx] = false;
+                }
+            }
+            this._fillRectGrid(this.waterGrid, ow.water_overlays);
+            this._fillRectGrid(this.waterGrid, ow.river_snow);
+            this._fillRectGrid(this.waterGrid, ow.river_ridge);
+            this._fillRectGrid(this.mountainGrid, ow.mountain_overlays);
+            (ow.roads || []).forEach(function (r) {
+                if (r.rect) {
+                    for (var i = r.rect[0]; i <= r.rect[2]; i++)
+                        for (var j = r.rect[1]; j <= r.rect[3]; j++)
+                            if (i >= 0 && i < self.W && j >= 0 && j < self.H) self.roadGrid[j][i] = true;
+                } else if (r.x !== undefined) {
+                    for (var j2 = r.y0; j2 <= r.y1; j2++)
+                        if (j2 >= 0 && j2 < self.H && r.x >= 0 && r.x < self.W) self.roadGrid[j2][r.x] = true;
+                } else if (r.y !== undefined) {
+                    for (var i2 = r.x0; i2 <= r.x1; i2++)
+                        if (i2 >= 0 && i2 < self.W && r.y >= 0 && r.y < self.H) self.roadGrid[r.y][i2] = true;
+                }
+            });
+
+            this.solid = [];
+            for (var yy = 0; yy < this.H; yy++) {
+                var row = new Array(this.W);
+                for (var xx = 0; xx < this.W; xx++)
+                    row[xx] = !!(this.waterGrid[yy][xx] || this.mountainGrid[yy][xx]);
+                this.solid.push(row);
+            }
+            (ow.solid_regions || []).forEach(function (s) {
+                var r = s.rect;
+                for (var j3 = r[1]; j3 <= r[3]; j3++)
+                    for (var i3 = r[0]; i3 <= r[2]; i3++)
+                        if (j3 >= 0 && j3 < self.H && i3 >= 0 && i3 < self.W) self.solid[j3][i3] = true;
+            });
+
+            /* ── 调色板：绿 / 黄绿 / 黄 / 红 / 黑 / 白 / 灰 …… ── */
+            this.C_WATER = '#1E6A96';
+            this.C_ROAD = '#C9B37E';
+            this.C_BASE = '#5f9e4e';
+            this.REG_COLOR = {
+                nw_forest:  '#2e6e3b',  /* 深绿 · 密林 */
+                n_snow:     '#dce6ef',  /* 白 · 雪原 */
+                ne_pasture: '#8fbf54',  /* 黄绿 · 牧场 */
+                w_waste:    '#b8a06a',  /* 黄褐 · 荒原 */
+                c_plain:    '#6ca659',  /* 绿 · 平原 */
+                east_ridge: '#7d9384',  /* 灰绿 · 丘陵 */
+                sw_dungeon: '#241c30',  /* 黑 · 地牢 */
+                s_desert:   '#d8b25a',  /* 黄 · 沙漠 */
+                se_battle:  '#a4443f'   /* 红 · 战场 */
+            };
+        },
+
+        _colorAt: function (x, y) {
+            if (this.waterGrid[y][x]) return this.C_WATER;
+            if (this.roadGrid[y][x]) return this.C_ROAD;
+            var rg = this.regionByTile[y] ? this.regionByTile[y][x] : null;
+            if (rg) return this.REG_COLOR[rg.id] || this.C_BASE;
+            return this.C_BASE;
+        },
+
+        isSolid: function (tx, ty) {
+            if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) return true;
+            return this.solid[ty][tx];
+        },
+
+        /* ── 元素工厂 ── */
+        _plane: function (x, y, w, h, color, z) {
+            var p = document.createElement('iso-plane');
+            p.setAttribute('no-pointer', '');
+            p.setAttribute('x', String(x));
+            p.setAttribute('y', String(y));
+            p.setAttribute('z', String(z || 0));
+            p.setAttribute('width', String(w));
+            p.setAttribute('height', String(h));
+            p.setAttribute('color', color);
+            this.sceneEl.appendChild(p);
+            return p;
+        },
+
+        _cube: function (x, y, w, h, depth, top, front, right, z) {
+            var c = document.createElement('iso-cube');
+            c.setAttribute('no-pointer', '');
+            c.setAttribute('x', String(x));
+            c.setAttribute('y', String(y));
+            c.setAttribute('z', String(z || 0));
+            c.setAttribute('width', String(w));
+            c.setAttribute('height', String(h));
+            c.setAttribute('depth', String(depth));
+            c.setAttribute('top-color', top);
+            c.setAttribute('front-color', front);
+            c.setAttribute('right-color', right);
+            this.sceneEl.appendChild(c);
+            return c;
+        },
+
+        /* ── 仿射投影：格中心 → iso-scene 屏幕坐标 ── */
+        _project: function (gx, gy) {
+            var ix = gx * CELL, iy = gy * CELL;
+            return {
+                x: this.origin.x + (ix - iy) * COS_Z,
+                y: this.origin.y + (ix + iy) * SIN_ZX
+            };
+        },
+
+        /* ── 构建地面色块（逐行合并同色连续段，减少元素数） ── */
+        buildGround: function () {
+            for (var y = 0; y < this.H; y++) {
+                var x = 0;
+                while (x < this.W) {
+                    var color = this._colorAt(x, y);
+                    var x0 = x;
+                    x++;
+                    while (x < this.W && this._colorAt(x, y) === color) x++;
+                    var len = x - x0;
+                    this._plane((x0 + len / 2) * CELL, (y + 0.5) * CELL, len * CELL, CELL, color, 0);
+                }
+            }
+        },
+
+        _rng: function (x, y, salt) {
+            var h = (x * 374761393 + y * 668265263 + salt * 2246822519) | 0;
+            h = (h ^ (h >>> 13)) * 1274126177;
+            h = h ^ (h >>> 16);
+            return (h >>> 0) / 4294967295;
+        },
+
+        _regionIdAt: function (x, y) {
+            var rg = this.regionByTile[y] && this.regionByTile[y][x];
+            return rg ? rg.id : null;
+        },
+
+        /* ── 景观物体（散点，控制密度）── */
+        buildObjects: function () {
+            var density = 0.05;
+            var kindsBy = {
+                nw_forest:  ['pine', 'tree', 'grass', 'rock'],
+                n_snow:     ['snow', 'pine', 'snow', 'rock'],
+                ne_pasture: ['grass', 'tree', 'grass', 'rock'],
+                w_waste:    ['dead', 'rock', 'dune'],
+                c_plain:    ['tree', 'grass', 'rock', 'tree'],
+                east_ridge: ['rock', 'pine', 'rock'],
+                sw_dungeon: ['ruin', 'rock', 'dead'],
+                s_desert:   ['cacti', 'dune', 'rock'],
+                se_battle:  ['dead', 'rock', 'ruin']
+            };
+            for (var y = 0; y < this.H; y++) {
+                for (var x = 0; x < this.W; x++) {
+                    if (this.waterGrid[y][x] || this.mountainGrid[y][x] || this.solid[y][x]) continue;
+                    var rid = this._regionIdAt(x, y);
+                    var kinds = kindsBy[rid];
+                    if (!kinds) continue;
+                    if (this._rng(x, y, 1) > density) continue;
+                    var kind = kinds[Math.floor(this._rng(x, y, 2) * kinds.length)];
+                    var gx = x + 0.5, gy = y + 0.5;
+                    this._placeObject(kind, gx, gy, this._rng(x, y, 3));
+                }
+            }
+        },
+
+        _placeObject: function (kind, gx, gy, s) {
+            var CELL = this.CELL;
+            var cx = gx * CELL, cy = gy * CELL;
+            var scale = 0.6 + s * 0.7;
+            switch (kind) {
+                case 'tree':
+                case 'pine': {
+                    var trunkW = CELL * 0.22;
+                    this._cube(cx, cy, trunkW, trunkW, CELL * 0.30, '#6b4a2f', '#5a3d26', '#49321e', 0);
+                    this._cube(cx, cy, CELL * 0.6 * scale, CELL * 0.6 * scale, CELL * 0.6 * scale,
+                        kind === 'tree' ? '#4a8f3a' : '#2f6b3a',
+                        kind === 'tree' ? '#3a7430' : '#25592f',
+                        kind === 'tree' ? '#2c5c24' : '#1a4422', CELL * 0.28);
+                    break;
+                }
+                case 'snow': {
+                    var w = CELL * 0.5 * scale, d = CELL * 0.38 * scale;
+                    this._cube(cx, cy, w, w, d, '#ffffff', '#dfe9f2', '#b8ccdc', 0);
+                    if (this._rng(Math.round(gx * 10), Math.round(gy * 10), 9) < 0.4)
+                        this._cube(cx + CELL * 0.12, cy + CELL * 0.12, w * 0.7, w * 0.7, d * 0.6, '#ffffff', '#dfe9f2', '#b8ccdc', d * 0.4);
+                    break;
+                }
+                case 'rock':
+                case 'ruin': {
+                    var rw = CELL * 0.5 * scale, rd = CELL * 0.4 * scale;
+                    this._cube(cx, cy, rw, rw, rd, kind === 'ruin' ? '#7b6f64' : '#9a948c',
+                        kind === 'ruin' ? '#5f554c' : '#7e7870',
+                        kind === 'ruin' ? '#443d36' : '#615c55', 0);
+                    if (this._rng(Math.round(gx * 10), Math.round(gy * 10), 7) < 0.45)
+                        this._cube(cx + CELL * 0.28, cy + CELL * 0.16, rw * 0.6, rw * 0.6, rd * 0.7,
+                            kind === 'ruin' ? '#7b6f64' : '#9a948c',
+                            kind === 'ruin' ? '#5f554c' : '#7e7870',
+                            kind === 'ruin' ? '#443d36' : '#615c55', rd * 0.5);
+                    break;
+                }
+                case 'grass': {
+                    var gd = CELL * 0.18 * scale;
+                    this._cube(cx, cy, CELL * 0.5 * scale, CELL * 0.5 * scale, gd, '#7fc04e', '#66a53e', '#4f8330', 0);
+                    break;
+                }
+                case 'dead': {
+                    var dd = CELL * 0.14 * scale;
+                    this._cube(cx, cy, CELL * 0.5 * scale, CELL * 0.5 * scale, dd, '#9b8b5a', '#7d7047', '#5f5636', 0);
+                    break;
+                }
+                case 'cacti': {
+                    this._cube(cx, cy, CELL * 0.26, CELL * 0.26, CELL * 0.9 * scale, '#5a9040', '#4a7a35', '#3a6429', 0);
+                    this._cube(cx + CELL * 0.18, cy - CELL * 0.1, CELL * 0.34, CELL * 0.2, CELL * 0.16 * scale, '#5a9040', '#4a7a35', '#3a6429', CELL * 0.5 * scale);
+                    break;
+                }
+                case 'dune': {
+                    this._cube(cx, cy, CELL * 0.55 * scale, CELL * 0.55 * scale, CELL * 0.22 * scale, '#e0bb6a', '#c8a052', '#a98a40', 0);
+                    break;
+                }
+            }
+        },
+
+        /* ── 山脉叠岩 ── */
+        buildMountains: function () {
+            for (var y = 0; y < this.H; y++) {
+                for (var x = 0; x < this.W; x++) {
+                    if (!this.mountainGrid[y][x]) continue;
+                    if (this._rng(x, y, 5) > 0.55) continue;
+                    var cx = (x + 0.5) * this.CELL, cy = (y + 0.5) * this.CELL;
+                    var d = this.CELL * (0.55 + this._rng(x, y, 6) * 0.9);
+                    this._cube(cx, cy, this.CELL * 0.62, this.CELL * 0.62, d, '#8f8a82', '#726d65', '#57524a', 0);
+                }
+            }
+        },
+
+        /* ── 由地形网格计算地图包围盒（iso-scene 坐标）── */
+        _terrainRect: function () {
+            var o = this.origin;
+            /* 地面平面角度（z=0）下九宫旋转后的四角 */
+            var pts = [
+                { ix: 0, iy: 0 }, { ix: this.W * this.CELL, iy: 0 },
+                { ix: 0, iy: this.H * this.CELL }, { ix: this.W * this.CELL, iy: this.H * this.CELL }
+            ];
+            var l = 1e9, t = 1e9, r = -1e9, b = -1e9;
+            pts.forEach(function (p) {
+                var x = o.x + (p.ix - p.iy) * COS_Z;
+                var y = o.y + (p.ix + p.iy) * SIN_ZX;
+                if (x < l) l = x; if (x > r) r = x;
+                if (y < t) t = y; if (y > b) b = y;
+            });
+            return { l: l - this.CELL, t: t - this.CELL, r: r + this.CELL, b: b + this.CELL * 3,
+                     cx: (l + r) / 2, cy: (t + b) / 2 };
+        },
+
+        /* ── 3D 场景装配 ── */
+        buildScene: function () {
+            var vp = document.getElementById('iso-viewport');
+            var stage = document.getElementById('iso-stage');
+            var sceneEl = document.createElement('iso-scene');
+            sceneEl.setAttribute('perspective', '0');
+
+            var minSx = -83 * this.CELL * COS_Z;
+            var maxSx = 111 * this.CELL * COS_Z;
+            var maxSy = (111 + 83) * this.CELL * SIN_ZX;
+            var Wp = (maxSx - minSx) + MARGIN * 2;
+            var Hp = maxSy + MARGIN * 2 + this.CELL * 2;
+
+            this.CELL = CELL;
+            this.origin = { x: MARGIN - minSx, y: MARGIN };
+            sceneEl.setAttribute('origin-x', String(this.origin.x));
+            sceneEl.setAttribute('origin-y', String(this.origin.y));
+            sceneEl.setAttribute('width', String(Math.max(400, Wp)));
+            sceneEl.setAttribute('height', String(Math.max(320, Hp)));
+            sceneEl.style.width = Wp + 'px';
+            sceneEl.style.height = Hp + 'px';
+            sceneEl.id = 'iso-scene-el';
+
+            stage.style.width = Wp + 'px';
+            stage.style.height = Hp + 'px';
+            stage.innerHTML = '';
+            sceneEl.setAttribute('no-pointer', '');
+            stage.appendChild(sceneEl);
+
+            /* 标点图层（与 iso-scene 同坐标原点，平叠其上） */
+            var overlay = document.createElement('div');
+            overlay.id = 'iso-overlay';
+            overlay.style.width = Wp + 'px';
+            overlay.style.height = Hp + 'px';
+            stage.appendChild(overlay);
+
+            if (vp && vp.firstElementChild !== stage) {
+                while (vp.firstChild) vp.removeChild(vp.firstChild);
+                vp.appendChild(stage);
+            }
+
+            this.sceneEl = sceneEl;
+            this.stageEl = stage;
+            this.overlayEl = overlay;
+            this.containerW = Math.ceil(Wp);
+            this.containerH = Math.ceil(Hp);
+
+            this.buildGround();
+            this.buildObjects();
+            this.buildMountains();
+            this.buildPois();
+            this.buildPlayer();
+        },
+
+        /* ── POI 标点（光环=地面 decal，文字/emoji=叠加层）── */
+        buildPois: function () {
+            var self = this;
+            this.pois = [];
+            (this.ow.pois || []).forEach(function (p) {
+                var pt = self._project(p.x + 0.5, p.y + 0.5);
+                if (p.type === 'spawn') {
+                    self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 1.7, CELL * 1.7,
+                        'rgba(212,175,55,0.32)', 1);
+                    return;
+                }
+                var spine = p.type === 'realm' ? self._realmSpine(p.realm) : '#4ecdc4';
+                /* 地面光环（3D decal，平铺地面上） */
+                self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 2.6, CELL * 2.6,
+                    hexA(spine, 0.30), 1);
+                if (p.type === 'realm')
+                    self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 1.4, CELL * 1.4,
+                        hexA(spine, 0.4), 3.2);
+
+                /* emoji 立牌（叠加层） */
+                var emoji = document.createElement('div');
+                emoji.className = 'poi-emoji' + (p.type === 'realm' ? ' realm' : ' npc');
+                emoji.style.fontSize = (CELL * 1.15) + 'px';
+                emoji.style.lineHeight = '1';
+                emoji.style.left = (pt.x - CELL * 0.9) + 'px';
+                emoji.style.top = (pt.y - CELL * 1.35) + 'px';
+                emoji.style.width = (CELL * 1.8) + 'px';
+                emoji.style.height = (CELL * 1.8) + 'px';
+                emoji.textContent = p.emoji;
+                emoji.setAttribute('data-poi', p.id || '');
+                self.overlayEl.appendChild(emoji);
+
+                var entry = { poi: p, x: pt.x, y: pt.y, emoji: emoji };
+                if (p.type === 'realm') {
+                    var badge = document.createElement('div');
+                    badge.className = 'realm-badge';
+                    var bt = document.createElement('span');
+                    bt.textContent = '—';
+                    badge.appendChild(bt);
+                    badge.style.left = (pt.x - CELL * 0.9) + 'px';
+                    badge.style.top = (pt.y - CELL * 2.05) + 'px';
+                    badge.style.width = (CELL * 1.8) + 'px';
+                    self.overlayEl.appendChild(badge);
+                    entry.badge = badge;
+                    (self.badgePool = self.badgePool || []).push({
+                        realm: p.realm, el: badge, text: bt, done: false, sandbox: false
+                    });
+                }
+                self.pois.push(entry);
+            });
+            this._syncBadges((this.samsara || {}).realm_progress || {});
+        },
+
+        _realmSpine: function (realm) {
+            switch (realm) {
+                case 'heaven': return '#fff9c5';
+                case 'human':  return '#a8e6cf';
+                case 'animal': return '#ffd3b6';
+                case 'asura':  return '#ff6b6b';
+                case 'hungry': return '#795548';
+                case 'hell':   return '#7d3b86';
+                default:       return '#d4af37';
+            }
+        },
+
+        _syncBadges: function (realmProgress) {
+            var self = this;
+            var s = this.samsara || {};
+            var unlocked = s.sandbox_unlocked || [];
+            (this.badgePool || []).forEach(function (b) {
+                var rp = (realmProgress && realmProgress[b.realm]) || {};
+                var total = self._levelTotals && self._levelTotals[b.realm] !== undefined ? self._levelTotals[b.realm] : 5;
+                var passed = rp.levels_passed || 0;
+                b.done = !!rp.completed;
+                b.sandbox = unlocked.indexOf(b.realm) >= 0;
+                b.text.textContent = b.done ? ('✓ 已通关' + (b.sandbox ? ' 🔒' : '')) : (passed + ' / ' + total);
+                b.text.style.color = b.done ? '#0a9396' : '#f4c542';
+                b.el.classList.toggle('realm-done', !!b.done);
+            }, this);
+        },
+
+        /* ── 玩家 ── */
+        buildPlayer: function () {
+            var init = (this.ow.player && this.ow.player.initial) || { x: 58, y: 46 };
+            this.playerPos = { x: init.x + 0.5, y: init.y + 0.5 };
+            this.facing = 1;
+            this.moving = false;
+            this.walkPhase = 0;
+            this.closestPoi = null;
+            this.playerSpeed = (this.ow.player && this.ow.player.speed) || 3.2;
+
+            var pd = document.createElement('div');
+            pd.className = 'player-marker';
+            pd.innerHTML = '<span class="player-shade"></span><span class="player-avatar">☯</span>';
+            this.overlayEl.appendChild(pd);
+            this.playerEl = pd;
+            this.updatePlayerMarker(true);
+        },
+
+        updatePlayerMarker: function (fast) {
+            var pt = this._project(this.playerPos.x, this.playerPos.y);
+            var el = this.playerEl;
+            el.style.left = (pt.x - CELL * 0.8) + 'px';
+            el.style.top = (pt.y - CELL * 1.15) + 'px';
+            var av = el.querySelector('.player-avatar');
+            if (av) {
+                if (this.facing < 0) av.style.transform = 'scaleX(-1)';
+                if (this.moving) { this.walkPhase += 0.6; }
+                av.style.marginTop = (this.moving ? Math.abs(Math.sin(this.walkPhase)) * -6 : 0) + 'px';
+            }
+        },
+
+        /* ── 相机 ── */
+        setupCamera: function () {
+            var oldTz;
+            var c = this.cam = {
+                zoom: 0.6, vw: window.innerWidth, vh: window.innerHeight,
+                tx: 0, ty: 0, ttx: 0, tty: 0, tz: 0.6
+            };
+            var vp = document.getElementById('iso-viewport');
+            if (vp) { c.vw = vp.clientWidth; c.vh = vp.clientHeight; }
+            this._onResize = (function () {
+                var cc = this.cam;
+                cc.vw = document.getElementById('iso-viewport').clientWidth;
+                cc.vh = document.getElementById('iso-viewport').clientHeight;
+                this.cameraFit();
+            }).bind(this);
+            window.addEventListener('resize', this._onResize);
+            this.cameraFit();
+        },
+
+        cameraFit: function () {
+            var c = this.cam;
+            var r = this._terrainRect();
+            var pad = 70;
+            var w = r.r - r.l, h = r.b - r.t;
+            var zoom = Math.min((c.vw - pad * 2) / w, (c.vh - pad * 2) / h);
+            zoom = Math.max(0.1, Math.min(zoom, 1.1));
+            c.tz = zoom; c.zoom = zoom;
+            c.ttx = c.vw / 2 - r.cx * c.zoom;
+            c.tty = c.vh / 2 - r.cy * c.zoom;
+            c.tx = c.ttx; c.ty = c.tty;
+            this.applyCamera(true);
+        },
+
+        applyCamera: function (instant) {
+            var c = this.cam;
+            var stage = this.stageEl;
+            if (!stage) return;
+            var tx = instant ? c.ttx : c.tx;
+            var ty = instant ? c.tty : c.ty;
+            var z = instant ? c.zoom : c.zoom;
+            stage.style.transformOrigin = '0 0';
+            stage.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + z + ')';
+        },
+
+        zoomBy: function (f) {
+            var c = this.cam;
+            var target = Math.max(0.08, Math.min(2.4, c.zoom * f));
+            var cx = c.vw / 2, cy = c.vh / 2;
+            var rx = (cx - c.tx) / c.zoom, ry = (cy - c.ty) / c.zoom;
+            c.zoom = target;
+            c.tx = cx - rx * target;
+            c.ty = cy - ry * target;
+            this.applyCamera(true);
+        },
+
+        /* ── 主循环：移动 / 互动 / 相机跟随 ── */
+        step: function (dt) {
+            if (!this.playerEl) return;
+            var paused = !!(UI && UI.isModalOpen());
+            var keys = this.keys || {};
+            var dx = 0, dy = 0;
+            if (!paused) {
+                if (keys['ArrowLeft'] || keys['a']) dx -= 1;
+                if (keys['ArrowRight'] || keys['d']) dx += 1;
+                if (keys['ArrowUp'] || keys['w']) dy -= 1;
+                if (keys['ArrowDown'] || keys['s']) dy += 1;
+            }
+            if (dx !== 0 || dy !== 0) {
+                var inv = Math.hypot(dx, dy);
+                this.moving = true;
+                var spd = this.playerSpeed * dt;
+                if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
+                this._moveAxis((dx / inv) * spd, (dy / inv) * spd);
+            } else {
+                this.moving = false;
+            }
+            this.updatePlayerMarker();
+            if (!paused) this._updateInteraction();
+            if (!paused && this.ePressed) { this._onInteract(); this.ePressed = false; }
+        },
+
+        _moveAxis: function (mx, my) {
+            var nx = this.playerPos.x + mx;
+            if (!this._willCollide(nx, this.playerPos.y)) this.playerPos.x = nx;
+            var ny = this.playerPos.y + my;
+            if (!this._willCollide(this.playerPos.x, ny)) this.playerPos.y = ny;
+        },
+
+        _willCollide: function (gx, gy) {
+            var r = 0.28;
+            var r0 = Math.floor(gx - r), r1 = Math.floor(gx + r);
+            var c0 = Math.floor(gy - r), c1 = Math.floor(gy + r);
+            return this.isSolid(r0, c0) || this.isSolid(r1, c0) ||
+                   this.isSolid(r0, c1) || this.isSolid(r1, c1);
+        },
+
+        _updateInteraction: function () {
+            var self = this;
+            var reach = (this.ow.player && this.ow.player.interact_tiles) || 1.5;
+            var closest = null, minD = reach + 1;
+            this.pois.forEach(function (entry) {
+                var d = Math.hypot(entry.poi.x - self.playerPos.x, entry.poi.y - self.playerPos.y);
+                if (d <= reach && d < minD) { minD = d; closest = entry; }
+            });
+            this.closestPoi = closest;
+            var prev = this.activePoi;
+            var activeId = closest ? closest.poi.id : null;
+            (this.pois).forEach(function (e) {
+                if (e.emoji) e.emoji.classList.toggle('active', e.poi.id === activeId);
+            });
+            this.activePoi = activeId;
+            if (closest && UI) {
+                var lbl = closest.poi.type === 'realm'
+                    ? ('前往 ' + (REALM_NAMES[closest.poi.realm] || closest.poi.realm))
+                    : (closest.poi.label || '互动');
+                UI.setInteractHint(lbl);
+            } else if (UI) {
+                UI.setInteractHint(null);
+            }
+        },
+
+        _onInteract: function () {
+            var entry = this.closestPoi;
+            if (!entry || !UI) return;
+            if (entry.poi.type === 'realm') UI.openRealmSelect(entry.poi.realm);
+            else if (entry.poi.type === 'npc') UI.openSkillTree();
+            else if (entry.poi.type === 'spawn') { if (UI.toast) UI.toast('生灭台：这里是旅途的起点。'); }
+        },
+
+        bindInput: function () {
+            var self = this;
+            this.keys = {};
+            window.addEventListener('keydown', function (e) {
+                var k = e.key, lk = k.toLowerCase();
+                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].indexOf(k) >= 0) e.preventDefault();
+                if (lk === 'e') self.ePressed = true;
+                self.keys[lk] = true;
+                if (k === '+' || k === '=') { self.zoomBy(1.35); e.preventDefault(); }
+                else if (k === '-' || k === '_') { self.zoomBy(1 / 1.35); e.preventDefault(); }
+            });
+            window.addEventListener('keyup', function (e) {
+                self.keys[e.key.toLowerCase()] = false;
+            });
+            var zin = document.getElementById('btn-zoom-in');
+            var zout = document.getElementById('btn-zoom-out');
+            if (zin) zin.addEventListener('click', function () { self.zoomBy(1.35); });
+            if (zout) zout.addEventListener('click', function () { self.zoomBy(1 / 1.35); });
+        },
+
+        start: function () {
+            var self = this;
+            this.setupCamera();
+            this.bindInput();
+            var last = performance.now();
+            function loop(now) {
+                var dt = Math.min(0.05, (now - last) / 1000);
+                last = now;
+                self.step(dt);
+                /* 相机跟随 + 平滑 */
+                var c = self.cam;
+                var p = self._project(self.playerPos.x, self.playerPos.y);
+                var psx = p.x * c.zoom + c.tx;
+                var psy = p.y * c.zoom + c.ty;
+                var margin = 0.22;
+                var driftX = 0, driftY = 0;
+                if (psx < c.vw * margin) driftX = c.vw * margin - psx;
+                else if (psx > c.vw * (1 - margin)) driftX = c.vw * (1 - margin) - psx;
+                if (psy < c.vh * margin) driftY = c.vh * margin - psy;
+                else if (psy > c.vh * (1 - margin)) driftY = c.vh * (1 - margin) - psy;
+                var ex = c.ttx + (driftX || 0), ey = c.tty + (driftY || 0);
+                c.tx += (ex - c.tx); c.ty += (ey - c.ty);
+                self.applyCamera(false);
+                requestAnimationFrame(loop);
+            }
+            requestAnimationFrame(loop);
+        }
+    };
+
+    /* ── 工具：hex → rgba 字符串 ── */
+    function hexA(hex, a) {
+        var n = parseInt(hex.replace('#', ''), 16);
+        var r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+        return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+    }
+
+    function boot() {
+        var game = window.OverworldGame = OverworldGame;
+        if (window.OverworldUI) {
+            window.OverworldUI.init(game);
+            UI = window.OverworldUI;
+        }
+        fetch('/api/overworld/config')
+            .then(function (r) { return r.json(); })
+            .then(function (ow) {
+                if (!ow || !ow.world) { if (UI) UI.showError('大陆配置加载失败，请重试'); return; }
+                game.bootstrapGeometry(ow);
+                game._fetchGamesAndState();
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        game.buildScene();
+                        game.start();
+                    });
+                });
+                if (UI) UI.refreshHUD();
+                setTimeout(function () { if (UI) UI.removeLoading(); }, 600);
+                game.startPolling();
+            })
+            .catch(function () { if (UI) UI.showError('大陆配置加载失败，请重试'); });
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();

@@ -1,4 +1,4 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v1.2
+# 棋圣·六道轮回 —— RPG化技术执行方案 v1.3
 
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
@@ -14,7 +14,7 @@
 ### 1.2 核心系统
 | 系统 | 职责 | 关键文件 |
 | --- | --- | --- |
-| **六道大陆（剧情模式入口）** | 2.5D 顶视角自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键） | `hub/overworld.html` `hub/overworld.js` `hub/overworld-ui.js` `configs/overworld.json` |
+| **六道大陆（剧情模式入口）** | 2.5D 等距自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键） | `hub/overworld.html` `hub/overworld-iso.js` `hub/overworld-ui.js` `configs/overworld.json` |
 | 剧情数据管理 | 集中存储角色、六道、关卡、结局、记忆碎片数据 | `configs/story.json` |
 | 关卡推进（线性） | 道内 5-6 个关卡，胜利推进 levels_passed；整道通关解锁沙盒（取消节点路径制） | `samsara/levels.py` `samsara/progression.py` `samsara/state.py` |
 | 选择系统 | 处理玩家在关卡中的分支选择，影响四维属性 | `samsara/choices.py` |
@@ -541,7 +541,7 @@ app.mount("/story", story_router)
 - [ ] 二周目功能正常：记忆碎片与结局记录保留，其余状态重置。
 
 ### 8.4 六道大陆（剧情模式入口）
-- [ ] `GET /overworld` 返回 200 并正确加载 Phaser 3 场景（`scene=overworld`, `sceneActive=true`）。
+- [ ] `GET /overworld` 返回 200 并正确加载 iso-engine 等距场景（`#iso-scene` 已注入、`window.OverworldGame` 就绪）。
 - [ ] `GET /api/overworld/config` 返回 overworld.json 权威内容，字段合法（world / tilesets / regions / roads / decor_plant / water_overlays / mountain_overlays / river_snow / river_ridge / pois / player）。
 - [ ] 大陆瓦片覆盖：所有 112×84 瓦片均归属至少一个区域；POI 瓦片在合法范围且非实体（solid=false）。
 - [ ] 六道入口 ×6、技能 NPC ×1、生灭台 ×1，总数正确；每个 POI 均能被交互命中（_updateInteraction 识别 closestPoi）。
@@ -551,13 +551,15 @@ app.mount("/story", story_router)
 
 ---
 
-## 九、六道大陆（Phaser 3）实现规范
+## 九、六道大陆（iso-engine）实现规范
 
 ### 9.1 物理与渲染
-- **引擎**：Phaser 3 v3.87（本地单文件 `hub/vendor/phaser.min.js`），Canvas/WebGL 自适应。
-- **逻辑尺寸**：游戏逻辑视口 1280×720，大陆世界尺寸 3584×2688（112×84 瓦片 × 32px/tile，16px 原瓦片 × 2 倍 scale）。
-- **烘焙**：`baseRt` + `waterRt` + `mountainRt` + `decorRt` 四张 RenderTexture 分层离线烘焙，底图只绘制一次，运行时仅移动相机和动态物体（玩家 / halo / 徽章）。
-- **相机**：`cameras.main` 跟随玩家 container，线性插值 0.10；世界边界与物理边界与视觉世界等大。
+- **引擎**：iso-engine v0.1.1（本地模块 `hub/vendor/iso-engine/isometric-engine.js`，CSS 3D Transform / Lit Web Components），浏览器自动深度排序；无显式烘焙层。
+- **逻辑尺寸**：大陆世界 112×84 瓦片，等距渲染 CELL=30px；`iso-scene` 原点由 `origin-x / origin-y` 对齐，舞台随相机 translate + scale。
+- **地面**：逐行合并同色连续段生成 829 个 `iso-plane` 色块（REG_COLOR 主题：绿/黄绿/黄/红/黑/白/灰），水域/道路/山脉以 `iso-plane`/`iso-cube` 叠色。
+- **景观物体**：依 `KIND_BY_REGION` 以 `_rng(x,y,salt)` 确定性散布 iso-cube（岩石/草丛/松树/阔叶树/雪堆/沙丘/仙人掌/枯木/废墟），三面明暗自带光影。
+- **相机**：视口 `#iso-viewport`，相机 zoom + translate（`applyCamera`），跟随玩家保持既定边距，+/- 缩放。
+- **光影**：立方体三面明暗（库内置 shadow-overlay）+ 屏幕环境光 / 暗角（`#iso-lighting`）合成层次。
 
 ### 9.2 碰撞与几何
 - **碰撞网格**：`solid[H][W]` 由 `buildSolidGrid` 预计算，水体、山脉、装饰锚点、配置 `solid_regions` 均为实体。
@@ -572,12 +574,12 @@ app.mount("/story", story_router)
 ### 9.4 POI 与交互
 - **六道入口**：Emoji 徽章 + 金色呼吸光圈（0xd4af37 外发光 + 主题色内晕），tween 缩放 1.0 ↔ 1.15。
 - **技能 NPC**：🧙 菩提老者 + 发光光圈，触发时打开 `skill-tree-modal`。
-- **E 键互动**：Phaser `Keyboard.JustDown(keyE)` → `_onInteract` → realm 调 `UI.openRealmSelect(realm)`；npc 调 `UI.openSkillTree()`。
+- **E 键互动**：键盘 `keydown` 捕获 → `_onInteract` → realm 调 `UI.openRealmSelect(realm)`；npc 调 `UI.openSkillTree()`。
 - **8s 轮询**：`startPolling()` 每 8 秒刷新 Samsara 状态（levels_passed / completed / sandbox_unlocked），更新徽章与 HUD。
 
 ### 9.5 配置与接口
 - 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回，由启动器挂载在 main.py 的 FastAPI 应用。
-- 前端运行路径：`hub/overworld.html` → `overworld-ui.js`（Overlay UI）+ `overworld.js`（Phaser 场景）。
+- 前端运行路径：`hub/overworld.html` → `overworld-ui.js`（Overlay UI）+ `overworld-iso.js`（iso-engine 场景）。
 - 测试：`tests/test_overworld.py` 校验 JSON 结构与覆盖，`tests/test_samsara_linear.py` 校验线性推进/沙盒解锁/API 回归。
 
 ---

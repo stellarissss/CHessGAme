@@ -1,8 +1,8 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.2 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.3 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
-以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。大陆底图采用 **Phaser 3 纯色轮廓渲染**（单 Graphics 一次性绘制，极快加载），仅保留逻辑、大陆轮廓与各入口，底图贴图待后续手动制作（当前为占位纯色）。
+以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。大陆采用 **iso-engine（CSS 3D Transform / Lit Web Components）等距渲染**——地面以「色块」区分景观（绿 / 黄绿 / 黄 / 红 / 黑 / 白 / 灰），水域 / 道路 / 山脉叠色，并依区域散布岩石 / 草丛 / 各类树木 / 雪堆 / 沙丘 / 仙人掌 / 废墟等 3D 景观物体，辅以立方体三面明暗 + 屏幕环境光 / 暗角营造光影层次；玩家与六道入口 / POI 标点以「DOM Overlay + 仿射投影」始终正面朝向地叠于 3D 场景之上。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -14,10 +14,10 @@
 
 **探索架构**
 
-- 地图尺寸 112 × 84 瓦片，视觉尺寸 3584 × 2688（每瓦片 16px × 2 倍渲染）。
+- 地图尺寸 112 × 84 瓦片，等距渲染（CELL=30px），配色以区域主题色块区分景观（绿/黄绿/黄/红/黑/白/灰）。
 - 九大地理区域：北境雪原、西北密林、幽邃湾、中央平原、东部丘陵、南部沙漠、西南地牢、东南石林、怒涛海岸。
-- 非规则大陆形状：天然海域 / 河流 / 山脉屏障分割地域，半岛、海湾、谷地错落分布。
-- 碰撞系统：水域与山脉（岩石地貌）为天然不可通行区域，`solid_regions` 可额外指定阻挡区。当前为纯色轮廓占位底图，装饰贴图待后续手动制作。
+- 非规则大陆形状：天然海域 / 河流 / 山脉屏障分割地域，半岛、海湾、谷地错落分布，均以色块 + 叠色映射。
+- 碰撞系统：水域与山脉（岩石地貌）为天然不可通行区域，`solid_regions` 可额外指定阻挡区；玩家按格中心 + 半径碰撞判定。
 
 **六道入口（大陆角落，金色呼吸光圈引导）**
 
@@ -236,7 +236,7 @@
                     │  ├ RPG 对话 / 记忆 / Boss战    │
                     │  └ 六道大陆                     │
                     │    hub/overworld.html          │
-                    │    hub/overworld.js (Phaser 3) │
+                    │    hub/overworld-iso.js (等距) │
                     │    hub/overworld-ui.js (DOM)   │
                     └──────────────┬────────────────┘
                                    │ FastAPI
@@ -256,19 +256,21 @@
   └─────────────┘           └──────────────┘          └─────────────┘
 ```
 
-**六道大陆（Phaser 3 · 纯色轮廓渲染）**
+**六道大陆（iso-engine · 等距色块渲染）**
 
 ```
 地图数据 → configs/overworld.json
-├ world:  112×84 瓦片 / tile=16px / scale=2 → 视觉 3584×2688
-├ tilesets: town / farm / battle / dungeon (Kenney CC0，占位待手动贴图)
-├ regions: 九大区域 + 子区域（纯色底图使用的 REG_COLOR 主题色）
-├ water_overlays / river_snow / river_ridge: 非规则水域/河流
-├ mountain_overlays: 非规则山脉屏障
-├ roads: 连接 POI 的道路（roadGrid 布尔网格，O(1) 查询）
-├ pois: 6 个 realm 入口 + 1 个 skill NPC + 1 个 spawn 生灭台
-└ player: initial / speed / radius_px / interact_tiles
+├ world:  112×84 瓦片，等距渲染（CELL=30px）
+├ tilesets: town / farm / battle / dungeon（Kenney CC0 atlas，地图主体改用等距色块）
+├ regions: 九大区域 + 子区域（REG_COLOR 主题色块：绿/黄绿/黄/红/黑/白/灰）
+├ water_overlays / river_snow / river_ridge: 非规则水域/河流（蓝色叠层）
+├ mountain_overlays: 非规则山脉屏障（灰岩立方体）
+├ roads: 连接 POI 的道路（米色道路格）
+├ pois: 6 个 realm 入口 + 1 个 skill NPC + 1 个 spawn 生灭台（DOM Overlay 标点）
+└ player: initial / speed / radius_px / interact_tiles（格中心 + 半径碰撞）
 ```
+
+大陆景观物体依区域主题散布（岩石 / 草丛 / 松树 / 阔叶树 / 雪堆 / 沙丘 / 仙人掌 / 枯木 / 废墟），以 iso-cube 三面明暗呈现；光影由屏幕环境光 + 暗角（`#iso-lighting`）合成。
 
 ### 每棋类统一骨架
 
@@ -364,10 +366,11 @@ workspace/
 │
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
-│   ├── overworld.html           # ★ 六道大陆页（Phaser 3 · 游戏容器 + DOM HUD）
-│   ├── overworld.js             # ★ 大陆渲染：纯色轮廓底图 + 四向玩家 + 碰撞 + POI
+│   ├── overworld.html           # ★ 六道大陆页（iso-engine 等距舞台 + DOM HUD）
+│   ├── overworld-iso.js         # ★ 大陆渲染：等距色块地面 + 景观物体 + 光影 + 玩家/碰撞/POI
 │   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
-│   ├── vendor/phaser.min.js     # Phaser 3 (v3.87, 本地单文件)
+│   ├── vendor/iso-engine/       # iso-engine v0.1.1（CSS 3D Transform 等距引擎）
+│   ├── _dev_server.py           # 开发用轻量静态服务器（沙盒验证，非成品）
 │   ├── achievements.html        # 成就殿堂
 │   ├── dialogue.html            # RPG 剧情对话系统
 │   ├── dialogue.js              # 打字机/立绘/选择面板逻辑
@@ -492,7 +495,7 @@ workspace/
 | 方法 | 路径 | 说明 |
 |:----:|:-----|:-----|
 | GET | `/` | 轮回之门首页（标题页） |
-| GET | `/overworld` | **六道大陆 · 剧情模式大地图**（Phaser 3 场景） |
+| GET | `/overworld` | **六道大陆 · 剧情模式大地图**（iso-engine 等距场景） |
 | GET | `/api/overworld/config` | 六道大陆权威 JSON 配置（regions / tilesets / POI / 地形） |
 | GET | `/achievements` | 成就殿堂 |
 | GET | `/api/games` | 获取六棋类列表（含端口和 URL） |
@@ -528,15 +531,15 @@ workspace/
 
 | 层 | 技术 |
 |:---|:-----|
-| **大地图前端** | Phaser 3 (v3.87, 本地单文件) · 纯色轮廓渲染（单 Graphics）· Container 玩家精灵 · 预计算碰撞网格 |
+| **大地图前端** | iso-engine v0.1.1（CSS 3D Transform / Lit Web Components）· 等距色块地面 + iso-cube 景观物体 · DOM Overlay 标点 · 预计算碰撞网格 |
 | **UI / HUD** | 原生 HTML + CSS (DOM Overlay) · 无障碍弹窗 · A11y 焦点圈陷阱 |
 | **对局前端** | 原生 Web Components + Shadow DOM |
-| **大地图像素资产** | Kenney Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon (CC0) |
+| **大地图像素资产** | Kenney Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon (CC0，atlas 留存、地图主体用等距色块) |
 | **后端** | FastAPI + Uvicorn（多进程架构） |
 | **AI** | DeepSeek（deepseek-chat / deepseek-v4-flash），两级流水线 |
 | **配置修改** | RFC 6902 JSON Patch + JSON Schema |
 | **存档** | JSON 文件持久化（`configs/samsara_state.json`） |
-| **测试** | pytest + FastAPI TestClient；大地图 DOM-over-Phaser 用 Playwright 端到端验证 |
+| **测试** | pytest + FastAPI TestClient；大地图 DOM-over-等距渲染用浏览器端到端验证 |
 
 ---
 

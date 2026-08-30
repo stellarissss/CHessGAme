@@ -30,6 +30,30 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #game-container { position: fixed; inset: 0; z-index: 1; }
 #game-container canvas { display: block; }
 
+/* ── iso-engine 等距舞台 ── */
+#iso-viewport {
+    position: absolute; inset: 0; overflow: hidden;
+    transform: translateZ(0);
+}
+#iso-viewport.iso-drag { cursor: grabbing; }
+#iso-stage {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0; will-change: transform;
+}
+#iso-overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+/* ── 屏幕空间光影 ── */
+#iso-lighting { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+#iso-lighting .ambient {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 62% 48% at 46% 30%, rgba(255,244,214,0.20), rgba(0,0,0,0) 75%);
+    mix-blend-mode: screen;
+}
+#iso-lighting .vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 105% 100% at 50% 46%, rgba(0,0,0,0) 52%, rgba(4,4,6,0.46) 100%);
+}
+
 /* ── DOM Overlay ── */
 .ow-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 .ow-radio { pointer-events: auto; }
@@ -242,7 +266,17 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 </style>
 </head>
 <body>
-<div id="game-container" role="application" aria-label="六道大陆大地图"></div>
+<div id="game-container" role="application" aria-label="六道大陆大地图">
+    <!-- iso-engine 等距 3D 舞台 -->
+    <div id="iso-viewport">
+        <div id="iso-stage"></div>
+    </div>
+    <!-- 屏幕空间光影：环境光 + 暗角 -->
+    <div id="iso-lighting" aria-hidden="true">
+        <div class="ambient"></div>
+        <div class="vignette"></div>
+    </div>
+</div>
 
 <div class="ow-overlay" id="ow-root">
     <!-- 顶部 HUD -->
@@ -313,8 +347,7 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
     </div>
 </div>
 
-<script src="/static/vendor/phaser.min.js"></script>
-<script src="/static/overworld.js"></script>
 <script src="/static/overworld-ui.js"></script>
+<script type="module" src="/static/overworld-iso.js"></script>
 </body>
 </html>
