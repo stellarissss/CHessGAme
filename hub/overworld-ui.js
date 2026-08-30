@@ -367,7 +367,15 @@
                     return;
                 }
                 var port = GAME_PORT_MAP[realm] || 8000;
-                location.href = '/play?realm=' + encodeURIComponent(realm) + '&port=' + port;
+                if (isSandbox) {
+                    // 沙盒模式：跳过剧情，直达对局
+                    location.href = '/play?realm=' + encodeURIComponent(realm) + '&port=' + port;
+                } else {
+                    // 剧情模式：先播放本关战前剧情，再进入棋局（PvZ 式关卡剧情）
+                    // story.json 关卡 id 为 1 起，overworld 的 levelIndex 为 0 起
+                    location.href = '/dialogue?mode=level&realm=' + encodeURIComponent(realm) +
+                        '&level=' + (levelIndex + 1) + '&port=' + port;
+                }
             })
             .catch(function () { toast('启动关卡失败，请重试'); });
     }

@@ -220,6 +220,7 @@
 - **道内推进**：每道由 5-6 个预制关卡组成，最后一关为守道者 Boss。进入关卡后胜利则 `levels_passed += 1`，可挑战下一关；失败不推进，可随时重试。
 - **整道通关**：完成本道最后一关（Boss 战胜利），该道标记为 `completed`，自动解锁对应棋类的**沙盒模式**入口。
 - **自由选关**：取消节点路径制，道内关卡以线性列表展示在选关弹窗中（完成 ✓ / 当前 ▶ / 锁定 🔒）。玩家可在大陆自由穿梭，顺序不做强制规定。
+- **剧情前导（植物大战僵尸式）**：进入任一关（含 Boss）后先播放本关剧情——每关打开一张「任务面板」写明关卡**背景**与**目标**，再进入人物对白（本境反转者 vs 林夜），随后自动载入棋局对弈；胜利后返回大地图。剧情文本只读 `configs/story.json`，改对白/立绘无需改代码。
 
 ---
 
@@ -268,14 +269,6 @@
 ├ pois: 6 个 realm 入口 + 1 个 skill NPC + 1 个 spawn 生灭台
 └ player: initial / speed / radius_px / interact_tiles
 ```
-
-**地图编辑器（`map-editor/`）**
-- 独立、离线的可视化工具，用「点、拖、涂」的画笔方式制作/重制 `overworld.json`。
-- 支持导入现有配置 → 编辑 → 导出/写回 `configs/overworld.json`，供游戏直接替换。
-- 输出兼容游戏解析器（已扩展支持任意形状区域 `rects[]`、矩形道路 `rect`、区域自定义 `color`）。
-- 使用：`python map-editor/serve.py` -> `http://localhost:5173/map-editor/`；
-  或经游戏主服务 `python main.py` -> `/map-editor/`（并支持「写入 configs」一键写盘）。
-- 详细玩法见 `map-editor/README.md`。
 
 ### 每棋类统一骨架
 
@@ -433,14 +426,6 @@ workspace/
 ├── scripts/
 │   └── build_map_atlas.py       # ★ Kenney 瓦片打包 → shared/assets/map/atlas/
 │
-├── map-editor/                  # ★ 六道大陆地图编辑器（独立工具，见下方「地图编辑器」）
-│   ├── index.html               # 编辑器入口（可视化涂画 / 拖拽 / 导出）
-│   ├── js/                      # 编辑核心 + 矩形压缩几何工具
-│   ├── css/style.css
-│   ├── template/overworld.json  # 大陆原始配置模板
-│   ├── assets/atlas/            # 游戏贴图副本
-│   └── serve.py                 # 本地静态服务器（python serve.py）
-│
 ├── xiangqi/                     # 人道·象棋（端口 8000）
 ├── wuziqi/                      # 天道·五子棋（端口 8001）
 ├── weiqi/                       # 阿修罗·围棋（端口 8002）
@@ -509,8 +494,6 @@ workspace/
 | GET | `/` | 轮回之门首页（标题页） |
 | GET | `/overworld` | **六道大陆 · 剧情模式大地图**（Phaser 3 场景） |
 | GET | `/api/overworld/config` | 六道大陆权威 JSON 配置（regions / tilesets / POI / 地形） |
-| POST | `/api/overworld/save` | **地图编辑器**: 把新的大陆配置写回 `configs/overworld.json` |
-| GET | `/map-editor/*` | **地图编辑器** 独立静态资源（可视化制作大陆配置） |
 | GET | `/achievements` | 成就殿堂 |
 | GET | `/api/games` | 获取六棋类列表（含端口和 URL） |
 | GET | `/api/health` | 健康检查 |
@@ -564,6 +547,21 @@ workspace/
 ### 剧情背景
 
 林夜靠作弊赢了好友陈默无数次。某天一阵眩晕，他坠入六道轮回。在这里，他发现了更方便的作弊方式——**真心祈求**时天道会回应（对应游戏中的 AI 修改）。但每次祈求都暗藏代价：天道可能**识破**他作弊成性的本质。
+
+### 每关剧情（33 关 · 含 6 Boss）
+
+为让每关如同《植物大战僵尸》般在开局即讲清来龙去脉，`configs/story.json` 每个关卡均含一份独立的剧情数据，全部由 `story.json` 驱动（改对白/立绘即生效，无需碰代码）：
+
+| 字段 | 说明 |
+|:-----|:-----|
+| `description` | 本关**背景**：此境现状、事件起因、反转者/引导者的话语铺垫 |
+| `objective` | 本关**目标**：玩家在本局必须达成的事（剧情 + 棋理双层表述） |
+| `dialogues` | 战前对白序列：`{speaker, portrait, text}`，场次按序播放 |
+| `dialogues_after` | Boss 战后对白（战斗结束后继续剧情的旁白/反转者独白） |
+| `choices` | 道选择（Boss 战后的 alignment 取舍） |
+| `guide_whisper` | 天道低语（隐藏的映照提示） |
+
+**进入流程**：选关 → `POST /api/levels/start` → `/dialogue?mode=level&realm=&level=&port=` → 先弹「任务面板」（背景 + 目标）→ 播放本关人物对白 → 自动进入 `/play` 棋局对弈 → 胜利后返回大地图。Boss 关则在战前对白后用独立窗口进入棋局，胜利后回对话页播放战后对白与道选择。
 
 ### 核心机制
 

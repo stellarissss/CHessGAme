@@ -294,6 +294,61 @@
             text-shadow: 0 0 20px rgba(212,175,55,0.5);
         }
         .whisper-text.show { opacity: 0.8; }
+
+        /* 关卡任务面板：每关开场展示背景与目标（PvZ 式） */
+        .mission-panel {
+            position: absolute;
+            top: 120px; left: 50%;
+            transform: translateX(-50%);
+            width: min(680px, 88vw);
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(212,175,55,0.5);
+            border-radius: 14px;
+            padding: 28px 34px;
+            z-index: 6;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+            display: none;
+            text-align: center;
+        }
+        .mission-panel.active { display: block; animation: slideUp 0.5s ease; }
+        .mission-kicker {
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 16px;
+            color: var(--accent-gold);
+            letter-spacing: 0.2em;
+            margin-bottom: 6px;
+        }
+        .mission-label {
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 22px;
+            color: var(--accent-gold);
+            margin: 18px 0 8px;
+        }
+        .mission-body {
+            font-size: 16px;
+            line-height: 1.9;
+            color: var(--text-main);
+            text-align: left;
+            background: rgba(10,10,18,0.45);
+            border-radius: 8px;
+            padding: 14px 18px;
+        }
+        .mission-objective .mission-body { color: #f0e6c8; }
+        .mission-start {
+            margin-top: 22px;
+            padding: 12px 40px;
+            border: 1px solid var(--accent-gold);
+            background: transparent;
+            color: var(--accent-gold);
+            font-family: 'Ma Shan Zheng', serif;
+            font-size: 18px;
+            letter-spacing: 0.1em;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .mission-start:hover { background: var(--accent-gold); color: var(--bg-dark); }
     </style>
 </head>
 <body class="dialogue-body">
@@ -308,6 +363,16 @@
     <div class="dialogue-scene" id="dialogue-scene">
         <div class="prayer-overlay" id="prayer-overlay"></div>
         <div class="dialogue-characters" id="dialogue-characters"></div>
+        <div class="mission-panel" id="mission-panel">
+            <div class="mission-kicker" id="mission-kicker"></div>
+            <div class="mission-label">本关背景</div>
+            <div class="mission-body" id="mission-desc"></div>
+            <div class="mission-objective">
+                <div class="mission-label">本关目标</div>
+                <div class="mission-body" id="mission-objective"></div>
+            </div>
+            <button class="mission-start" id="mission-start" type="button">开战 ▶</button>
+        </div>
         <div class="dialogue-box" id="dialogue-box" style="display:none;">
             <div class="speaker-name" id="speaker-name"></div>
             <div class="dialogue-text" id="dialogue-text"></div>

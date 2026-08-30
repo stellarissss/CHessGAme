@@ -98,7 +98,7 @@
             this.BAKE_W = this.W * this.TILE;
             this.BAKE_H = this.H * this.TILE;
 
-            /* 区域归属：支持单个 rect 或 rects[]（地图编辑器导出的任意形状） */
+            /* 区域归属：支持单个 rect 或 rects[]（任意形状区域） */
             this.regionByTile = [];
             for (var i = 0; i < this.H; i++) this.regionByTile.push(new Array(this.W));
             ow.regions.forEach((function (rg) {

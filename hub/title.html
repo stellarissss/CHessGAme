@@ -142,7 +142,7 @@
         </header>
 
         <section class="title-mode-grid">
-            <a href="/overworld" class="mode-card story">
+            <a href="/overworld" id="link-story" class="mode-card story">
                 <div class="mode-icon">🗺️</div>
                 <h2 class="mode-name">剧情模式</h2>
                 <div class="mode-sub">Story Mode</div>
@@ -172,5 +172,21 @@
             <p class="hero-meta">棋圣 ChessSage · v1.4</p>
         </footer>
     </main>
+
+    <script>
+        // 首次进入剧情模式时自动播放序章；已看过则直达六道大陆。
+        (function () {
+            var link = document.getElementById('link-story');
+            if (!link) return;
+            fetch('/samsara/story/api/story/progress')
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    var seen = !!(data && data.progress && data.progress.prologue_seen);
+                    if (!seen) link.href = '/dialogue?mode=prologue';
+                    else link.href = '/overworld';
+                })
+                .catch(function () { link.href = '/overworld'; });
+        })();
+    </script>
 </body>
 </html>

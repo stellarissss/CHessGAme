@@ -42,7 +42,43 @@
             realm: params.get('realm') || 'hell',
             level: params.get('level') || '1',
             mode: params.get('mode') || 'level', // level / prologue
+            port: params.get('port') || '',
         };
+    }
+
+    // ── 进入对局使用的端口：优先用 overworld 传入的 port，否则按棋种映射 ──
+    function resolvePort() {
+        const port = getParams().port;
+        if (port) return port;
+        const gameType = (levelData && levelData.game_type) || (realmData && realmData.game_type) || currentRealm;
+        const gamePorts = {
+            heibaiqi: 8005, tiaoqi: 8004, dongwuqi: 8003,
+            xiangqi: 8000, weiqi: 8002, wuziqi: 8001,
+        };
+        return gamePorts[gameType] || '';
+    }
+
+    // ── 是否 Boss 关卡 ──
+    function isBossLevel() {
+        return !!(levelData && levelData.type === 'boss');
+    }
+
+    // ── 任务面板（本关背景 / 目标） ──
+    function isMissionOpen() {
+        const p = document.getElementById('mission-panel');
+        return !!(p && p.classList.contains('active'));
+    }
+    function showMission() {
+        document.getElementById('mission-kicker').textContent =
+            `${realmData.name || currentRealm} · ${levelData.title || ''}`;
+        document.getElementById('mission-desc').textContent = levelData.description || '';
+        document.getElementById('mission-objective').textContent = levelData.objective || '';
+        document.getElementById('mission-panel').classList.add('active');
+        document.getElementById('dialogue-box').style.display = 'none';
+    }
+    function closeMission() {
+        document.getElementById('mission-panel').classList.remove('active');
+        showNextDialogue();
     }
 
     // ── 初始化 ──
@@ -111,7 +147,12 @@
             }
 
             dialogueIndex = 0;
-            showNextDialogue();
+            // 每关先展示本关背景/目标任务面板，玩家确认后再进入剧情对白（PvZ 式）
+            if (levelData.description || levelData.objective) {
+                showMission();
+            } else {
+                showNextDialogue();
+            }
         } catch (e) {
             console.error('加载对话失败:', e);
         }
@@ -521,18 +562,12 @@
     // useNewTab=false / 默认 → 当前页面跳转（普通关卡用）
     function enterGame(useNewTab = false) {
         if (!levelData) return;
-        // game_type 优先级：levelData.game_type → realmData.game_type → currentRealm
-        const gameType = levelData.game_type || (realmData && realmData.game_type) || currentRealm;
-        const gamePorts = {
-            heibaiqi: 8005, tiaoqi: 8004, dongwuqi: 8003,
-            xiangqi: 8000, weiqi: 8002, wuziqi: 8001,
-        };
-        const port = gamePorts[gameType];
+        const port = resolvePort();
         if (!port) {
-            console.error('未知的 game_type:', gameType);
+            console.error('未知的 game_type / 端口:', levelData.game_type);
             return;
         }
-        const gameUrl = `http://${window.location.hostname}:${port}/`;
+        const gameUrl = `/play?realm=${encodeURIComponent(currentRealm)}&port=${port}`;
         if (useNewTab) {
             window.open(gameUrl, '_blank', 'noopener');
         } else {
@@ -560,12 +595,34 @@
             return;
         }
 
-        // 显示完成提示
+        // 非剧情语言专属：以下仅适用于进入剧情模式的关卡
+        if (!currentRealm) {
+            return;
+        }
+
+        // Boss 关卡：整场剧情（战前/战后/选择）已走完，完成框即可（战斗发生在独立窗口）
+        if (isBossLevel()) {
+            showLevelComplete();
+            return;
+        }
+
+        // 普通关卡（PvZ 式）：剧情讲完后进入棋局对局，再返回大地图
+        const port = resolvePort();
+        if (!port) {
+            showLevelComplete();
+            return;
+        }
+        window.location.href = `/play?realm=${encodeURIComponent(currentRealm)}&port=${port}`;
+    }
+
+    // ── 完成框（Boss / 无法进入对局时的兜底） ──
+    function showLevelComplete() {
         const box = document.getElementById('dialogue-box');
         box.innerHTML = `
             <div style="text-align:center; padding:20px;">
                 <div style="font-size:20px; color:var(--accent-gold); margin-bottom:12px;">剧情完成</div>
                 <div style="font-size:14px; color:var(--text-dim); margin-bottom:20px;">点击进入下一关或返回总坛</div>
+                <a href="/overworld?r=${Date.now()}" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; margin-right:12px;">返回大地图</a>
                 <a href="/hub" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px;">返回总坛</a>
             </div>
         `;
@@ -609,6 +666,7 @@
         const box = document.getElementById('dialogue-box');
 
         function handleNext() {
+            if (isMissionOpen()) { closeMission(); return; }
             if (isTyping) {
                 skipTypewriter();
             } else if (!choicesShown) {
@@ -616,6 +674,7 @@
             }
         }
 
+        document.getElementById('mission-start').addEventListener('click', handleNext);
         nextBtn.addEventListener('click', handleNext);
         box.addEventListener('click', handleNext);
 
