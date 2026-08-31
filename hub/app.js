@@ -442,6 +442,9 @@ function initSkillTreeModal() {
 }
 
 // ═══ 玩法教程弹窗 ═══
+// 仅首次进入总坛自动弹出；已读后置为 localStorage 标记，但仍可通过悬浮按钮随时查看
+const TUTORIAL_READ_KEY = "samsara_tutorial_read";
+
 function initTutorialModal() {
     const btn = document.getElementById("tutorial-btn");
     const modal = document.getElementById("tutorial-modal");
@@ -449,7 +452,10 @@ function initTutorialModal() {
     if (!btn || !modal || !closeBtn) return;
 
     const open = () => modal.classList.add("active");
-    const close = () => modal.classList.remove("active");
+    const close = () => {
+        modal.classList.remove("active");
+        try { localStorage.setItem(TUTORIAL_READ_KEY, "1"); } catch (e) {}
+    };
 
     btn.addEventListener("click", open);
     closeBtn.addEventListener("click", close);
@@ -468,9 +474,11 @@ async function init() {
     // 事件 + 按钮先初始化（这样第一次加载数据后任何跨页事件都能响应）
     initEventListeners();
 
-    // 玩法教程：每次进入总坛自动弹出一次（可关闭，另有常驻悬浮按钮可随时打开）
+    // 玩法教程：首次进入总坛自动弹出一次；已读则不再打扰（悬浮按钮可随时打开）
     const tutorial = initTutorialModal();
-    if (tutorial) setTimeout(() => tutorial.open(), 500);
+    let tutorialRead = false;
+    try { tutorialRead = localStorage.getItem(TUTORIAL_READ_KEY) === "1"; } catch (e) {}
+    if (tutorial && !tutorialRead) setTimeout(() => tutorial.open(), 500);
     // 等待 DOM 就绪再挂载按钮（确保 rpg-overview 存在）
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initResetButtons, { once: true });

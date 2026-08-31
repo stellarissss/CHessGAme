@@ -45,6 +45,24 @@
             <button class="filter-btn" data-cat="meta">元成就</button>
         </nav>
 
+        <div class="ach-tools">
+            <input type="search" id="ach-search" class="ach-search" placeholder="🔍 搜索成就名称 / 描述…" autocomplete="off">
+            <div class="ach-selects">
+                <select id="filter-rarity" class="ach-select" aria-label="按稀有度筛选">
+                    <option value="all">稀有度 · 全部</option>
+                    <option value="common">普通</option>
+                    <option value="rare">稀有</option>
+                    <option value="legendary">传说</option>
+                </select>
+                <select id="filter-status" class="ach-select" aria-label="按状态筛选">
+                    <option value="all">状态 · 全部</option>
+                    <option value="unlocked">已解锁</option>
+                    <option value="locked">未解锁</option>
+                </select>
+            </div>
+            <span class="ach-count" id="ach-count"></span>
+        </div>
+
         <section class="ach-grid" id="ach-grid">
             <div class="loading-text">正在加载成就数据…</div>
         </section>

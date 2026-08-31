@@ -51,6 +51,10 @@
         dom.hint = $('interact-hint');
         dom.hintKey = $('interact-key');
         dom.hintLabel = $('interact-label');
+        dom.guide = $('realm-guide');
+        dom.guideArrow = $('realm-guide-arrow');
+        dom.guideName = $('realm-guide-name');
+        dom.guideDist = $('realm-guide-dist');
         dom.loading = $('loading-overlay');
         dom.loadingText = $('loading-text');
         dom.error = $('error-overlay');
@@ -157,6 +161,22 @@
         } else {
             dom.hint.classList.remove('visible');
         }
+    }
+
+    /* ── 最近入口引导（罗盘浮标）── */
+    function setRealmGuide(info) {
+        if (!dom.guide) return;
+        if (!info || !info.name) {
+            dom.guide.classList.remove('visible');
+            return;
+        }
+        dom.guideName.textContent = info.name + '道';
+        dom.guideDist.textContent = (info.dist != null ? Math.round(info.dist) : '?') + ' 格';
+        if (info.arrow && dom.guideArrow) {
+            dom.guideArrow.textContent = info.arrow;
+            dom.guideArrow.style.transform = (info.angle != null) ? 'rotate(' + info.angle + 'deg)' : '';
+        }
+        dom.guide.classList.add('visible');
     }
 
     /* ── Toast ── */
@@ -527,6 +547,7 @@
         setRealmBadge: setRealmBadge,
         refreshHUD: refreshHUD,
         setInteractHint: setInteractHint,
+        setRealmGuide: setRealmGuide,
         openRealmSelect: openRealmSelect,
         openSkillTree: openSkillTree,
         toast: toast,

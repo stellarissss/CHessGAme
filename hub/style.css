@@ -177,6 +177,20 @@ body {
 }
 
 /* 卡片网格 */
+.grid-cap {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 8px 0 22px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+.grid-cap > span:first-child {
+    font-family: var(--font-display);
+    font-size: 22px; color: var(--paper); letter-spacing: 0.05em;
+}
+.grid-cap-hint {
+    font-family: var(--font-tech);
+    font-size: 12px; color: var(--text-muted); letter-spacing: 0.08em;
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -314,8 +328,8 @@ body {
 .card-desc {
     font-size: 14px;
     color: var(--text-muted);
-    margin: 0 0 24px;
-    min-height: 72px;
+    margin: 0 0 20px;
+    min-height: 52px;
 }
 
 .card-footer {

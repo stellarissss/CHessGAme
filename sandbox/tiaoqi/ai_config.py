@@ -3,6 +3,7 @@
 确保模型名称、API 地址、密钥等配置的一致性
 """
 import json
+import os
 from pathlib import Path
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
@@ -21,7 +22,10 @@ SAMSARA_API_URL = "http://localhost:8080"
 
 
 def get_api_key() -> str:
-    """从 config.json 读取 API 密钥（向上搜索多级目录，兼容 shared/ 与 sandbox 棋类两种位置）"""
+    """读取 API 密钥：优先环境变量 DEEPSEEK_API_KEY，其次回落 config.json（向上搜索多级目录）"""
+    env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if env_key:
+        return env_key
     here = Path(__file__).resolve()
     candidates = [
         here.parent / "config.json",                      # 同目录（sandbox 棋类自带）

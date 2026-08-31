@@ -1,5 +1,6 @@
 import json
 import asyncio
+import os
 import httpx
 from pathlib import Path
 from .state import SamsaraState
@@ -65,6 +66,10 @@ class KarmaAssessor:
         self._cache = {}
 
     def _load_api_key(self):
+        # 优先使用环境变量注入的密钥，避免明文密钥随仓库提交
+        env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        if env_key:
+            return env_key
         if CONFIG_FILE.exists():
             try:
                 config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))

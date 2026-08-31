@@ -32,6 +32,9 @@ var GAME_LABELS = {
 
 var allAchievements = [];
 var currentFilter = "all";
+var currentRarity = "all";
+var currentStatus = "all";
+var currentSearch = "";
 
 function init() {
     fetch("/api/achievements")
@@ -47,7 +50,7 @@ function init() {
                 '<div class="loading-text">加载失败，请刷新重试</div>';
         });
 
-    // 筛选按钮
+    // 分类筛选按钮
     document.querySelectorAll(".filter-btn").forEach(function (btn) {
         btn.addEventListener("click", function () {
             document.querySelectorAll(".filter-btn").forEach(function (b) {
@@ -57,6 +60,17 @@ function init() {
             currentFilter = btn.getAttribute("data-cat");
             render();
         });
+    });
+
+    // P3-⑨ 稀有度 / 状态筛选 + 文本搜索
+    var raritySel = document.getElementById("filter-rarity");
+    var statusSel = document.getElementById("filter-status");
+    var searchBox = document.getElementById("ach-search");
+    if (raritySel) raritySel.addEventListener("change", function () { currentRarity = raritySel.value; render(); });
+    if (statusSel) statusSel.addEventListener("change", function () { currentStatus = statusSel.value; render(); });
+    if (searchBox) searchBox.addEventListener("input", function () {
+        currentSearch = (searchBox.value || "").trim().toLowerCase();
+        render();
     });
 }
 
@@ -70,12 +84,23 @@ function render() {
     var grid = document.getElementById("ach-grid");
     grid.innerHTML = "";
 
-    var filtered = currentFilter === "all"
-        ? allAchievements
-        : allAchievements.filter(function (a) { return a.category === currentFilter; });
+    var filtered = allAchievements.filter(function (a) {
+        if (currentFilter !== "all" && a.category !== currentFilter) return false;
+        if (currentRarity !== "all" && a.rarity !== currentRarity) return false;
+        if (currentStatus === "unlocked" && !a.unlocked) return false;
+        if (currentStatus === "locked" && a.unlocked) return false;
+        if (currentSearch) {
+            var hay = ((a.name || "") + " " + (a.desc || "")).toLowerCase();
+            if (hay.indexOf(currentSearch) < 0) return false;
+        }
+        return true;
+    });
+
+    var countEl = document.getElementById("ach-count");
+    if (countEl) countEl.textContent = "匹配 " + filtered.length + " / " + allAchievements.length;
 
     if (filtered.length === 0) {
-        grid.innerHTML = '<div class="loading-text">该分类暂无成就</div>';
+        grid.innerHTML = '<div class="loading-text">没有符合条件的成就</div>';
         return;
     }
 

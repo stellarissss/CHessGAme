@@ -335,6 +335,16 @@
             padding: 14px 18px;
         }
         .mission-objective .mission-body { color: #f0e6c8; }
+        .mission-struct {
+            margin-top: 10px; padding: 8px 14px;
+            font-size: 13px; letter-spacing: 0.03em;
+            color: var(--accent-gold);
+            background: rgba(212,175,55,0.08);
+            border: 1px dashed rgba(212,175,55,0.4);
+            border-radius: 6px;
+            text-align: center;
+        }
+        .mission-struct:empty { display: none; }
         .mission-start {
             margin-top: 22px;
             padding: 12px 40px;
@@ -370,6 +380,7 @@
             <div class="mission-objective">
                 <div class="mission-label">本关目标</div>
                 <div class="mission-body" id="mission-objective"></div>
+                <div class="mission-struct" id="mission-struct"></div>
             </div>
             <button class="mission-start" id="mission-start" type="button">开战 ▶</button>
         </div>

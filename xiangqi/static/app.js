@@ -3225,8 +3225,9 @@ class XiangqiBoard extends HTMLElement {
         const maxKarma = state.karma_max || 150;
         const detection = state.detection || 0;
         const currentTurn = state.current_turn || 0;
-        const maxTurns = state.turn_limit || 20;
-        const objective = state.objective || { description: '将死对方' };
+        const maxTurns = (this.levelInfo && this.levelInfo.turn_limit) || state.level_turn_limit || 20;
+        const objectiveDesc = (this.levelInfo && this.levelInfo.objective && (this.levelInfo.objective.description || this.levelInfo.objective.text)) || (this.levelInfo && this.levelInfo.description) || (state.objective && state.objective.description) || '将死对方';
+        const objective = { description: objectiveDesc };
 
         const karmaFill = this.shadowRoot.getElementById('karma-fill');
         const karmaValue = this.shadowRoot.getElementById('karma-value');

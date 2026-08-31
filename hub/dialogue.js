@@ -75,6 +75,36 @@
         document.getElementById('mission-objective').textContent = levelData.objective || '';
         document.getElementById('mission-panel').classList.add('active');
         document.getElementById('dialogue-box').style.display = 'none';
+        // P3-⑦ 增补结构化目标：胜利条件 + 回合限制（与选关弹窗口径一致）
+        fillStructuredGoal();
+    }
+
+    /* 由关卡配置的结构化 objective / turn_limit 生成一行简洁机制目标 */
+    function fillStructuredGoal() {
+        const el = document.getElementById('mission-struct');
+        if (!el) return;
+        el.textContent = '';
+        // 本关索引（story 接口的 currentLevel 为 1 起，levels 数组以 0 起）
+        const idx = (parseInt(currentLevel, 10) || 1) - 1;
+        fetch(`${API_BASE}/samsara/api/levels/realm/${encodeURIComponent(currentRealm)}`)
+            .then(r => r.json())
+            .then(data => {
+                const levels = (data && data.levels) || [];
+                const lv = levels[idx] || levels.find(l => (l.id || '') === (levelData && levelData.id)) || {};
+                const parts = [];
+                const obj = lv.objective || {};
+                const type = obj.type;
+                if (type === 'checkmate') parts.push('胜利条件：将死对方');
+                else if (type === 'capture_count') parts.push(`胜利条件：累计吃掉对方 ${obj.target || 15} 枚子`);
+                else if (type === 'stalemate') parts.push('胜利条件：逼和/困毙对方');
+                else if (type === 'five_in_a_row') parts.push('胜利条件：连成五子');
+                else if (type === 'no_moves') parts.push('胜利条件：对方无子可走');
+                else if (obj) parts.push('胜利条件：按对局规则取胜');
+                if (lv.turn_limit) parts.push(`回合限制：${lv.turn_limit} 手内`);
+                el.textContent = parts.join('  ·  ');
+                if (parts.length) el.parentNode && el.parentNode.classList.remove('hidden');
+            })
+            .catch(() => {});
     }
     function closeMission() {
         document.getElementById('mission-panel').classList.remove('active');
@@ -622,7 +652,7 @@
             <div style="text-align:center; padding:20px;">
                 <div style="font-size:20px; color:var(--accent-gold); margin-bottom:12px;">剧情完成</div>
                 <div style="font-size:14px; color:var(--text-dim); margin-bottom:20px;">点击进入下一关或返回总坛</div>
-                <a href="/overworld?r=${Date.now()}" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; margin-right:12px;">返回大地图</a>
+                <a href="/overworld?r=${Date.now()}&backrealm=${encodeURIComponent(currentRealm || 'hell')}" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; margin-right:12px;">返回大地图</a>
                 <a href="/hub" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px;">返回总坛</a>
             </div>
         `;

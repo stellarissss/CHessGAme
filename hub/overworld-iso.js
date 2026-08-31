@@ -371,13 +371,13 @@ import './vendor/iso-engine/isometric-engine.js';
             var sceneEl = document.createElement('iso-scene');
             sceneEl.setAttribute('perspective', '0');
 
+            this.CELL = CELL;
             var minSx = -83 * this.CELL * COS_Z;
             var maxSx = 111 * this.CELL * COS_Z;
             var maxSy = (111 + 83) * this.CELL * SIN_ZX;
             var Wp = (maxSx - minSx) + MARGIN * 2;
             var Hp = maxSy + MARGIN * 2 + this.CELL * 2;
 
-            this.CELL = CELL;
             this.origin = { x: MARGIN - minSx, y: MARGIN };
             sceneEl.setAttribute('origin-x', String(this.origin.x));
             sceneEl.setAttribute('origin-y', String(this.origin.y));
@@ -585,6 +585,42 @@ import './vendor/iso-engine/isometric-engine.js';
             this.applyCamera(true);
         },
 
+        /* 推近相机并居中到某格（出生点），兼顾视野完整与玩家可见 */
+        centerOn: function (gx, gy, zoom) {
+            var c = this.cam;
+            var p = this._project(gx, gy);
+            var z = zoom;
+            if (!z) {
+                z = Math.max(0.9, Math.min(c.vw, c.vh) / 620);
+                z = Math.max(0.45, Math.min(z, 1.8));
+            }
+            c.zoom = z; c.tz = z;
+            c.ttx = c.vw / 2 - p.x * z;
+            c.tty = c.vh / 2 - p.y * z - 20;
+            c.tx = c.ttx; c.ty = c.tty;
+            this.applyCamera(true);
+        },
+
+        /* 返回地图时按 realm 回填导航：推近相机到该道入口并短暂高亮 */
+        focusRealm: function (realm) {
+            if (!realm || !this.pois) return;
+            var target = null;
+            this.pois.forEach(function (e) {
+                if (!target && e.poi.type === 'realm' && e.poi.realm === realm) target = e;
+            });
+            if (!target) return;
+            this.centerOn(target.poi.x + 0.5, target.poi.y + 0.5, 0.95);
+            var emoji = target.emoji;
+            if (emoji) {
+                emoji.style.transition = 'filter .4s, transform .4s';
+                emoji.classList.add('realm-focus');
+                setTimeout(function () {
+                    emoji.classList.remove('realm-focus');
+                    emoji.style.transition = '';
+                }, 1600);
+            }
+        },
+
         /* ── 主循环：移动 / 互动 / 相机跟随 ── */
         step: function (dt) {
             if (!this.playerEl) return;
@@ -608,6 +644,7 @@ import './vendor/iso-engine/isometric-engine.js';
             }
             this.updatePlayerMarker();
             if (!paused) this._updateInteraction();
+            if (!paused) this._updateRealmGuide();
             if (!paused && this.ePressed) { this._onInteract(); this.ePressed = false; }
         },
 
@@ -651,6 +688,36 @@ import './vendor/iso-engine/isometric-engine.js';
             }
         },
 
+        /* 最近入口引导：计算距玩家最近的六道入口，给出方向箭头 + 距离 */
+        _updateRealmGuide: function () {
+            if (!UI || !UI.setRealmGuide || !this.pois) return;
+            var self = this;
+            var best = null, bestD = Infinity;
+            this.pois.forEach(function (entry) {
+                if (entry.poi.type !== 'realm') return;
+                var d = Math.max(
+                    Math.abs((entry.poi.x + 0.5) - self.playerPos.x),
+                    Math.abs((entry.poi.y + 0.5) - self.playerPos.y)
+                );
+                if (d < bestD) { bestD = d; best = entry; }
+            });
+            /* 已站在某个道门前（互动提示条接管）则隐藏罗盘 */
+            if (this.closestPoi && this.closestPoi.poi.type === 'realm') {
+                UI.setRealmGuide(null);
+                return;
+            }
+            if (!best) { UI.setRealmGuide(null); return; }
+
+            /* 屏幕空间方向：以玩家到入口的投影差换算箭头指向 */
+            var c = this.cam;
+            var pp = this._project(this.playerPos.x, this.playerPos.y);
+            var px = pp.x * c.zoom + c.tx, py = pp.y * c.zoom + c.ty;
+            var ex = best.x * c.zoom + c.tx, ey = best.y * c.zoom + c.ty;
+            var deg = Math.round(Math.atan2(ey - py, ex - px) * 180 / Math.PI);
+            var name = REALM_NAMES[best.poi.realm] || best.poi.realm;
+            UI.setRealmGuide({ name: name, dist: Math.round(bestD), arrow: '➤', angle: deg });
+        },
+
         _onInteract: function () {
             var entry = this.closestPoi;
             if (!entry || !UI) return;
@@ -682,25 +749,29 @@ import './vendor/iso-engine/isometric-engine.js';
         start: function () {
             var self = this;
             this.setupCamera();
+            // 默认推近相机到出生点，而非缩放整幅地图（保证玩家标记即时可见）
+            this.centerOn(this.playerPos.x, this.playerPos.y);
             this.bindInput();
             var last = performance.now();
             function loop(now) {
                 var dt = Math.min(0.05, (now - last) / 1000);
                 last = now;
                 self.step(dt);
-                /* 相机跟随 + 平滑 */
+                /* 相机跟随：玩家越过安全区边缘时，平滑回中 */
                 var c = self.cam;
                 var p = self._project(self.playerPos.x, self.playerPos.y);
                 var psx = p.x * c.zoom + c.tx;
                 var psy = p.y * c.zoom + c.ty;
-                var margin = 0.22;
+                var margin = 0.24;
                 var driftX = 0, driftY = 0;
                 if (psx < c.vw * margin) driftX = c.vw * margin - psx;
                 else if (psx > c.vw * (1 - margin)) driftX = c.vw * (1 - margin) - psx;
                 if (psy < c.vh * margin) driftY = c.vh * margin - psy;
                 else if (psy > c.vh * (1 - margin)) driftY = c.vh * (1 - margin) - psy;
                 var ex = c.ttx + (driftX || 0), ey = c.tty + (driftY || 0);
-                c.tx += (ex - c.tx); c.ty += (ey - c.ty);
+                var k = 1 - Math.pow(0.0001, dt); // 帧率无关的阻尼插值
+                c.tx += (ex - c.tx) * k;
+                c.ty += (ey - c.ty) * k;
                 self.applyCamera(false);
                 requestAnimationFrame(loop);
             }
@@ -727,10 +798,17 @@ import './vendor/iso-engine/isometric-engine.js';
                 if (!ow || !ow.world) { if (UI) UI.showError('大陆配置加载失败，请重试'); return; }
                 game.bootstrapGeometry(ow);
                 game._fetchGamesAndState();
+                // 对局返回大地图时按 realm 回填导航（推近到该道入口）
+                var backRealm = (function () {
+                    try { return new URLSearchParams(location.search).get('backrealm'); } catch (e) { return null; }
+                })();
                 requestAnimationFrame(function () {
                     requestAnimationFrame(function () {
                         game.buildScene();
                         game.start();
+                        if (backRealm) {
+                            setTimeout(function () { game.focusRealm(backRealm); }, 60);
+                        }
                     });
                 });
                 if (UI) UI.refreshHUD();

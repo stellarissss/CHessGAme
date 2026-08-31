@@ -58,6 +58,58 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .ow-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 .ow-radio { pointer-events: auto; }
 
+/* ── 等距叠加标点（相对 #iso-overlay 定位）── */
+.poi-emoji {
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center; pointer-events: none;
+    filter: drop-shadow(0 5px 6px rgba(0,0,0,0.6));
+    z-index: 20;
+}
+.poi-emoji.realm { animation: realmPulse 2.2s ease-in-out infinite; }
+.poi-emoji.active { animation: none; filter: drop-shadow(0 0 12px #ffffff) drop-shadow(0 0 6px rgba(255,255,255,0.9)); }
+.poi-emoji.realm-focus { animation: none !important; transform: scale(1.5); filter: drop-shadow(0 0 18px #ffffff) drop-shadow(0 0 10px gold); }
+@keyframes realmPulse {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%      { transform: translateY(-4px) scale(1.06); }
+}
+.realm-badge {
+    position: absolute;
+    text-align: center; font-size: 15px;
+    color: var(--gold); letter-spacing: 0.02em;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.85);
+    z-index: 21; pointer-events: none;
+}
+.realm-badge.realm-done { color: var(--jade); }
+
+/* ── 玩家标记 ── */
+.player-marker {
+    position: absolute; width: 0; height: 0;
+    pointer-events: none; z-index: 40;
+}
+.player-shade {
+    position: absolute; left: -20px; top: -10px;
+    width: 40px; height: 12px; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(0,0,0,0.48), rgba(0,0,0,0) 70%);
+}
+.player-avatar {
+    position: absolute; left: -23px; top: -44px;
+    width: 46px; height: 46px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 30px; line-height: 1;
+    color: #ffe08a;
+    background: radial-gradient(circle, rgba(212,175,55,0.32), rgba(15,15,22,0.62) 72%);
+    border: 2px solid rgba(255,224,138,0.9);
+    border-radius: 50%;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.6), 0 0 20px rgba(212,175,55,0.45);
+    transform-origin: 50% 100%;
+    animation: playerFloat 2.4s ease-in-out infinite;
+}
+@keyframes playerFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-3px); }
+}
+
 /* HUD 顶部 */
 #hud {
     position: absolute; top: 0; left: 0; right: 0;
@@ -110,6 +162,41 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 #interact-label { color: var(--paper); letter-spacing: 0.03em; }
 @keyframes hintPop { from { opacity: 0; transform: translateX(-50%) translateY(8px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes ePulse { 0%,100% { box-shadow: 0 0 14px rgba(212,175,55,.35);} 50% { box-shadow: 0 0 22px rgba(212,175,55,.7);} }
+
+/* ── 最近入口引导（罗盘浮标） ── */
+#realm-guide {
+    position: absolute; right: 22px; top: 78px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 16px 8px 12px; border-radius: 14px;
+    background: linear-gradient(135deg, rgba(30,28,18,.82), rgba(16,16,20,.82));
+    border: 1px solid rgba(212,175,55,.28);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    color: var(--paper); font-size: 13px; letter-spacing: 0.04em;
+    opacity: 0; transform: translateY(-6px) scale(.97);
+    pointer-events: none; transition: opacity .35s, transform .35s;
+    z-index: 45;
+}
+#realm-guide.visible { opacity: 1; transform: translateY(0) scale(1); }
+#realm-guide-arrow {
+    font-size: 22px; line-height: 1; color: var(--gold);
+    filter: drop-shadow(0 0 8px rgba(212,175,55,.5));
+    width: 26px; text-align: center;
+    transition: transform .25s ease;
+}
+.realm-guide-body { display: flex; flex-direction: column; line-height: 1.35; }
+#realm-guide-name { color: var(--paper); font-weight: 600; }
+#realm-guide-dist { color: var(--text-muted); font-size: 11px; letter-spacing: 0.06em; }
+#realm-guide-ring {
+    position: absolute; inset: -4px; border-radius: 16px;
+    border: 1px solid rgba(212,175,55,.22);
+    animation: guidePing 2.6s ease-out infinite;
+}
+@keyframes guidePing {
+    0%   { opacity: .9; transform: scale(.96); }
+    70%  { opacity: 0;  transform: scale(1.06); }
+    100% { opacity: 0;  transform: scale(1.06); }
+}
 
 /* ── 通用弹窗外壳 ── */
 .modal {
@@ -296,6 +383,13 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 
     <!-- 底部互动提示条 -->
     <div id="interact-hint"><span id="interact-key">E</span><span id="interact-label"></span></div>
+
+    <!-- 最近入口引导（罗盘浮标） -->
+    <div id="realm-guide" aria-live="polite">
+        <span id="realm-guide-arrow">↗</span>
+        <span class="realm-guide-body"><span id="realm-guide-name">人道</span><span id="realm-guide-dist">8 格</span></span>
+        <span id="realm-guide-ring" aria-hidden="true"></span>
+    </div>
 
     <!-- 总览弹窗 -->
     <div class="modal" id="overview-modal" role="dialog" aria-modal="true" aria-labelledby="overview-title">
