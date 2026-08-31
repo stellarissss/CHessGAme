@@ -28,6 +28,7 @@ import './vendor/iso-engine/isometric-engine.js';
     var SIN_ZX = Math.SQRT1_2 * 0.5;
     var CELL = 30;          // 每格等距边长（像素）
     var MARGIN = 10 * CELL; // 地图四边留白
+    var EXPLORED_KEY = 'chesssage_ow_explored'; // 本地探索存档键
 
     var OverworldGame = {
         _levelTotals: {},
@@ -332,6 +333,51 @@ import './vendor/iso-engine/isometric-engine.js';
             }
         },
 
+        /* ── 沙盒训练场：聚合多面体（CSS 3D）──
+           阶梯塔式演武平台，矗立四柱，顶缀金灯。沙漠色调呼应纯净棋境。 */
+        _placeSandboxStructure: function (gx, gy) {
+            var CELL = this.CELL;
+            var cx = gx * CELL, cy = gy * CELL;
+
+            /* 地面金光涟漪（decal） */
+            this._plane(cx, cy, CELL * 3.4, CELL * 3.4, 'rgba(212,175,55,0.18)', 1);
+
+            /* 基座平台：沙岩 */
+            var pw = CELL * 2.8, pd = CELL * 0.3;
+            this._cube(cx, cy, pw, pw, pd, '#d8b25a', '#c8a052', '#a98a40', 0);
+
+            /* 四角立柱 */
+            var pill = 0.28;
+            var offs = CELL * 1.2;
+            var corners = [
+                [cx - offs, cy - offs], [cx + offs, cy - offs],
+                [cx - offs, cy + offs], [cx + offs, cy + offs]
+            ];
+            var self = this;
+            corners.forEach(function (c) {
+                self._cube(c[0], c[1], CELL * pill, CELL * pill, CELL * 1.35,
+                    '#8a5a2b', '#75491f', '#5f3918', pd);
+            });
+
+            /* 中央阶梯塔（下 上 中 三层，逐级收拢升顶） */
+            var z = pd;
+            var l1 = CELL * 1.7, h1 = CELL * 0.42;
+            this._cube(cx, cy, l1, l1, h1, '#d7ccc8', '#bcaaa4', '#a1887f', z); z += h1;
+            var l2 = CELL * 1.2, h2 = CELL * 0.4;
+            this._cube(cx, cy, l2, l2, h2, '#d7ccc8', '#bcaaa4', '#a1887f', z); z += h2;
+            var l3 = CELL * 0.72, h3 = CELL * 0.4;
+            this._cube(cx, cy, l3, l3, h3, '#d9c9a7', '#bda77f', '#9a875f', z); z += h3;
+
+            /* 顶灯：金珠小塔 */
+            this._cube(cx, cy, CELL * 0.34, CELL * 0.34, CELL * 0.34,
+                '#d4af37', '#b38e2c', '#8f6f24', z);
+            /* 立柱顶部金珠 */
+            corners.forEach(function (c) {
+                self._cube(c[0], c[1], CELL * 0.2, CELL * 0.2, CELL * 0.2,
+                    '#d4af37', '#b38e2c', '#8f6f24', pd + CELL * 1.35);
+            });
+        },
+
         /* ── 山脉叠岩 ── */
         buildMountains: function () {
             for (var y = 0; y < this.H; y++) {
@@ -429,11 +475,14 @@ import './vendor/iso-engine/isometric-engine.js';
                         'rgba(212,175,55,0.32)', 1);
                     return;
                 }
-                var spine = p.type === 'realm' ? self._realmSpine(p.realm) : '#4ecdc4';
+                if (p.type === 'sandbox') {
+                    self._placeSandboxStructure(p.x + 0.5, p.y + 0.5);
+                }
+                var spine = p.type === 'realm' ? self._realmSpine(p.realm) : (p.type === 'sandbox' ? '#d4af37' : '#4ecdc4');
                 /* 地面光环（3D decal，平铺地面上） */
                 self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 2.6, CELL * 2.6,
                     hexA(spine, 0.30), 1);
-                if (p.type === 'realm')
+                if (p.type === 'realm' || p.type === 'sandbox')
                     self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 1.4, CELL * 1.4,
                         hexA(spine, 0.4), 3.2);
 
@@ -527,6 +576,96 @@ import './vendor/iso-engine/isometric-engine.js';
                 if (this.facing < 0) av.style.transform = 'scaleX(-1)';
                 if (this.moving) { this.walkPhase += 0.6; }
                 av.style.marginTop = (this.moving ? Math.abs(Math.sin(this.walkPhase)) * -6 : 0) + 'px';
+            }
+            this._refreshMinimapPlayer();
+        },
+
+        /* ── 小地图：生成大地图缩略图 + 玩家/入口标点 ── */
+        _minimapColor: function (x, y) {
+            if (this.waterGrid[y] && this.waterGrid[y][x]) return hexToRGB(this.C_WATER);
+            if (this.roadGrid[y] && this.roadGrid[y][x]) return hexToRGB(this.C_ROAD);
+            var rg = this.regionByTile[y] ? this.regionByTile[y][x] : null;
+            var col = rg ? (this.REG_COLOR[rg.id] || this.C_BASE) : this.C_BASE;
+            return hexToRGB(col);
+        },
+
+        initMinimap: function () {
+            var c = document.getElementById('minimap-base');
+            if (!c || !this.W) return;
+            var W = this.W, H = this.H;
+            c.width = W; c.height = H;
+            var ctx = c.getContext('2d');
+            var img = ctx.createImageData(W, H);
+            var d = img.data;
+            for (var y = 0; y < H; y++) {
+                for (var x = 0; x < W; x++) {
+                    var col = this._minimapColor(x, y);
+                    var i = (y * W + x) * 4;
+                    d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255;
+                }
+            }
+            ctx.putImageData(img, 0, 0);
+
+            /* 各入口标点：未探索 ❓ / 已探索 对应 emoji */
+            var poisEl = document.getElementById('minimap-pois');
+            if (!poisEl) return;
+            poisEl.innerHTML = '';
+            this.minimapPois = {};
+            var self = this;
+            (this.pois || []).forEach(function (entry) {
+                var p = entry.poi;
+                if (p.type === 'spawn') return;
+                var div = document.createElement('div');
+                div.className = 'minimap-poi';
+                var left = (p.x + 0.5) / W * 100;
+                var top = (p.y + 0.5) / H * 100;
+                div.style.left = left + '%';
+                div.style.top = top + '%';
+                if (p.label) div.setAttribute('title', p.label);
+                poisEl.appendChild(div);
+                self.minimapPois[p.id] = { div: div, base: p.emoji };
+                if (self._isExplored(p.id)) {
+                    div.classList.add('explored');
+                    div.textContent = p.emoji;
+                } else {
+                    div.classList.add('unexplored');
+                    div.textContent = '❓';
+                }
+            });
+            this._refreshMinimapPlayer();
+        },
+
+        _refreshMinimapPlayer: function () {
+            var p = document.getElementById('minimap-player');
+            if (!p || !this.playerPos || !this.W) return;
+            p.style.left = (this.playerPos.x / this.W * 100) + '%';
+            p.style.top = (this.playerPos.y / this.H * 100) + '%';
+        },
+
+        /* ── 探索状态：本地存档持久化 ── */
+        _isExplored: function (poiId) {
+            try {
+                var raw = localStorage.getItem(EXPLORED_KEY);
+                var arr = raw ? JSON.parse(raw) : [];
+                return arr.indexOf(poiId) >= 0;
+            } catch (e) { return false; }
+        },
+
+        _markExplored: function (poiId) {
+            if (!poiId) return;
+            try {
+                var raw = localStorage.getItem(EXPLORED_KEY);
+                var arr = raw ? JSON.parse(raw) : [];
+                if (arr.indexOf(poiId) < 0) {
+                    arr.push(poiId);
+                    localStorage.setItem(EXPLORED_KEY, JSON.stringify(arr));
+                }
+            } catch (e) { /* 忽略存档写入失败 */ }
+            var rec = this.minimapPois && this.minimapPois[poiId];
+            if (rec) {
+                rec.div.classList.add('explored');
+                rec.div.classList.remove('unexplored');
+                rec.div.textContent = rec.base;
             }
         },
 
@@ -679,9 +818,10 @@ import './vendor/iso-engine/isometric-engine.js';
             });
             this.activePoi = activeId;
             if (closest && UI) {
-                var lbl = closest.poi.type === 'realm'
-                    ? ('前往 ' + (REALM_NAMES[closest.poi.realm] || closest.poi.realm))
-                    : (closest.poi.label || '互动');
+                var lbl;
+                if (closest.poi.type === 'realm') lbl = '前往 ' + (REALM_NAMES[closest.poi.realm] || closest.poi.realm);
+                else if (closest.poi.type === 'sandbox') lbl = '进入 ' + (closest.poi.label || '沙盒训练场');
+                else lbl = closest.poi.label || '互动';
                 UI.setInteractHint(lbl);
             } else if (UI) {
                 UI.setInteractHint(null);
@@ -721,8 +861,12 @@ import './vendor/iso-engine/isometric-engine.js';
         _onInteract: function () {
             var entry = this.closestPoi;
             if (!entry || !UI) return;
-            if (entry.poi.type === 'realm') UI.openRealmSelect(entry.poi.realm);
-            else if (entry.poi.type === 'npc') UI.openSkillTree();
+            if (entry.poi.type === 'realm') { this._markExplored(entry.poi.id); UI.openRealmSelect(entry.poi.realm); }
+            else if (entry.poi.type === 'sandbox') {
+                this._markExplored(entry.poi.id);
+                location.href = '/sandbox?r=' + Date.now();
+            }
+            else if (entry.poi.type === 'npc') { this._markExplored(entry.poi.id); UI.openSkillTree(); }
             else if (entry.poi.type === 'spawn') { if (UI.toast) UI.toast('生灭台：这里是旅途的起点。'); }
         },
 
@@ -786,6 +930,12 @@ import './vendor/iso-engine/isometric-engine.js';
         return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
     }
 
+    /* ── 工具：hex → [r,g,b] ── */
+    function hexToRGB(hex) {
+        var n = parseInt(String(hex).replace('#', ''), 16) || 0;
+        return [n >> 16 & 255, n >> 8 & 255, n & 255];
+    }
+
     function boot() {
         var game = window.OverworldGame = OverworldGame;
         if (window.OverworldUI) {
@@ -805,6 +955,7 @@ import './vendor/iso-engine/isometric-engine.js';
                 requestAnimationFrame(function () {
                     requestAnimationFrame(function () {
                         game.buildScene();
+                        game.initMinimap();
                         game.start();
                         if (backRealm) {
                             setTimeout(function () { game.focusRealm(backRealm); }, 60);

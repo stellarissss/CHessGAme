@@ -337,6 +337,53 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 }
 .retry-btn:hover { background: var(--crimson); color: #fff; transform: translateY(-2px); }
 
+/* ── 右下角小地图 ── */
+#minimap-container {
+    position: absolute; right: 20px; bottom: 24px;
+    width: 168px; height: 126px; /* 与大陆 4:3 比例（112x84） */
+    border: 1px solid rgba(212,175,55,0.32);
+    border-radius: 10px;
+    background: rgba(10,10,14,0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 10px 34px rgba(0,0,0,0.55);
+    overflow: hidden;
+    z-index: 46;
+    pointer-events: none;
+}
+#minimap-base {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block;
+    opacity: 0.85;
+    image-rendering: pixelated;
+}
+#minimap-pois { position: absolute; inset: 0; pointer-events: none; }
+#minimap-player {
+    position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px;
+    background: radial-gradient(circle, #ffe08a, #d4af37 70%);
+    border: 1px solid rgba(255,255,255,0.7);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(212,175,55,0.9);
+    z-index: 2; left: 0; top: 0;
+    transition: left 0.15s linear, top 0.15s linear;
+}
+.minimap-poi {
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; margin: -7px 0 0 -7px;
+    font-size: 9px; line-height: 1; text-align: center;
+    z-index: 1;
+}
+.minimap-poi.unexplored { color: rgba(255,255,255,0.6); text-shadow: 0 0 4px rgba(0,0,0,0.9); }
+.minimap-poi.explored { color: var(--gold); text-shadow: 0 0 5px rgba(212,175,55,0.7); }
+.minimap-label {
+    position: absolute; left: 7px; bottom: 5px;
+    font-family: var(--font-tech); font-size: 9px; letter-spacing: 0.18em;
+    color: rgba(212,175,55,0.75); text-transform: uppercase;
+    pointer-events: none; z-index: 3;
+}
+
 /* ── 无障碍：键盘焦点 ── */
 .ow-overlay :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
@@ -389,6 +436,14 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
         <span id="realm-guide-arrow">↗</span>
         <span class="realm-guide-body"><span id="realm-guide-name">人道</span><span id="realm-guide-dist">8 格</span></span>
         <span id="realm-guide-ring" aria-hidden="true"></span>
+    </div>
+
+    <!-- 右下角小地图：大陆缩略图 + 玩家 + 各入口（❓/emoji 探索标记） -->
+    <div id="minimap-container" role="img" aria-label="大陆小地图">
+        <canvas id="minimap-base"></canvas>
+        <div id="minimap-pois"></div>
+        <div id="minimap-player"></div>
+        <span class="minimap-label">大陆图</span>
     </div>
 
     <!-- 总览弹窗 -->

@@ -12,16 +12,13 @@
     <style>
         .title-mode-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
             gap: 32px;
-            max-width: 880px;
+            max-width: 620px;
             margin: 0 auto 48px;
             opacity: 0;
             transform: translateY(24px);
             animation: fadeInUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
-        }
-        @media (max-width: 720px) {
-            .title-mode-grid { grid-template-columns: 1fr; }
         }
         .mode-card {
             position: relative;
@@ -103,12 +100,8 @@
             background: var(--mode-accent, var(--gold));
             color: var(--bg-deep);
         }
-        /* 剧情模式 · 金 */
-        .mode-card.story { --mode-accent: var(--gold); --mode-glow: rgba(212,175,55,0.22); }
-        /* 沙盒模式 · 玉 */
-        .mode-card.sandbox { --mode-accent: var(--jade); --mode-glow: rgba(13,115,119,0.26); }
-        .mode-card.sandbox .mode-enter { border-color: var(--jade); color: var(--jade); }
-        .mode-card.sandbox:hover .mode-enter { background: var(--jade); color: var(--paper); }
+        /* 进入世界 · 金 */
+        .mode-card.world { --mode-accent: var(--gold); --mode-glow: rgba(212,175,55,0.22); }
 
         .title-footer {
             text-align: center;
@@ -138,38 +131,26 @@
                 六重棋境，一念改规。业力为媒，规则为网，<br>
                 在轮回中修行，在棋局中悟道。
             </p>
-            <div class="hero-meta">选择你的道路</div>
+            <div class="hero-meta">踏入六道世界</div>
         </header>
 
         <section class="title-mode-grid">
-            <a href="/overworld" id="link-story" class="mode-card story">
+            <a href="/overworld" id="link-story" class="mode-card world">
                 <div class="mode-icon">🗺️</div>
-                <h2 class="mode-name">剧情模式</h2>
-                <div class="mode-sub">Story Mode</div>
+                <h2 class="mode-name">进入世界</h2>
+                <div class="mode-sub">Enter World</div>
                 <p class="mode-desc">
-                    化身林夜，坠入六道小世界。<br>
-                    在大地图上自由选择六块大陆，<br>
-                    逐关闯荡，走向五种结局。
+                    踏入六道大陆，自由探索六块大陆棋境，<br>
+                    于轮回中修行、在沙盒中磨砺。<br>
+                    探索入口、解锁道境、成就棋圣之道。
                 </p>
-                <span class="mode-enter">踏入六道小世界 ▶</span>
-            </a>
-
-            <a href="/sandbox" class="mode-card sandbox">
-                <div class="mode-icon">♟</div>
-                <h2 class="mode-name">沙盒模式</h2>
-                <div class="mode-sub">Sandbox Mode</div>
-                <p class="mode-desc">
-                    纯净六棋，自由对弈。<br>
-                    无业力、无识破、无结局束缚，<br>
-                    专注 AI 改规的棋类乐趣。
-                </p>
-                <span class="mode-enter">进入沙盒 ▶</span>
+                <span class="mode-enter">开始探索 ▶</span>
             </a>
         </section>
 
         <footer class="title-footer">
-            <p>剧情模式含业力 / 识破 / 技能树 / 五种结局<span class="sep">·</span>沙盒模式为纯净棋类，与剧情完全隔离</p>
-            <p class="hero-meta">棋圣 ChessSage · v1.4</p>
+            <p>剧情模式含业力 / 识破 / 技能树 / 五种结局<span class="sep">·</span>沙盒训练场位于大陆南部，纯净对弈</p>
+            <p class="hero-meta">棋圣 ChessSage · v1.5</p>
         </footer>
     </main>
 
