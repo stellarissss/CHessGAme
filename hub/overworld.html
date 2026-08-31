@@ -327,6 +327,42 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .full-mask p { margin: 0; color: var(--text-muted); font-size: 14px; letter-spacing: .04em; }
 .full-mask .mask-title { font-family: var(--font-display); font-size: 24px; color: var(--gold); }
 
+/* ── 安慰式加载进度条 ── */
+.loading-progress {
+    position: relative; width: min(420px, 66vw); height: 8px;
+    border-radius: 999px; overflow: hidden;
+    background: rgba(212,175,55,0.12);
+    border: 1px solid rgba(212,175,55,0.28);
+    box-shadow: 0 0 18px rgba(212,175,55,0.16) inset;
+}
+.loading-progress-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #7a5a18, var(--gold), #ffe08a, var(--gold));
+    background-size: 220% 100%;
+    animation: progressSheen 1.1s linear infinite;
+    box-shadow: 0 0 14px rgba(212,175,55,0.7);
+    transition: width .18s ease-out;
+    will-change: width;
+}
+@keyframes progressSheen {
+    0%   { background-position: 0% 0; }
+    100% { background-position: -220% 0; }
+}
+.loading-meta {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
+    width: min(420px, 66vw);
+}
+.loading-hint {
+    color: var(--text-muted); font-size: 13px; letter-spacing: .04em;
+    min-height: 20px; opacity: .9;
+    transition: opacity .3s;
+}
+.loading-pct {
+    font-family: var(--font-tech); font-size: 13px; color: var(--gold);
+    letter-spacing: .08em; white-space: nowrap;
+}
+
 /* ── 错误遮罩 ── */
 #error-overlay .mask-title { color: var(--crimson); }
 .error-msg { color: var(--text-muted); font-size: 14px; text-align: center; max-width: 560px; line-height: 1.8; padding: 0 20px; }
@@ -481,10 +517,15 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
     <div id="toast-container" aria-live="polite"></div>
 
     <!-- 加载遮罩 -->
-    <div class="full-mask" id="loading-overlay">
+    <div class="full-mask" id="loading-overlay" role="status" aria-live="polite">
         <div class="spinner" aria-hidden="true"></div>
         <div class="mask-title">六道大陆 · 载入中</div>
-        <p id="loading-text">正在铺展山河…</p>
+        <div class="loading-progress" aria-hidden="true"><div class="loading-progress-fill" id="loading-progress-fill"></div></div>
+        <div class="loading-meta">
+            <span class="loading-hint" id="loading-hint">正在铺展山河…</span>
+            <span class="loading-pct" id="loading-pct">0%</span>
+        </div>
+        <p id="loading-text" hidden></p>
     </div>
 
     <!-- 错误遮罩 -->

@@ -942,21 +942,26 @@ import './vendor/iso-engine/isometric-engine.js';
             window.OverworldUI.init(game);
             UI = window.OverworldUI;
         }
+        if (UI) UI.showLoading();
         fetch('/api/overworld/config')
             .then(function (r) { return r.json(); })
             .then(function (ow) {
                 if (!ow || !ow.world) { if (UI) UI.showError('大陆配置加载失败，请重试'); return; }
+                if (UI) UI.setLoadingProgress(30);           // 已取得大陆配置
                 game.bootstrapGeometry(ow);
                 game._fetchGamesAndState();
+                if (UI) UI.setLoadingProgress(55);           // 地理几何搭建完成
                 // 对局返回大地图时按 realm 回填导航（推近到该道入口）
                 var backRealm = (function () {
                     try { return new URLSearchParams(location.search).get('backrealm'); } catch (e) { return null; }
                 })();
                 requestAnimationFrame(function () {
                     requestAnimationFrame(function () {
+                        if (UI) UI.setLoadingProgress(78);   // 场景铺陈中
                         game.buildScene();
                         game.initMinimap();
                         game.start();
+                        if (UI) UI.setLoadingProgress(100);  // 大陆就绪
                         if (backRealm) {
                             setTimeout(function () { game.focusRealm(backRealm); }, 60);
                         }

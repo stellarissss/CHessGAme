@@ -192,12 +192,66 @@
     }
 
     /* ── 加载 / 错误遮罩 ── */
+
+    /* 安慰式进度条：按真实加载里程碑推进，并保证最短展示时长，
+       避免加载过快时进度条一闪而过，给玩家确定的"正在加载"反馈。 */
+    var LOAD_HINTS = [
+        '正在铺展山河…',
+        '点石成金，构架原野…',
+        '荒原与密林正在成形…',
+        '六道之门即将显形…',
+        '唤醒沉睡的大陆…'
+    ];
+    var lb = { raf: 0, cur: 0, target: 0, start: 0, minMs: 900, hintIdx: 0 };
+
+    function _lbPaint() {
+        var fill = $('loading-progress-fill');
+        var pct = $('loading-pct');
+        var shown = Math.round(lb.cur);
+        if (fill) fill.style.width = Math.min(100, Math.max(0, shown)) + '%';
+        if (pct) pct.textContent = shown + '%';
+    }
+    function _lbHint() {
+        var el = $('loading-hint');
+        if (!el) return;
+        var idx = Math.min(LOAD_HINTS.length - 1,
+            Math.floor((lb.cur / 100) * LOAD_HINTS.length));
+        if (idx !== lb.hintIdx) {
+            lb.hintIdx = idx;
+            el.textContent = LOAD_HINTS[idx];
+        }
+    }
+    function _lbTick() {
+        var d = lb.target - lb.cur;
+        if (Math.abs(d) < 0.4) { lb.cur = lb.target; _lbPaint(); _lbHint(); return; }
+        lb.cur += d * 0.055;
+        _lbPaint(); _lbHint();
+        lb.raf = requestAnimationFrame(_lbTick);
+    }
     function showLoading(text) {
         dom.loading.classList.remove('hidden');
+        lb.start = performance.now();
+        lb.cur = 0; lb.target = 6; lb.hintIdx = -1;
+        if (lb.raf) cancelAnimationFrame(lb.raf);
+        _lbPaint(); _lbHint();
+        lb.raf = requestAnimationFrame(_lbTick);
         if (text) dom.loadingText.textContent = text;
     }
+    function setLoadingProgress(p) {
+        if (typeof p !== 'number') return;
+        if (p > lb.target) lb.target = p;
+    }
     function removeLoading() {
-        dom.loading.classList.add('hidden');
+        setLoadingProgress(100);
+        if (lb.raf) cancelAnimationFrame(lb.raf);
+        lb.cur = 100; _lbPaint(); _lbHint();
+        /* 最短展示时长：让玩家看到进度走满，再淡出遮罩 */
+        var wait = 220;
+        var elapsed = performance.now() - lb.start;
+        if (elapsed < lb.minMs) wait += (lb.minMs - elapsed);
+        setTimeout(function () {
+            if (dom.loading) dom.loading.classList.add('hidden');
+        }, wait);
     }
     function showError(msg) {
         dom.loading.classList.add('hidden');
@@ -552,6 +606,7 @@
         openSkillTree: openSkillTree,
         toast: toast,
         showLoading: showLoading,
+        setLoadingProgress: setLoadingProgress,
         removeLoading: removeLoading,
         showError: showError,
         hideError: hideError,
