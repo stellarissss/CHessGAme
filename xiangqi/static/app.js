@@ -4806,12 +4806,12 @@ class XiangqiBoard extends HTMLElement {
             nextBtnDisabled = true;
         }
 
-        // 返回总坛文案
-        let returnLabel = '🏠 返回总坛';
-        let returnHref = '/hub/index.html';
+        // 返回大陆文案
+        let returnLabel = '🏠 返回大陆';
+        let returnHref = '/overworld';
         if (isSandbox) {
-            returnLabel = '🏠 返回沙盒总坛';
-            returnHref = '/hub/sandbox.html';
+            returnLabel = '🏠 返回大地图';
+            returnHref = '/overworld';
         }
 
         // ── (4) HTML 内容组装 ──

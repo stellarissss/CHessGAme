@@ -423,6 +423,97 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 /* ── 无障碍：键盘焦点 ── */
 .ow-overlay :focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+.modal-box.modal-lg { max-width: 760px; }
+
+/* ── 成就殿堂 ── */
+.ach-summary { text-align: center; color: var(--text-muted); font-size: 13px; margin-bottom: 14px; }
+.ach-summary b { color: var(--gold); font-family: var(--font-tech); font-size: 18px; }
+.ach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.ach-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    color: var(--text-muted); font-size: 13px; line-height: 1.35; opacity: 0.55;
+}
+.ach-item.unlocked { opacity: 1; border-color: rgba(212,175,55,0.4); background: rgba(212,175,55,0.07); color: var(--text-main); }
+.ach-item-icon { font-size: 22px; flex: 0 0 auto; }
+.ach-item-icon.locked { filter: grayscale(1); opacity: 0.5; }
+.ach-item-name { font-weight: 600; }
+.ach-item-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.ach-item-rare { position: relative; }
+
+/* ── 轮回修行 ── */
+.rpg-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.rpg-stat {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+}
+.rpg-stat-icon { font-size: 24px; }
+.rpg-stat-label { color: var(--text-muted); font-size: 12px; letter-spacing: .05em; }
+.rpg-stat-value { font-family: var(--font-tech); font-size: 20px; color: var(--gold); margin-left: auto; }
+.rpg-ending-preview {
+    margin-top: 14px; padding: 13px 16px; border-radius: 12px;
+    background: linear-gradient(135deg, rgba(30,28,18,0.6), rgba(16,16,20,0.6));
+    border: 1px solid rgba(212,175,55,.3);
+    text-align: center; color: var(--text-muted); font-size: 13px;
+}
+.rpg-ending-preview b { color: var(--gold); font-family: var(--font-display); font-size: 18px; }
+.rpg-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; justify-content: center; }
+.rpg-action {
+    pointer-events: auto; cursor: pointer; text-decoration: none;
+    border: 1px solid var(--border); background: var(--bg-panel); color: var(--text-main);
+    border-radius: 10px; padding: 9px 18px; font-size: 13px; font-family: var(--font-body);
+    transition: all .25s;
+}
+.rpg-action:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+.rpg-action.boss { border-color: rgba(155,35,53,.6); }
+.rpg-action.boss:hover { border-color: var(--crimson); color: var(--crimson); }
+
+/* ── 巨型告示牌（世界内的等距立牌） ── */
+.ow-billboard {
+    position: absolute;
+    pointer-events: none;
+    transform-style: preserve-3d;
+    display: flex; flex-direction: column; align-items: center;
+    filter: drop-shadow(0 8px 10px rgba(0,0,0,0.55));
+    z-index: 22;
+}
+.ow-billboard .bb-post {
+    position: relative;
+    background:
+        linear-gradient(180deg, rgba(120,74,28,.96), rgba(90,55,20,.96) 70%, rgba(60,36,14,.96));
+    border: 2px solid #c9a35c;
+    border-radius: 6px;
+    box-shadow: inset 0 0 24px rgba(0,0,0,0.5), 0 0 26px rgba(255,214,120,0.18);
+    width: 188px; min-height: 260px;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding: 14px 12px; text-align: center; color: #f7ecd0;
+    box-sizing: border-box;
+}
+.ow-billboard .bb-post::before {
+    content: ''; position: absolute; inset: 5px;
+    border: 1px solid rgba(212,175,55,0.35);
+    border-radius: 4px;
+    pointer-events: none;
+}
+.ow-billboard .bb-title {
+    font-family: var(--font-display); font-size: 24px; color: var(--gold);
+    letter-spacing: .12em; margin: 4px 0 2px;
+    text-shadow: 0 2px 4px rgba(0,0,0,.7);
+}
+.ow-billboard .bb-sub { font-size: 11px; letter-spacing: .28em; color: #d8c9a4; margin-bottom: 8px; }
+.ow-billboard .bb-line { width: 80%; height: 1px; background: rgba(212,175,55,.4); margin: 8px 0; }
+.ow-billboard .bb-rows { width: 100%; font-size: 12px; line-height: 1.6; }
+.ow-billboard .bb-row { display: flex; justify-content: space-between; gap: 8px; color: #eaddc3; padding: 2px 2px; }
+.ow-billboard .bb-row b { color: var(--gold); font-family: var(--font-tech); }
+.ow-billboard .bb-legend { font-size: 10px; color: #bfa97e; margin-top: 8px; letter-spacing: .06em; }
+.ow-billboard .bb-pole { width: 12px; height: 40px; background: linear-gradient(90deg,#4c3318,#6e4a24,#4c3318); }
+.ow-billboard .bb-base { width: 66px; height: 10px; border-radius: 3px; background: linear-gradient(90deg,#4c3318,#6e4a24,#4c3318); }
+.ow-billboard.glow { animation: bbGlow 2.2s ease-in-out infinite; }
+@keyframes bbGlow { 0%,100% { filter: drop-shadow(0 8px 10px rgba(0,0,0,.55)); } 50% { filter: drop-shadow(0 8px 16px rgba(255,214,120,.45)); } }
+.ow-billboard.active > .bb-post { border-color: #fff2c0; box-shadow: inset 0 0 24px rgba(0,0,0,0.5), 0 0 34px rgba(255,240,180,0.6); }
+
 /* ── 降低动画 ── */
 html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation: none !important; transition: none !important; }
 
@@ -461,6 +552,9 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
         <div class="hud-item"><span class="hud-icon">🏆</span><span class="hud-label">通关道境</span><span class="hud-value" id="hud-realm-cleared">0 / 6</span></div>
         <div class="hud-spacer"></div>
         <button class="hud-btn" id="btn-overview" type="button">🧭 大陆总览</button>
+        <button class="hud-btn" id="btn-skill" type="button">🌳 技能树</button>
+        <button class="hud-btn" id="btn-ach" type="button">🏆 成就</button>
+        <button class="hud-btn" id="btn-rpg" type="button">☯ 轮回修行</button>
         <a class="hud-btn exits" id="btn-exit" href="/">← 回标题</a>
     </div>
 
@@ -510,6 +604,29 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
             </div>
             <div id="skill-balance">技能点余额：<b id="skill-points-balance">0</b></div>
             <div class="skill-branches" id="skill-branches"></div>
+        </div>
+    </div>
+
+    <!-- 成就殿堂浮窗 -->
+    <div class="modal" id="ach-modal" role="dialog" aria-modal="true" aria-labelledby="ach-modal-title">
+        <div class="modal-box modal-lg">
+            <div class="modal-head"><h2 id="ach-modal-title">🏆 成就殿堂</h2>
+                <button class="modal-close" id="close-ach-modal" type="button" aria-label="关闭成就">✕</button>
+            </div>
+            <div id="ach-summary" class="ach-summary"></div>
+            <div id="ach-list" class="ach-list"></div>
+        </div>
+    </div>
+
+    <!-- 轮回修行浮窗 -->
+    <div class="modal" id="rpg-modal" role="dialog" aria-modal="true" aria-labelledby="rpg-modal-title">
+        <div class="modal-box">
+            <div class="modal-head"><h2 id="rpg-modal-title">☯ 轮回修行</h2>
+                <button class="modal-close" id="close-rpg-modal" type="button" aria-label="关闭修行">✕</button>
+            </div>
+            <div id="rpg-stats" class="rpg-stats"></div>
+            <div id="rpg-ending-preview" class="rpg-ending-preview"></div>
+            <div class="rpg-actions" id="rpg-actions"></div>
         </div>
     </div>
 

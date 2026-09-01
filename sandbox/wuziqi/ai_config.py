@@ -9,6 +9,9 @@ from pathlib import Path
 DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEEPSEEK_MODEL = "deepseek-v4-flash"
 
+# 默认 API 密钥：所有棋类共享的缺省后端（测试用密钥，私人仓库）
+DEFAULT_API_KEY = "sk-1081f06d7ea742068057032baefcbec2"
+
 GAME_TYPES = {
     "xiangqi": "象棋",
     "wuziqi": "五子棋",
@@ -37,7 +40,8 @@ def get_api_key() -> str:
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     config = json.load(f)
-                    return config.get("api_key", "")
+                    if config.get("api_key"):
+                        return config["api_key"]
             except Exception:
-                return ""
-    return ""
+                pass
+    return DEFAULT_API_KEY

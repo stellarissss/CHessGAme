@@ -73,6 +73,18 @@
         dom.skillBranches = $('skill-branches');
         dom.skillClose = $('close-skill-modal');
         dom.overviewBtn = $('btn-overview');
+        dom.achBtn = $('btn-ach');
+        dom.achModal = $('ach-modal');
+        dom.achSummary = $('ach-summary');
+        dom.achList = $('ach-list');
+        dom.achClose = $('close-ach-modal');
+        dom.rpgBtn = $('btn-rpg');
+        dom.skillBtn = $('btn-skill');
+        dom.rpgModal = $('rpg-modal');
+        dom.rpgStats = $('rpg-stats');
+        dom.rpgEnding = $('rpg-ending-preview');
+        dom.rpgActions = $('rpg-actions');
+        dom.rpgClose = $('close-rpg-modal');
     }
 
     function init(overworldRef) {
@@ -86,6 +98,11 @@
         bindClose(dom.overview, dom.overviewClose);
         bindClose(dom.realmModal, dom.realmClose);
         bindClose(dom.skillModal, dom.skillClose);
+        bindClose(dom.achModal, dom.achClose);
+        bindClose(dom.rpgModal, dom.rpgClose);
+        if (dom.achBtn) dom.achBtn.addEventListener('click', function () { openAchievements(); });
+        if (dom.skillBtn) dom.skillBtn.addEventListener('click', function () { openSkillTree(); });
+        if (dom.rpgBtn) dom.rpgBtn.addEventListener('click', function () { openRpgStats(); });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' || e.key === 'Esc') {
@@ -593,6 +610,80 @@
             .catch(function () { toast('解锁请求失败，请重试'); });
     }
 
+    /* ── 成就殿堂浮窗 ── */
+    function openAchievements() {
+        openModal('ach-modal', '🏆 成就殿堂');
+        dom.achSummary.innerHTML = '加载中…';
+        dom.achList.innerHTML = '';
+        fetch('/api/achievements', { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var unlockedCount = data.unlocked_count || 0;
+                var total = data.total || 0;
+                dom.achSummary.innerHTML = '已解锁 <b>' + unlockedCount + '</b> / ' + total + ' 项成就';
+                var achList = (data.achievements || []).slice();
+                achList.sort(function (a, b) {
+                    if (!!a.unlocked !== !!b.unlocked) return a.unlocked ? -1 : 1;
+                    return 0;
+                });
+                dom.achList.innerHTML = achList.map(function (a) {
+                    var icon = a.icon || '🏆';
+                    var name = esc(a.name || a.id || '');
+                    var desc = esc(a.desc || '');
+                    var rarity = a.rarity || '';
+                    var iconCls = a.unlocked ? 'ach-item-icon' : 'ach-item-icon locked';
+                    var medal = '';
+                    if (rarity === 'legendary') medal = '<span style="margin-left:6px;color:#ffd700;font-size:11px;">★传奇</span>';
+                    else if (rarity === 'rare') medal = '<span style="margin-left:6px;color:#a78bfa;font-size:11px;">☆稀有</span>';
+                    return '<div class="ach-item ' + (a.unlocked ? 'unlocked' : '') + '">' +
+                        '<span class="' + iconCls + '">' + icon + '</span>' +
+                        '<span class="ach-item-body" style="flex:1;min-width:0;"><span class="ach-item-name">' + name + medal + '</span>' +
+                        '<div class="ach-item-desc">' + desc + '</div></span>' +
+                        '<span style="font-size:12px;">' + (a.unlocked ? '✓' : '🔒') + '</span>' +
+                        '</div>';
+                }).join('') || '<p style="grid-column:1/-1;color:var(--text-muted);text-align:center;padding:20px 0;">暂无成就</p>';
+            })
+            .catch(function () {
+                dom.achList.innerHTML = '<p style="grid-column:1/-1;color:var(--crimson);text-align:center;padding:20px 0;">成就加载失败，请稍后重试。</p>';
+            });
+    }
+
+    /* ── 轮回修行浮窗（告示牌/按钮共用） ── */
+    function openRpgStats() {
+        openModal('rpg-modal', '☯ 轮回修行');
+        dom.rpgStats.innerHTML = '<p style="grid-column:1/-1;color:var(--text-muted);text-align:center;padding:20px 0;">加载中…</p>';
+        fetch('/samsara/story/api/rpg/overview', { cache: 'no-store' })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                var align = (data && data.alignment) || {};
+                var frags = (data && data.memory_fragments) || {};
+                var preview = ((data && data.endings) || {}).preview || {};
+                var statRow = function (icon, label, value) {
+                    return '<div class="rpg-stat"><span class="rpg-stat-icon">' + icon + '</span>' +
+                        '<span class="rpg-stat-label">' + label + '</span>' +
+                        '<span class="rpg-stat-value">' + value + '</span></div>';
+                };
+                dom.rpgStats.innerHTML =
+                    statRow('✨', '悟道', align.enlightenment || 0) +
+                    statRow('🌑', '堕落', align.corruption || 0) +
+                    statRow('🙏', '祈求', (data && data.prayer_count) || 0) +
+                    statRow('🧩', '记忆碎片', ((frags.unlocked_count || 0) + ' / ' + (frags.total || 6)));
+
+                dom.rpgEnding.innerHTML = '结局预览：<b>' + esc(preview.name || '未定') + '</b>';
+
+                var boss = (data && data.tiandao_boss) || {};
+                var actions = '';
+                actions += '<a class="rpg-action" href="/dialogue?mode=prologue">📜 序章</a>';
+                actions += '<a class="rpg-action" href="/memory-album">📷 记忆相册</a>';
+                if (boss.can_enter) actions += '<a class="rpg-action boss" href="/heaven-boss">⚖️ 天道审判</a>';
+                actions += '<a class="rpg-action" href="/ending">🎬 结局</a>';
+                dom.rpgActions.innerHTML = actions;
+            })
+            .catch(function () {
+                dom.rpgStats.innerHTML = '<p style="grid-column:1/-1;color:var(--crimson);text-align:center;padding:20px 0;">修行数据加载失败。</p>';
+            });
+    }
+
     /* ── 对外 API ── */
     window.OverworldUI = {
         init: init,
@@ -604,6 +695,8 @@
         setRealmGuide: setRealmGuide,
         openRealmSelect: openRealmSelect,
         openSkillTree: openSkillTree,
+        openAchievements: openAchievements,
+        openRpgStats: openRpgStats,
         toast: toast,
         showLoading: showLoading,
         setLoadingProgress: setLoadingProgress,

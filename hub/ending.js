@@ -116,7 +116,7 @@
 
     document.getElementById('replay-btn').addEventListener('click', () => {
         if (confirm('确定要重新游玩吗？当前进度将保留，但会从头开始六道试炼。')) {
-            window.location.href = '/hub';
+            window.location.href = '/overworld';
         }
     });
 

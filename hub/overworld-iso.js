@@ -26,8 +26,10 @@ import './vendor/iso-engine/isometric-engine.js';
     /* ── 等距投影常量（rotateX=60°→cosX=0.5；rotateZ=45°→cosZ=√2/2）── */
     var COS_Z = Math.SQRT1_2;
     var SIN_ZX = Math.SQRT1_2 * 0.5;
-    var CELL = 30;          // 每格等距边长（像素）
+    var CELL = 46;          // 每格等距边长（像素）——放大，让大陆更辽阔
     var MARGIN = 10 * CELL; // 地图四边留白
+    var CHUNK = 16;         // 分块渲染：每块 N×N 格，视口外整块隐藏（大幅降低绘制开销）
+    var WALL = 6;           // 边缘群山外障厚度（格），不可通行
     var EXPLORED_KEY = 'chesssage_ow_explored'; // 本地探索存档键
 
     var OverworldGame = {
@@ -40,6 +42,7 @@ import './vendor/iso-engine/isometric-engine.js';
             if (!state) return;
             this.samsara = state;
             this._syncBadges((state.realm_progress || {}));
+            if (this._refreshBillboard) this._refreshBillboard();
             if (UI) UI.refreshHUD();
         },
         refreshSamsara: function () {
@@ -152,6 +155,23 @@ import './vendor/iso-engine/isometric-engine.js';
                         if (j3 >= 0 && j3 < self.H && i3 >= 0 && i3 < self.W) self.solid[j3][i3] = true;
             });
 
+            /* ── 边缘群山外障：环绕大陆一圈，标记为不可通行（玩家看不到地图之外） ── */
+            this.wallGrid = [];
+            for (var wy2 = 0; wy2 < this.H; wy2++) {
+                var wrow = new Array(this.W);
+                for (var wx2 = 0; wx2 < this.W; wx2++) {
+                    var inWall = wx2 < WALL || wx2 >= this.W - WALL || wy2 < WALL || wy2 >= this.H - WALL;
+                    // 外障包围整片大陆：边缘格全部为山区（并阻断通行）
+                    if (inWall) {
+                        wrow[wx2] = true;
+                        this.solid[wy2][wx2] = true;
+                    } else {
+                        wrow[wx2] = false;
+                    }
+                }
+                this.wallGrid.push(wrow);
+            }
+
             /* ── 调色板：绿 / 黄绿 / 黄 / 红 / 黑 / 白 / 灰 …… ── */
             this.C_WATER = '#1E6A96';
             this.C_ROAD = '#C9B37E';
@@ -182,8 +202,30 @@ import './vendor/iso-engine/isometric-engine.js';
             return this.solid[ty][tx];
         },
 
-        /* ── 元素工厂 ── */
-        _plane: function (x, y, w, h, color, z) {
+        /* ── 元素工厂（写入分块容器，视口外整块隐藏以大幅降载）── */
+        _chunkFor: function (tx, ty) {
+            if (tx < 0) tx = 0; if (ty < 0) ty = 0;
+            var cx = (tx / CHUNK) | 0;
+            var cy = (ty / CHUNK) | 0;
+            var key = cy * 1000 + cx;
+            var c = this.chunks[key];
+            if (!c) {
+                c = document.createElement('div');
+                c.className = 'ow-chunk';
+                c.style.position = 'absolute';
+                c.style.left = '0'; c.style.top = '0';
+                c.style.width = '0'; c.style.height = '0';
+                c.style.transformStyle = 'preserve-3d';
+                c.style.pointerEvents = 'none';
+                this.sceneEl.appendChild(c);
+                c.setAttribute('data-cx', cx); c.setAttribute('data-cy', cy);
+                this.chunks[key] = c;
+                this.chunkList.push(c);
+            }
+            return c;
+        },
+
+        _plane: function (x, y, w, h, color, z, chunkable) {
             var p = document.createElement('iso-plane');
             p.setAttribute('no-pointer', '');
             p.setAttribute('x', String(x));
@@ -192,11 +234,17 @@ import './vendor/iso-engine/isometric-engine.js';
             p.setAttribute('width', String(w));
             p.setAttribute('height', String(h));
             p.setAttribute('color', color);
-            this.sceneEl.appendChild(p);
+            if (chunkable !== false) {
+                var tx = Math.round(x / CELL - 0.5);
+                var ty = Math.round(y / CELL - 0.5);
+                this._chunkFor(tx, ty).appendChild(p);
+            } else {
+                this.sceneEl.appendChild(p);
+            }
             return p;
         },
 
-        _cube: function (x, y, w, h, depth, top, front, right, z) {
+        _cube: function (x, y, w, h, depth, top, front, right, z, chunkable) {
             var c = document.createElement('iso-cube');
             c.setAttribute('no-pointer', '');
             c.setAttribute('x', String(x));
@@ -208,7 +256,13 @@ import './vendor/iso-engine/isometric-engine.js';
             c.setAttribute('top-color', top);
             c.setAttribute('front-color', front);
             c.setAttribute('right-color', right);
-            this.sceneEl.appendChild(c);
+            if (chunkable !== false) {
+                var tx = Math.round(x / CELL);
+                var ty = Math.round(y / CELL);
+                this._chunkFor(tx, ty).appendChild(c);
+            } else {
+                this.sceneEl.appendChild(c);
+            }
             return c;
         },
 
@@ -231,7 +285,11 @@ import './vendor/iso-engine/isometric-engine.js';
                     x++;
                     while (x < this.W && this._colorAt(x, y) === color) x++;
                     var len = x - x0;
-                    this._plane((x0 + len / 2) * CELL, (y + 0.5) * CELL, len * CELL, CELL, color, 0);
+                    /* 略微外扩避免相邻色块在 3D 变换下产生黑色缝隙/线条。
+                       地面始终常显（分块隐藏会导致大片色块出现空洞）。 */
+                    var over = 3;
+                    this._plane((x0 + len / 2) * CELL, (y + 0.5) * CELL,
+                        len * CELL + over, CELL + over, color, 0, false);
                 }
             }
         },
@@ -246,6 +304,32 @@ import './vendor/iso-engine/isometric-engine.js';
         _regionIdAt: function (x, y) {
             var rg = this.regionByTile[y] && this.regionByTile[y][x];
             return rg ? rg.id : null;
+        },
+
+        /* ── 自然边界：沿区域分界散落灌木/岩石，把生硬的直线化为有机过渡 ── */
+        buildBoundaries: function () {
+            for (var y = 0; y < this.H; y++) {
+                for (var x = 0; x < this.W; x++) {
+                    if (this.wallGrid[y][x] || this.waterGrid[y][x] || this.mountainGrid[y][x]) continue;
+                    var rid = this._regionIdAt(x, y);
+                    if (!rid) continue;
+                    /* 仅探查紧邻的一欧式邻居是否属于不同景观 */
+                    var diff = false;
+                    if (x > 0 && this._regionIdAt(x - 1, y) !== rid) diff = true;
+                    else if (x < this.W - 1 && this._regionIdAt(x + 1, y) !== rid) diff = true;
+                    else if (y > 0 && this._regionIdAt(x, y - 1) !== rid) diff = true;
+                    else if (y < this.H - 1 && this._regionIdAt(x, y + 1) !== rid) diff = true;
+                    if (!diff) continue;
+                    /* 在边界带上以摇散概率落灌木/草/石，密度向内随机淡出 */
+                    var prob = this._rng(x, y, 21);
+                    if (prob > (0.6 - this._rng(x, y, 22) * 0.35)) continue;
+                    var kind = 'grass';
+                    var r2 = this._rng(x, y, 23);
+                    if (r2 < 0.3) kind = 'rock';
+                    else if (r2 < 0.5) kind = 'tree';
+                    this._placeObject(kind, x + 0.5, y + 0.5, this._rng(x, y, 24));
+                }
+            }
         },
 
         /* ── 景观物体（散点，控制密度）── */
@@ -378,10 +462,20 @@ import './vendor/iso-engine/isometric-engine.js';
             });
         },
 
-        /* ── 山脉叠岩 ── */
+        /* ── 山脉叠岩（含环绕大陆的群山外障） ── */
         buildMountains: function () {
             for (var y = 0; y < this.H; y++) {
                 for (var x = 0; x < this.W; x++) {
+                    if (this.wallGrid && this.wallGrid[y] && this.wallGrid[y][x]) {
+                        /* 外障：密布高大岩石，形成不可逾越的山墙 */
+                        if (this._rng(x, y, 5) > 0.82) continue;
+                        var wx0 = (x + 0.5) * this.CELL, wy0 = (y + 0.5) * this.CELL;
+                        var wd = this.CELL * (0.8 + this._rng(x, y, 6) * 1.3);
+                        this._cube(wx0, wy0, this.CELL * 0.85, this.CELL * 0.85, wd, '#6f6a62', '#575249', '#3e3a34', 0);
+                        if (this._rng(x, y, 8) < 0.4)
+                            this._cube(wx0 + this.CELL * 0.2, wy0 - this.CELL * 0.2, this.CELL * 0.5, this.CELL * 0.5, wd * 0.7, '#7a756c', '#5f5a50', '#45403a', wd * 0.5);
+                        continue;
+                    }
                     if (!this.mountainGrid[y][x]) continue;
                     if (this._rng(x, y, 5) > 0.55) continue;
                     var cx = (x + 0.5) * this.CELL, cy = (y + 0.5) * this.CELL;
@@ -457,11 +551,90 @@ import './vendor/iso-engine/isometric-engine.js';
             this.containerW = Math.ceil(Wp);
             this.containerH = Math.ceil(Hp);
 
+            this.chunks = {};
+            this.chunkList = [];
+            this._culledKey = '';
+
             this.buildGround();
+            this.buildBoundaries();
             this.buildObjects();
             this.buildMountains();
             this.buildPois();
             this.buildPlayer();
+        },
+
+        /* ── 巨型告示牌：轮回修行立牌（CSS 渲染，随地图缩放移动） ── */
+        _buildBillboard: function (px, py, p) {
+            var bb = document.createElement('div');
+            bb.className = 'ow-billboard glow' + (p.active ? ' active' : '');
+            bb.id = 'billboard-' + (p.id || 'billboard');
+            bb.setAttribute('data-poi', p.id || '');
+            bb.innerHTML =
+                '<div class="bb-post">' +
+                '<div class="bb-title">轮回修行</div>' +
+                '<div class="bb-sub">SAMSARA</div>' +
+                '<div class="bb-line"></div>' +
+                '<div class="bb-rows" id="bb-rows-' + (p.id || 'billboard') + '">' +
+                '<div class="bb-row"><span>悟道</span><b id="bb-enlight">—</b></div>' +
+                '<div class="bb-row"><span>堕落</span><b id="bb-corrupt">—</b></div>' +
+                '<div class="bb-row"><span>祈求</span><b id="bb-prayer">—</b></div>' +
+                '<div class="bb-row"><span>记忆碎片</span><b id="bb-frags">—</b></div>' +
+                '</div>' +
+                '<div class="bb-line"></div>' +
+                '<div class="bb-legend">靠近按 [E] 查看详情</div>' +
+                '</div>' +
+                '<div class="bb-pole"></div>' +
+                '<div class="bb-base"></div>';
+            var SCALE = (this.CELL || CELL);
+            bb.style.left = (px - SCALE * 2.05) + 'px';
+            bb.style.top = (py - SCALE * 3.2) + 'px';
+            this.overlayEl.appendChild(bb);
+            (this.billboards = this.billboards || []).push({
+                id: p.id || 'billboard', el: bb,
+                enlight: bb.querySelector('#bb-enlight'),
+                corrupt: bb.querySelector('#bb-corrupt'),
+                prayer: bb.querySelector('#bb-prayer'),
+                frags: bb.querySelector('#bb-frags')
+            });
+            this._refreshBillboard();
+            return bb;
+        },
+
+        _refreshBillboard: function () {
+            if (!this.billboards) return;
+            var s = this.samsara || {};
+            var ra = s.alignment || {};
+            var frags = s.memory_fragments || {};
+            this.billboards.forEach(function (b) {
+                if (b.enlight) b.enlight.textContent = ra.enlightenment || 0;
+                if (b.corrupt) b.corrupt.textContent = ra.corruption || 0;
+                if (b.prayer) b.prayer.textContent = s.prayer_count || 0;
+                if (b.frags) b.frags.textContent = ((frags.unlocked_count || 0) + ' / ' + (frags.total || 6));
+            });
+            /* 若游戏状态未含修行字段，则从 Rpg 总览接口补齐一次 */
+            if (!s._rpgLoaded) {
+                s._rpgLoaded = true;
+                var self = this;
+                fetch('/samsara/story/api/rpg/overview', { cache: 'no-store' })
+                    .then(function (r) { return r.json(); })
+                    .then(function (d) {
+                        if (!d) return;
+                        self.samsara = self.samsara || {};
+                        var a = (self.samsara.alignment = d.alignment || {});
+                        self.samsara.prayer_count = d.prayer_count || 0;
+                        self.samsara.memory_fragments = d.memory_fragments || {};
+                        (self.billboards || []).forEach(function (b) {
+                            if (b.enlight) b.enlight.textContent = a.enlightenment || 0;
+                            if (b.corrupt) b.corrupt.textContent = a.corruption || 0;
+                            if (b.prayer) b.prayer.textContent = d.prayer_count || 0;
+                            if (b.frags) {
+                                var fr = d.memory_fragments || {};
+                                b.frags.textContent = ((fr.unlocked_count || 0) + ' / ' + (fr.total || 6));
+                            }
+                        });
+                    })
+                    .catch(function () { /* 保持占位 */ });
+            }
         },
 
         /* ── POI 标点（光环=地面 decal，文字/emoji=叠加层）── */
@@ -475,10 +648,25 @@ import './vendor/iso-engine/isometric-engine.js';
                         'rgba(212,175,55,0.32)', 1);
                     return;
                 }
+                /* 巨型告示牌：轮回修行数据立牌（CSS 渲染，靠近按 E） */
+                if (p.type === 'billboard') {
+                    self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 4.4, CELL * 4.4,
+                        'rgba(212,175,55,0.22)', 1, false);
+                    var bbEl = self._buildBillboard(pt.x, pt.y, p);
+                    self.pois.push({ poi: p, x: pt.x, y: pt.y, emoji: null, billboard: true, el: bbEl });
+                    return;
+                }
+                /* 成就纪念碑：常驻立牌，靠近按 E */
+                if (p.type === 'achievements') {
+                    self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 3.0, CELL * 3.0,
+                        'rgba(255,215,0,0.22)', 1, false);
+                }
                 if (p.type === 'sandbox') {
                     self._placeSandboxStructure(p.x + 0.5, p.y + 0.5);
                 }
-                var spine = p.type === 'realm' ? self._realmSpine(p.realm) : (p.type === 'sandbox' ? '#d4af37' : '#4ecdc4');
+                var spine = p.type === 'realm' ? self._realmSpine(p.realm)
+                    : (p.type === 'sandbox' ? '#d4af37'
+                    : (p.type === 'achievements' ? '#ffd700' : '#4ecdc4'));
                 /* 地面光环（3D decal，平铺地面上） */
                 self._plane((p.x + 0.5) * CELL, (p.y + 0.5) * CELL, CELL * 2.6, CELL * 2.6,
                     hexA(spine, 0.30), 1);
@@ -556,7 +744,7 @@ import './vendor/iso-engine/isometric-engine.js';
             this.moving = false;
             this.walkPhase = 0;
             this.closestPoi = null;
-            this.playerSpeed = (this.ow.player && this.ow.player.speed) || 3.2;
+            this.playerSpeed = ((this.ow.player && this.ow.player.speed) || 160) / 5;  // 移速降到 1/5
 
             var pd = document.createElement('div');
             pd.className = 'player-marker';
@@ -682,10 +870,13 @@ import './vendor/iso-engine/isometric-engine.js';
                 var cc = this.cam;
                 cc.vw = document.getElementById('iso-viewport').clientWidth;
                 cc.vh = document.getElementById('iso-viewport').clientHeight;
-                this.cameraFit();
+                this._clampCam();
+                this.applyCamera(true);
+                this._updateCulling(true);
             }).bind(this);
             window.addEventListener('resize', this._onResize);
-            this.cameraFit();
+            /* 初始化：保持当前视角（由 start() 的 centerOn 接管，无需全景 fit） */
+            c.zoom = 0.6; c.tz = 0.6; c.tx = 0; c.ty = 0; c.ttx = 0; c.tty = 0;
         },
 
         cameraFit: function () {
@@ -713,31 +904,89 @@ import './vendor/iso-engine/isometric-engine.js';
             stage.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + z + ')';
         },
 
+        /* 将相机平移夹在地形包围盒内，确保玩家永远看不到地图（群山外障）之外 */
+        _clampCam: function () {
+            var c = this.cam;
+            var r = this._terrainRect();
+            var z = c.zoom;
+            var minTx = c.vw - r.r * z;
+            var maxTx = -r.l * z;
+            var minTy = c.vh - r.b * z;
+            var maxTy = -r.t * z;
+            if (minTx > maxTx) { var t = minTx; minTx = maxTx; maxTx = t; }
+            if (minTy > maxTy) { var s = minTy; minTy = maxTy; maxTy = s; }
+            c.ttx = Math.max(minTx, Math.min(maxTx, c.ttx));
+            c.tty = Math.max(minTy, Math.min(maxTy, c.tty));
+        },
+
         zoomBy: function (f) {
             var c = this.cam;
-            var target = Math.max(0.08, Math.min(2.4, c.zoom * f));
+            var target = Math.max(0.4, Math.min(4.5, c.zoom * f));
             var cx = c.vw / 2, cy = c.vh / 2;
             var rx = (cx - c.tx) / c.zoom, ry = (cy - c.ty) / c.zoom;
-            c.zoom = target;
-            c.tx = cx - rx * target;
-            c.ty = cy - ry * target;
+            c.zoom = target; c.tz = target;
+            cx = c.vw / 2; cy = c.vh / 2;
+            c.ttx = cx - rx * target;
+            c.tty = cy - ry * target;
+            this._clampCam();
+            c.tx = c.ttx; c.ty = c.tty;
             this.applyCamera(true);
         },
 
-        /* 推近相机并居中到某格（出生点），兼顾视野完整与玩家可见 */
+        /* 镜头拉近：仅覆盖大陆的一小部分，并完全随角色移动 */
         centerOn: function (gx, gy, zoom) {
             var c = this.cam;
             var p = this._project(gx, gy);
             var z = zoom;
             if (!z) {
-                z = Math.max(0.9, Math.min(c.vw, c.vh) / 620);
-                z = Math.max(0.45, Math.min(z, 1.8));
+                z = Math.max(1.1, Math.min(c.vw, c.vh) / 360);
+                z = Math.max(1.1, Math.min(z, 2.2));
             }
             c.zoom = z; c.tz = z;
             c.ttx = c.vw / 2 - p.x * z;
             c.tty = c.vh / 2 - p.y * z - 20;
+            this._clampCam();
             c.tx = c.ttx; c.ty = c.tty;
             this.applyCamera(true);
+            this._updateCulling(true);
+        },
+
+        /* 分块视野剔除：只显示相机视口可见（含边距）的分块，其余整块隐藏 */
+        _updateCulling: function (force) {
+            if (!this.chunkList || this.chunkList.length === 0) return;
+            var c = this.cam;
+            var z = c.zoom;
+            var o = this.origin;
+            /* 视口四角 → 等距格范围 */
+            var corners = [[0, 0], [c.vw, 0], [0, c.vh], [c.vw, c.vh]];
+            var minTx2 = 1e9, minTy2 = 1e9, maxTx2 = -1e9, maxTy2 = -1e9;
+            for (var i = 0; i < corners.length; i++) {
+                var sx = corners[i][0], sy = corners[i][1];
+                var xs = (sx - c.tx) / z - o.x;
+                var ys = (sy - c.ty) / z - o.y;
+                var a = xs / COS_Z;
+                var b = ys / SIN_ZX;
+                var ix = (a + b) / 2 / CELL;
+                var iy = (b - a) / 2 / CELL;
+                if (ix < minTx2) minTx2 = ix; if (ix > maxTx2) maxTx2 = ix;
+                if (iy < minTy2) minTy2 = iy; if (iy > maxTy2) maxTy2 = iy;
+            }
+            var pad = 2; // 分块边距（格）
+            var kx0 = Math.max(0, (Math.floor(minTx2 - pad) / CHUNK) | 0);
+            var ky0 = Math.max(0, (Math.floor(minTy2 - pad) / CHUNK) | 0);
+            var kx1 = Math.max(0, (Math.floor(maxTx2 + pad) / CHUNK) | 0);
+            var ky1 = Math.max(0, (Math.floor(maxTy2 + pad) / CHUNK) | 0);
+            var key = kx0 + ',' + ky0 + ',' + kx1 + ',' + ky1 + '|' + Math.round(z * 100);
+            if (!force && key === this._culledKey) return;
+            this._culledKey = key;
+            var list = this.chunkList;
+            for (var n = 0; n < list.length; n++) {
+                var ch = list[n];
+                var cx = Number(ch.getAttribute('data-cx'));
+                var cy = Number(ch.getAttribute('data-cy'));
+                var on = cx >= kx0 && cx <= kx1 && cy >= ky0 && cy <= ky1;
+                ch.style.display = on ? '' : 'none';
+            }
         },
 
         /* 返回地图时按 realm 回填导航：推近相机到该道入口并短暂高亮 */
@@ -748,7 +997,7 @@ import './vendor/iso-engine/isometric-engine.js';
                 if (!target && e.poi.type === 'realm' && e.poi.realm === realm) target = e;
             });
             if (!target) return;
-            this.centerOn(target.poi.x + 0.5, target.poi.y + 0.5, 0.95);
+            this.centerOn(target.poi.x + 0.5, target.poi.y + 0.5, 1.9);
             var emoji = target.emoji;
             if (emoji) {
                 emoji.style.transition = 'filter .4s, transform .4s';
@@ -815,12 +1064,15 @@ import './vendor/iso-engine/isometric-engine.js';
             var activeId = closest ? closest.poi.id : null;
             (this.pois).forEach(function (e) {
                 if (e.emoji) e.emoji.classList.toggle('active', e.poi.id === activeId);
+                else if (e.billboard && e.el) e.el.classList.toggle('active', e.poi.id === activeId);
             });
             this.activePoi = activeId;
             if (closest && UI) {
                 var lbl;
                 if (closest.poi.type === 'realm') lbl = '前往 ' + (REALM_NAMES[closest.poi.realm] || closest.poi.realm);
                 else if (closest.poi.type === 'sandbox') lbl = '进入 ' + (closest.poi.label || '沙盒训练场');
+                else if (closest.poi.type === 'billboard') lbl = '查看 ' + (closest.poi.label || '轮回修行告示牌');
+                else if (closest.poi.type === 'achievements') lbl = '查看 ' + (closest.poi.label || '成就殿堂');
                 else lbl = closest.poi.label || '互动';
                 UI.setInteractHint(lbl);
             } else if (UI) {
@@ -867,6 +1119,8 @@ import './vendor/iso-engine/isometric-engine.js';
                 location.href = '/sandbox?r=' + Date.now();
             }
             else if (entry.poi.type === 'npc') { this._markExplored(entry.poi.id); UI.openSkillTree(); }
+            else if (entry.poi.type === 'billboard') { this._markExplored(entry.poi.id); UI.openRpgStats(); }
+            else if (entry.poi.type === 'achievements') { this._markExplored(entry.poi.id); UI.openAchievements(); }
             else if (entry.poi.type === 'spawn') { if (UI.toast) UI.toast('生灭台：这里是旅途的起点。'); }
         },
 
@@ -893,7 +1147,7 @@ import './vendor/iso-engine/isometric-engine.js';
         start: function () {
             var self = this;
             this.setupCamera();
-            // 默认推近相机到出生点，而非缩放整幅地图（保证玩家标记即时可见）
+            // 镜头拉近到出生点：仅覆盖大陆的一小部分，随角色移动
             this.centerOn(this.playerPos.x, this.playerPos.y);
             this.bindInput();
             var last = performance.now();
@@ -901,22 +1155,18 @@ import './vendor/iso-engine/isometric-engine.js';
                 var dt = Math.min(0.05, (now - last) / 1000);
                 last = now;
                 self.step(dt);
-                /* 相机跟随：玩家越过安全区边缘时，平滑回中 */
+                /* 相机完全随角色移动：每帧以角色为中心计算目标平移 */
                 var c = self.cam;
                 var p = self._project(self.playerPos.x, self.playerPos.y);
-                var psx = p.x * c.zoom + c.tx;
-                var psy = p.y * c.zoom + c.ty;
-                var margin = 0.24;
-                var driftX = 0, driftY = 0;
-                if (psx < c.vw * margin) driftX = c.vw * margin - psx;
-                else if (psx > c.vw * (1 - margin)) driftX = c.vw * (1 - margin) - psx;
-                if (psy < c.vh * margin) driftY = c.vh * margin - psy;
-                else if (psy > c.vh * (1 - margin)) driftY = c.vh * (1 - margin) - psy;
-                var ex = c.ttx + (driftX || 0), ey = c.tty + (driftY || 0);
-                var k = 1 - Math.pow(0.0001, dt); // 帧率无关的阻尼插值
-                c.tx += (ex - c.tx) * k;
-                c.ty += (ey - c.ty) * k;
+                c.ttx = c.vw / 2 - p.x * c.zoom;
+                c.tty = c.vh / 2 - p.y * c.zoom - 20;
+                self._clampCam();   // 夹在地形包围盒内，绝不露出地图（群山外障）之外
+                /* 帧率无关的平滑跟随：角色居中，镜头紧贴 */
+                var k = 1 - Math.pow(0.002, dt);
+                c.tx += (c.ttx - c.tx) * k;
+                c.ty += (c.tty - c.ty) * k;
                 self.applyCamera(false);
+                self._updateCulling(false); // 只渲染视口内的分块
                 requestAnimationFrame(loop);
             }
             requestAnimationFrame(loop);

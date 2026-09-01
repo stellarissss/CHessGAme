@@ -651,9 +651,8 @@
         box.innerHTML = `
             <div style="text-align:center; padding:20px;">
                 <div style="font-size:20px; color:var(--accent-gold); margin-bottom:12px;">剧情完成</div>
-                <div style="font-size:14px; color:var(--text-dim); margin-bottom:20px;">点击进入下一关或返回总坛</div>
-                <a href="/overworld?r=${Date.now()}&backrealm=${encodeURIComponent(currentRealm || 'hell')}" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; margin-right:12px;">返回大地图</a>
-                <a href="/hub" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px;">返回总坛</a>
+                <div style="font-size:14px; color:var(--text-dim); margin-bottom:20px;">点击返回大地图继续下一境</div>
+                <a href="/overworld?r=${Date.now()}&backrealm=${encodeURIComponent(currentRealm || 'hell')}" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; display:inline-block;">返回大地图 ▶</a>
             </div>
         `;
         box.style.display = 'block';
@@ -683,8 +682,8 @@
         box.innerHTML = `
             <div style="text-align:center; padding:20px;">
                 <div style="font-size:20px; color:var(--accent-gold); margin-bottom:12px;">序章完</div>
-                <div style="font-size:14px; color:var(--text-dim); margin-bottom:16px;">轮回之门已开启，前往总坛选择章节</div>
-                <a href="/hub" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; display:inline-block; margin-top:12px;">进入总坛 ▶</a>
+                <div style="font-size:14px; color:var(--text-dim); margin-bottom:16px;">轮回之门已开启，踏入六道大陆开启修行</div>
+                <a href="/overworld" style="color:var(--accent-gold); text-decoration:none; border:1px solid var(--accent-gold); padding:8px 24px; border-radius:4px; display:inline-block; margin-top:12px;">进入大陆 ▶</a>
             </div>
         `;
         box.style.display = 'block';

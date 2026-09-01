@@ -129,6 +129,8 @@
   "pois": [
     { "id": "spawn",       "type": "spawn", "emoji": "🚪", "x": 58, "y": 46, "label": "" },
     { "id": "skill_npc",   "type": "npc",   "emoji": "🧙", "x": 56, "y": 42, "label": "菩提老者" },
+    { "id": "billboard",   "type": "billboard", "emoji": "🪧", "x": 54, "y": 45, "label": "轮回修行告示牌" },
+    { "id": "ach_monument","type": "achievements", "emoji": "🏆", "x": 61, "y": 42, "label": "成就殿堂" },
 
     { "id": "realm_hungry","type": "realm", "emoji": "👹", "x": 6,  "y": 22, "realm": "hungry" },
     { "id": "realm_heaven","type": "realm", "emoji": "☸️", "x": 50, "y": 10, "realm": "heaven" },

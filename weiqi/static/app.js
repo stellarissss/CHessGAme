@@ -4168,7 +4168,7 @@ export class GoBoard extends HTMLElement {
         const btnAchievements = this.shadowRoot.getElementById('btn-achievements');
         if (btnAchievements) {
             btnAchievements.addEventListener('click', () => {
-                window.open('http://localhost:8080/achievements', '_blank');
+                window.open('/overworld', '_blank', 'noopener,noreferrer');
             });
         }
 

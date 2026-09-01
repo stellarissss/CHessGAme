@@ -274,11 +274,11 @@
             nextBtnDisabled = true;
         }
 
-        let returnLabel = '🏠 返回总坛';
-        let returnHref = '/hub/index.html';
+        let returnLabel = '🏠 返回大陆';
+        let returnHref = '/overworld';
         if (isSandbox) {
-            returnLabel = '🏠 返回沙盒总坛';
-            returnHref = '/hub/sandbox.html';
+            returnLabel = '🏠 返回大地图';
+            returnHref = '/overworld';
         }
 
         // 内嵌大陆大地图模式：胜负皆可“返回地图”（回到 2.5D 大地图）

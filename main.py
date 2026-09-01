@@ -332,11 +332,8 @@ def build_hub_app():
 
     @app.get("/hub")
     async def hub_index():
-        # RPG 总坛（剧情模式主界面）
-        html_path = HUB_DIR / "index.html"
-        if html_path.exists():
-            return HTMLResponse(html_path.read_text(encoding="utf-8"))
-        return HTMLResponse("<h1>六道众生总坛文件未找到</h1>", status_code=404)
+        # 总坛已下线：剧情模式唯一入口改为大地图 /overworld
+        return Response(status_code=302, headers={"Location": "/overworld"})
 
     @app.get("/overworld")
     async def overworld_page():
@@ -375,10 +372,8 @@ def build_hub_app():
 
     @app.get("/achievements")
     async def achievements_page():
-        html_path = HUB_DIR / "achievements.html"
-        if html_path.exists():
-            return HTMLResponse(html_path.read_text(encoding="utf-8"))
-        return HTMLResponse("<h1>成就殿堂未找到</h1>", status_code=404)
+        # 成就已并入大地图 /overworld 浮窗，历史链接重定向
+        return Response(status_code=302, headers={"Location": "/overworld"})
 
     # ── RPG 页面路由 ──
     @app.get("/dialogue")
