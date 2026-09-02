@@ -292,6 +292,83 @@ def start_process(name, script_path, port, cwd=None):
         return None
 
 
+# ═══════════════════════════════════════════════════════════════
+# 按需启停进程管理：不一次性拉起所有棋类服务，仅在使用时启动、空闲时回收
+# ═══════════════════════════════════════════════════════════════
+_LAZY = {}            # key -> {proc, name, port, cwd, last}
+_LAZY_LOCK = threading.Lock()
+LAZY_IDLE_SECONDS = int(os.environ.get("LAZY_IDLE_SECONDS", 180))
+_LAZY_KEY_BY_REALM = {g["realm"]: g["id"] for g in GAMES}
+_LAZY_KEY_BY_SANDBOX_PORT = {g["port"]: g["id"] for g in SANDBOX_GAMES}
+_LAZY_KEY_BY_RPG_PORT = {g["port"]: g["id"] for g in GAMES}
+
+
+def _lazy_key(mode: str, gid: str):
+    return f"{mode}:{gid}"
+
+
+def _all_game_keys():
+    keys = [_lazy_key("rpg", g["id"]) for g in GAMES]
+    keys += [_lazy_key("sandbox", g["id"]) for g in SANDBOX_GAMES]
+    return keys
+
+
+def _ensure_game(key):
+    """确保某个棋类服务已启动（幂等），并刷新最近使用时间。"""
+    mode, gid = key.partition(":")[0], key.split(":", 1)[1]
+    with _LAZY_LOCK:
+        entry = _LAZY.get(key)
+        now = time.time()
+        if entry and entry.get("proc") and entry["proc"].poll() is None:
+            entry["last"] = now
+            return {"ok": True, "port": entry["port"], "url": f"http://localhost:{entry['port']}/"}
+        if mode == "rpg":
+            game = next((g for g in GAMES if g["id"] == gid), None)
+            argv = WORKSPACE_ROOT / gid / "main.py"
+        else:
+            game = next((g for g in SANDBOX_GAMES if g["id"] == gid), None)
+            argv = WORKSPACE_ROOT / "sandbox" / gid / "main.py"
+        if not game:
+            return {"ok": False, "error": f"unknown game {key}"}
+        proc = start_process(game["name"], argv, game["port"])
+        _LAZY[key] = {"proc": proc, "name": game["name"], "port": game["port"],
+                      "cwd": argv.parent, "last": now}
+        return {"ok": proc is not None, "port": game["port"], "url": f"http://localhost:{game['port']}/"}
+
+
+def _dispose_game(key):
+    """停止某个棋类服务。"""
+    with _LAZY_LOCK:
+        entry = _LAZY.pop(key, None)
+        if not entry:
+            return
+        proc = entry.get("proc")
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=5)
+            except Exception:
+                try: proc.kill()
+                except Exception: pass
+        log_info(f"  已回收空闲进程：{entry['name']}")
+
+
+def _lazy_reaper():
+    """后台线程：定期回收超过空闲阈值的进程。"""
+    while True:
+        time.sleep(15)
+        now = time.time()
+        stale = [k for k, e in list(_LAZY.items()) if now - e.get("last", 0) > LAZY_IDLE_SECONDS]
+        for k in stale:
+            _dispose_game(k)
+
+
+def _dispose_all():
+    """退出时回收所有按需启动的棋类进程。"""
+    for key in list(_LAZY.keys()):
+        _dispose_game(key)
+
+
 def build_hub_app():
     """构建总界面的 FastAPI 应用"""
     from fastapi import FastAPI, Request
@@ -353,14 +430,6 @@ def build_hub_app():
             except (json.JSONDecodeError, OSError):
                 pass
         return JSONResponse({"error": "overworld.json 缺失或损坏"}, headers=NO_STORE, status_code=404)
-
-    @app.get("/play")
-    async def play_page():
-        # 对局容器（同窗口内嵌棋类 iframe）
-        html_path = HUB_DIR / "play.html"
-        if html_path.exists():
-            return HTMLResponse(html_path.read_text(encoding="utf-8"))
-        return HTMLResponse("<h1>对局容器文件未找到</h1>", status_code=404)
 
     @app.get("/sandbox")
     async def sandbox_page():
@@ -424,6 +493,46 @@ def build_hub_app():
             }
             for game in SANDBOX_GAMES
         ])
+
+    # ── 按需启停棋类进程（懒加载） ──
+    @app.get("/api/lazy/start")
+    async def lazy_start(request: Request):
+        q = request.query_params
+        mode, gid = q.get("mode", "rpg"), q.get("game", "")
+        if not gid:
+            return _nc({"ok": False, "error": "missing game"})
+        return _nc(_ensure_game(_lazy_key(mode, gid)))
+
+    @app.post("/api/lazy/stop")
+    async def lazy_stop(request: Request):
+        q = request.query_params
+        mode, gid = q.get("mode", "rpg"), q.get("game", "")
+        if not gid:
+            return _nc({"ok": False, "error": "missing game"})
+        _dispose_game(_lazy_key(mode, gid))
+        return _nc({"ok": True})
+
+    @app.get("/api/lazy/running")
+    async def lazy_running():
+        running = []
+        with _LAZY_LOCK:
+            for key, e in _LAZY.items():
+                if e.get("proc") and e["proc"].poll() is None:
+                    mode, gid = key.split(":", 1)
+                    running.append({"mode": mode, "game": gid, "port": e["port"]})
+        return _nc({"running": running, "count": len(running)})
+
+    # 进入对局容器时：确保对应棋类服务已就绪后才返回页面
+    @app.get("/play")
+    async def play_page(request: Request):
+        q = request.query_params
+        realm = q.get("realm")
+        if realm and realm in _LAZY_KEY_BY_REALM:
+            _ensure_game(_lazy_key("rpg", _LAZY_KEY_BY_REALM[realm]))
+        html_path = HUB_DIR / "play.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>对局容器文件未找到</h1>", status_code=404)
 
     @app.get("/api/health")
     async def health():
@@ -664,27 +773,10 @@ def main():
     if not check_dependencies():
         sys.exit(1)
 
-    processes = []
+    # 棋类服务改为按需懒启动（进入对局时才拉起，空闲自动回收），不再一次性全开。
 
-    # 1a. 启动六个 RPG 棋类服务（端口 8000-8005）
-    for game in GAMES:
-        script_path = WORKSPACE_ROOT / game["id"] / "main.py"
-        if script_path.exists():
-            proc = start_process(game["name"], script_path, game["port"])
-            if proc:
-                processes.append((game["name"], proc))
-        else:
-            log_warn(f"  跳过 {game['name']}: 未找到 {script_path}")
-
-    # 1b. 启动六个沙盒棋类服务（端口 8010-8015，纯净模式，与 RPG 隔离）
-    for game in SANDBOX_GAMES:
-        script_path = WORKSPACE_ROOT / "sandbox" / game["id"] / "main.py"
-        if script_path.exists():
-            proc = start_process(f"[沙盒]{game['name']}", script_path, game["port"])
-            if proc:
-                processes.append((f"[沙盒]{game['name']}", proc))
-        else:
-            log_warn(f"  跳过 [沙盒]{game['name']}: 未找到 {script_path}")
+    # 启动按需启停进程的回收线程
+    threading.Thread(target=_lazy_reaper, daemon=True).start()
 
     # 2. 在后台线程启动总坛服务
     hub_thread = threading.Thread(
@@ -700,12 +792,7 @@ def main():
     log_info("  服务启动完成！")
     print(_c("cyan", "  " + "=" * 56))
     log_info(f"  六道众生标题页: {hub_url}")
-    print(_c("dim", "\n  RPG 棋类入口（剧情模式）:"))
-    for game in GAMES:
-        print(_c("green", f"    {game['name']}: http://localhost:{game['port']}/"))
-    print(_c("dim", "\n  沙盒棋类入口（纯净模式）:"))
-    for game in SANDBOX_GAMES:
-        print(_c("green", f"    [沙盒]{game['name']}: http://localhost:{game['port']}/"))
+    log_info("  棋类服务已启用【按需懒加载】：进入对局时才启动对应进程，空闲自动回收。")
     print(_c("yellow", "\n  关闭窗口 / 按 Ctrl+C 停止所有服务"))
     print(_c("cyan", "  " + "=" * 56))
 
@@ -723,7 +810,7 @@ def main():
                 log_warn("  本次退回浏览器模式")
                 browser_mode = True
             else:
-                _stop_all(processes)
+                _dispose_all()
                 return
         else:
             log_warn("  总坛服务启动超时，退回浏览器模式")
@@ -737,8 +824,13 @@ def main():
         )
         browser_thread.start()
 
-    _hold_and_monitor(processes)
-    _stop_all(processes)
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _dispose_all()
 
 
 if __name__ == "__main__":

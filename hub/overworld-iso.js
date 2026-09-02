@@ -197,6 +197,12 @@ import './vendor/iso-engine/isometric-engine.js';
             return this.C_BASE;
         },
 
+        /* 山地屏障：仅地图边缘的外障不可通行，水/障碍物均可自由穿越 */
+        _isBarrier: function (tx, ty) {
+            if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) return true;
+            return !!(this.wallGrid && this.wallGrid[ty] && this.wallGrid[ty][tx]);
+        },
+
         isSolid: function (tx, ty) {
             if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) return true;
             return this.solid[ty][tx];
@@ -561,6 +567,40 @@ import './vendor/iso-engine/isometric-engine.js';
             this.buildMountains();
             this.buildPois();
             this.buildPlayer();
+            this.buildClouds();
+        },
+
+        /* ── 大陆周围点缀云朵：填满外圈黑色区域的观感 ── */
+        buildClouds: function () {
+            var self = this;
+            if (!this.overlayEl) return;
+            var r;
+            try { r = this._terrainRect(); } catch (e) { return; }
+            var spots = [];
+            var add = function (x, y, w, spd) { spots.push({ x: x, y: y, w: w, spd: spd }); };
+            var i;
+            /* 左右两侧 */
+            for (i = 0; i < 7; i++) {
+                add(r.l - (70 + this._rng(3, i, 1) * 150), r.t + this._rng(4, i, 2) * (r.b - r.t), 150 + this._rng(5, i, 3) * 130, 14 + (i % 4) * 5);
+                add(r.r + (70 + this._rng(6, i, 1) * 150), r.t + this._rng(7, i, 2) * (r.b - r.t), 150 + this._rng(8, i, 3) * 130, 12 + (i % 3) * 6);
+            }
+            /* 上下两侧 */
+            for (i = 0; i < 5; i++) {
+                add(r.l + this._rng(9, i, 1) * (r.r - r.l), r.t - (55 + this._rng(10, i, 2) * 110), 160 + this._rng(11, i, 3) * 120, 16 + (i % 4) * 4);
+                add(r.l + this._rng(12, i, 1) * (r.r - r.l), r.b + (55 + this._rng(13, i, 2) * 110), 160 + this._rng(14, i, 3) * 120, 13 + (i % 3) * 5);
+            }
+            spots.forEach(function (c) {
+                var d = document.createElement('div');
+                d.className = 'ow-cloud';
+                d.style.width = c.w + 'px';
+                d.style.height = (c.w * 0.42).toFixed(1) + 'px';
+                d.style.left = c.x + 'px';
+                d.style.top = c.y + 'px';
+                var delay = (c.spd * 1.08) % 12;
+                d.style.animationDuration = c.spd + 's';
+                d.style.animationDelay = delay.toFixed(1) + 's';
+                self.overlayEl.appendChild(d);
+            });
         },
 
         /* ── 巨型告示牌：轮回修行立牌（CSS 渲染，随地图缩放移动） ── */
@@ -1014,19 +1054,24 @@ import './vendor/iso-engine/isometric-engine.js';
             if (!this.playerEl) return;
             var paused = !!(UI && UI.isModalOpen());
             var keys = this.keys || {};
-            var dx = 0, dy = 0;
+            /* 以屏幕方向为准（WASD = 上/下/左/右），再换算为等距格位移 */
+            var sx = 0, sy = 0;
             if (!paused) {
-                if (keys['ArrowLeft'] || keys['a']) dx -= 1;
-                if (keys['ArrowRight'] || keys['d']) dx += 1;
-                if (keys['ArrowUp'] || keys['w']) dy -= 1;
-                if (keys['ArrowDown'] || keys['s']) dy += 1;
+                if (keys['ArrowLeft'] || keys['a']) sx -= 1;
+                if (keys['ArrowRight'] || keys['d']) sx += 1;
+                if (keys['ArrowUp'] || keys['w']) sy -= 1;
+                if (keys['ArrowDown'] || keys['s']) sy += 1;
             }
-            if (dx !== 0 || dy !== 0) {
-                var inv = Math.hypot(dx, dy);
+            if (sx !== 0 || sy !== 0) {
+                var inv = Math.hypot(sx, sy);
                 this.moving = true;
+                if (sx !== 0) this.facing = sx > 0 ? 1 : -1;
                 var spd = this.playerSpeed * dt;
-                if (dx !== 0) this.facing = dx > 0 ? 1 : -1;
-                this._moveAxis((dx / inv) * spd, (dy / inv) * spd);
+                var sdx = (sx / inv) * spd, sdy = (sy / inv) * spd;
+                /* 屏幕位移 → 等距格位移（逆仿射） */
+                var dA = sdx / COS_Z;
+                var dB = sdy / SIN_ZX;
+                this._moveAxis((dA + dB) / 2, (dB - dA) / 2);
             } else {
                 this.moving = false;
             }
@@ -1047,13 +1092,14 @@ import './vendor/iso-engine/isometric-engine.js';
             var r = 0.28;
             var r0 = Math.floor(gx - r), r1 = Math.floor(gx + r);
             var c0 = Math.floor(gy - r), c1 = Math.floor(gy + r);
-            return this.isSolid(r0, c0) || this.isSolid(r1, c0) ||
-                   this.isSolid(r0, c1) || this.isSolid(r1, c1);
+            return this._isBarrier(r0, c0) || this._isBarrier(r1, c0) ||
+                   this._isBarrier(r0, c1) || this._isBarrier(r1, c1);
         },
 
         _updateInteraction: function () {
             var self = this;
             var reach = (this.ow.player && this.ow.player.interact_tiles) || 1.5;
+            reach = Math.max(reach, 3.2); /* 扩大交互范围，方便点击/靠近 */
             var closest = null, minD = reach + 1;
             this.pois.forEach(function (entry) {
                 var d = Math.hypot(entry.poi.x - self.playerPos.x, entry.poi.y - self.playerPos.y);
@@ -1138,6 +1184,14 @@ import './vendor/iso-engine/isometric-engine.js';
             window.addEventListener('keyup', function (e) {
                 self.keys[e.key.toLowerCase()] = false;
             });
+            /* 鼠标滚轮缩放镜头高度 */
+            window.addEventListener('wheel', function (e) {
+                if (UI && UI.isModalOpen()) return;
+                var f = 1.18;
+                if (e.deltaY > 0) self.zoomBy(1 / f);   // 下滚 → 拉远
+                else if (e.deltaY < 0) self.zoomBy(f);  // 上滚 → 拉近
+                e.preventDefault();
+            }, { passive: false });
             var zin = document.getElementById('btn-zoom-in');
             var zout = document.getElementById('btn-zoom-out');
             if (zin) zin.addEventListener('click', function () { self.zoomBy(1.35); });

@@ -72,7 +72,15 @@ function render(games) {
             </div>
         `;
 
-        const open = () => window.open(url, "_blank", "noopener,noreferrer");
+        const open = () => {
+            // 按需启动对应纯净棋类进程后再打开
+            fetch(`/api/lazy/start?mode=sandbox&game=${encodeURIComponent(game.id)}`, { cache: "no-store" })
+                .catch(() => {})
+                .finally(() => {
+                    const target = game.url || buildUrl(game.port);
+                    window.open(target, "_blank", "noopener,noreferrer");
+                });
+        };
         card.addEventListener("click", open);
         card.addEventListener("keydown", (e) => {
             if (e.key === "Enter" || e.key === " ") {

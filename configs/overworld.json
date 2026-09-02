@@ -207,7 +207,7 @@
   "player": {
     "speed": 160,
     "radius_px": 13,
-    "interact_tiles": 1.6,
+    "interact_tiles": 3.0,
     "initial": { "x": 58, "y": 46 }
   }
 }

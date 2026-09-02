@@ -375,8 +375,8 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 
 /* ── 右下角小地图 ── */
 #minimap-container {
-    position: absolute; right: 20px; bottom: 24px;
-    width: 168px; height: 126px; /* 与大陆 4:3 比例（112x84） */
+    position: absolute; right: 22px; bottom: 22px;
+    width: 236px; height: 177px; /* 放大后的小地图（与大陆 4:3 比例） */
     border: 1px solid rgba(212,175,55,0.32);
     border-radius: 10px;
     background: rgba(10,10,14,0.82);
@@ -407,8 +407,8 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .minimap-poi {
     position: absolute;
     display: flex; align-items: center; justify-content: center;
-    width: 14px; height: 14px; margin: -7px 0 0 -7px;
-    font-size: 9px; line-height: 1; text-align: center;
+    width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    font-size: 12px; line-height: 1; text-align: center;
     z-index: 1;
 }
 .minimap-poi.unexplored { color: rgba(255,255,255,0.6); text-shadow: 0 0 4px rgba(0,0,0,0.9); }
@@ -469,6 +469,23 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .rpg-action:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
 .rpg-action.boss { border-color: rgba(155,35,53,.6); }
 .rpg-action.boss:hover { border-color: var(--crimson); color: var(--crimson); }
+
+/* ── 大陆周围点缀云朵（外部黑色区域的柔和点缀） ── */
+.ow-cloud {
+    position: absolute;
+    border-radius: 50%;
+    background: radial-gradient(ellipse at 50% 55%, rgba(240,246,255,0.80), rgba(235,242,255,0.38) 55%, rgba(226,234,248,0.08) 80%);
+    filter: blur(6px);
+    opacity: 0.55;
+    pointer-events: none;
+    animation: cloudDrift 22s ease-in-out infinite alternate;
+    will-change: transform;
+    z-index: 1;
+}
+@keyframes cloudDrift {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(46px); }
+}
 
 /* ── 巨型告示牌（世界内的等距立牌） ── */
 .ow-billboard {
