@@ -68,7 +68,12 @@ def log_error(msg):
     print(_c("red", msg))
 
 # 若环境未安装依赖，给出友好提示后再尝试启动
-WORKSPACE_ROOT = Path(__file__).resolve().parent
+_FROZEN_ROOT = bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
+if _FROZEN_ROOT:
+    # 冻结（Nuitka/PyInstaller）产物：以可执行文件所在目录为项目根
+    WORKSPACE_ROOT = Path(sys.executable).resolve().parent
+else:
+    WORKSPACE_ROOT = Path(__file__).resolve().parent
 HUB_DIR = WORKSPACE_ROOT / "hub"
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 ACHIEVEMENTS_FILE = WORKSPACE_ROOT / "achievements.json"
@@ -302,6 +307,39 @@ _LAZY_KEY_BY_REALM = {g["realm"]: g["id"] for g in GAMES}
 _LAZY_KEY_BY_SANDBOX_PORT = {g["port"]: g["id"] for g in SANDBOX_GAMES}
 _LAZY_KEY_BY_RPG_PORT = {g["port"]: g["id"] for g in GAMES}
 
+# 识别冻结环境（Nuitka 编译产物）：冻结包内无法再用 subprocess 拉取解释器跑独立脚本，
+# 改为在进程内以线程方式运行各棋类的 uvicorn 服务。
+_IS_FROZEN = bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
+
+
+def _run_game_in_thread(name: str, script_path: Path, port: int):
+    """在进程内以线程方式加载某棋类的 FastAPI 应用并启动 uvicorn 服务。"""
+    try:
+        import importlib.util as _ilu
+        import uvicorn
+    except Exception as e:
+        log_error(f"  ✗ 缺少运行依赖: {e}")
+        return None
+    mod_name = "_frozen_" + name
+    try:
+        spec = _ilu.spec_from_file_location(mod_name, str(script_path))
+        if spec is None or spec.loader is None:
+            return None
+        mod = _ilu.module_from_spec(spec)
+        sys.modules[mod_name] = mod
+        spec.loader.exec_module(mod)
+    except Exception as e:
+        log_error(f"  ✗ 进程内启动失败 {name}: {e}")
+        return None
+    app = getattr(mod, "app", None)
+    if not app:
+        log_error(f"  ✗ {name} 未暴露 FastAPI app")
+        return None
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+    threading.Thread(target=server.run, daemon=True).start()
+    return server
+
 
 def _lazy_key(mode: str, gid: str):
     return f"{mode}:{gid}"
@@ -316,24 +354,40 @@ def _all_game_keys():
 def _ensure_game(key):
     """确保某个棋类服务已启动（幂等），并刷新最近使用时间。"""
     mode, gid = key.partition(":")[0], key.split(":", 1)[1]
+    if mode == "rpg":
+        game = next((g for g in GAMES if g["id"] == gid), None)
+        argv = WORKSPACE_ROOT / gid / "main.py"
+    else:
+        game = next((g for g in SANDBOX_GAMES if g["id"] == gid), None)
+        argv = WORKSPACE_ROOT / "sandbox" / gid / "main.py"
+    if not game:
+        return {"ok": False, "error": f"unknown game {key}"}
+    now = time.time()
     with _LAZY_LOCK:
         entry = _LAZY.get(key)
-        now = time.time()
-        if entry and entry.get("proc") and entry["proc"].poll() is None:
+        if entry and not _is_dead(entry):
             entry["last"] = now
             return {"ok": True, "port": entry["port"], "url": f"http://localhost:{entry['port']}/"}
-        if mode == "rpg":
-            game = next((g for g in GAMES if g["id"] == gid), None)
-            argv = WORKSPACE_ROOT / gid / "main.py"
-        else:
-            game = next((g for g in SANDBOX_GAMES if g["id"] == gid), None)
-            argv = WORKSPACE_ROOT / "sandbox" / gid / "main.py"
-        if not game:
-            return {"ok": False, "error": f"unknown game {key}"}
+        if _IS_FROZEN:
+            # 冻结包：在进程内以线程方式运行服务
+            server = _run_game_in_thread(game["name"], argv, game["port"])
+            if server is None:
+                return {"ok": False, "error": f"start failed {key}"}
+            _LAZY[key] = {"proc": None, "server": server, "name": game["name"],
+                          "port": game["port"], "last": now}
+            return {"ok": True, "port": game["port"], "url": f"http://localhost:{game['port']}/"}
         proc = start_process(game["name"], argv, game["port"])
         _LAZY[key] = {"proc": proc, "name": game["name"], "port": game["port"],
                       "cwd": argv.parent, "last": now}
         return {"ok": proc is not None, "port": game["port"], "url": f"http://localhost:{game['port']}/"}
+
+
+def _is_dead(entry):
+    if entry.get("server") is not None:
+        # 线程型服务：直接视为活着（由空闲回收负责退出）
+        return False
+    proc = entry.get("proc")
+    return proc is None or proc.poll() is not None
 
 
 def _dispose_game(key):
@@ -342,6 +396,12 @@ def _dispose_game(key):
         entry = _LAZY.pop(key, None)
         if not entry:
             return
+        server = entry.get("server")
+        if server is not None:
+            try:
+                server.should_exit = True
+            except Exception:
+                pass
         proc = entry.get("proc")
         if proc and proc.poll() is None:
             try:
@@ -517,7 +577,7 @@ def build_hub_app():
         running = []
         with _LAZY_LOCK:
             for key, e in _LAZY.items():
-                if e.get("proc") and e["proc"].poll() is None:
+                if not _is_dead(e):
                     mode, gid = key.split(":", 1)
                     running.append({"mode": mode, "game": gid, "port": e["port"]})
         return _nc({"running": running, "count": len(running)})
@@ -665,9 +725,12 @@ def build_hub_app():
 def start_hub_server(port):
     import uvicorn
 
+    # 生产模式配置：绑定外部地址、稳定日志级别，服务仅此一份（桌面应用单进程）
+    host = os.environ.get("HUB_HOST", "0.0.0.0")
+    log_level = os.environ.get("HUB_LOG_LEVEL", "warning")
     hub_app = build_hub_app()
-    log_info(f"  启动 六道众生总坛 (端口 {port})...")
-    uvicorn.run(hub_app, host="0.0.0.0", port=port, log_level="warning")
+    log_info(f"  启动 六道众生生产服务器 (端口 {port})...")
+    uvicorn.run(hub_app, host=host, port=port, log_level=log_level)
 
 
 def open_browser(url, no_browser=False):
@@ -766,9 +829,13 @@ def main():
     print_banner()
 
     no_browser = "--no-browser" in sys.argv
+    production_mode = "--production" in sys.argv or os.environ.get("CHESSSAGE_PRODUCTION") == "1"
     browser_mode = "--browser" in sys.argv or "--no-window" in sys.argv
+    # 生产模式：仅启动服务，不自动打开任何界面（供服务器/打包后后台运行）
+    if production_mode:
+        no_browser = True
     # 默认（未指定参数）：独立桌面窗口模式
-    window_mode = not no_browser and not browser_mode
+    window_mode = not no_browser and not browser_mode and not production_mode
 
     if not check_dependencies():
         sys.exit(1)
