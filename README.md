@@ -1,8 +1,19 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.5 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.7 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
-以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。大陆采用 **iso-engine（CSS 3D Transform / Lit Web Components）等距渲染**——地面以「色块」区分景观（绿 / 黄绿 / 黄 / 红 / 黑 / 白 / 灰），水域 / 道路 / 山脉叠色，并依区域散布岩石 / 草丛 / 各类树木 / 雪堆 / 沙丘 / 仙人掌 / 废墟等 3D 景观物体，辅以立方体三面明暗 + 屏幕环境光 / 暗角营造光影层次；玩家与六道入口 / POI 标点以「DOM Overlay + 仿射投影」始终正面朝向地叠于 3D 场景之上。
+以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
+
+**次世代渲染（WebGPU）**：大陆默认由自家 WebGPU 渲染器 `overworld-wgpu.js` 无缝承接旧 iso-engine 阶段——
+- 真 3D 高度场地形 + 实例化装饰（树/石/雪/水/植被/灵粒），分块视口剔除只绘制可见 chunk；
+- 次世代式着色器栈（`wgpu/shaders.js`，WGSL）：HDR 前向 GBuffer（颜色/法线/世界坐标）→ **SSAO（compute）** → **屏幕空间体积光（God Ray 步进）** → **Bloom（亮部提取+逐级下采样）** → **ACES 色调映射** + Gamma + 暗角 + 去条带抖动；
+- 光照 = 半球环境 + 暖阳漫反/高光 + 指数雾；`frame` uniform 每帧上传相机/光照/动画时间；
+- **精细化模型**：新增 `TERRAIN_DETAIL_CS` compute 生成世界锚定的高频细节场（1 纹元=1 格），地形**顶点着色器置换**（`TERRAIN_VS` 采样细节场做微位移并沿梯度锐化法线），轮廓与光照更精细，GPU 一次生成、按需采样，近乎零开销；
+- **性能优化（不降质）**：附件 View 跨帧缓存、Bloom 模糊 bind group 预创建复用、SSAO/细节 compute 派发数预计算——消除逐帧 `createView`/`createBindGroup` 分配与 GC 抖动；
+- 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
+- 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
+
+**兼容回退**：无 WebGPU / WebGPU 加载失败时，`overworld-load.js` 自动回退到旧版 iso-engine（CSS 3D Transform / Lit Web Components）渲染，DOM Overlay（+ 仿射投影）逻辑保持不变，老浏览器仍可游玩。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -19,10 +30,10 @@
 
 **探索架构**
 
-- 地图尺寸 112 × 84 瓦片，等距渲染（CELL=30px），配色以区域主题色块区分景观（绿/黄绿/黄/红/黑/白/灰）。
+- 地图尺寸 112 × 84 瓦片，等距渲染（CELL=46px），配色以区域主题色块区分景观（绿/黄绿/黄/红/黑/白/灰）。
 - 九大地理区域：北境雪原、西北密林、幽邃湾、中央平原、东部丘陵、南部沙漠、西南地牢、东南石林、怒涛海岸。
 - 非规则大陆形状：天然海域 / 河流 / 山脉屏障分割地域，半岛、海湾、谷地错落分布，均以色块 + 叠色映射。
-- 碰撞系统：水域与山脉（岩石地貌）为天然不可通行区域，`solid_regions` 可额外指定阻挡区；玩家按格中心 + 半径碰撞判定。
+- 碰撞系统：游戏允许水域 / 障碍物自由穿越，仅**地图边缘群山外障**（`wallGrid`，四周 6 格厚）与 `solid_regions` 指定区为不可通行屏障，玩家按格中心 + 半径碰撞判定。
 
 **六道入口（大陆角落，金色呼吸光圈引导）**
 
@@ -243,7 +254,9 @@
                     │  ├ RPG 对话 / 记忆 / Boss战    │
                     │  └ 六道大陆                     │
                     │    hub/overworld.html          │
-                    │    hub/overworld-iso.js (等距) │
+                    │    hub/overworld-load.js(分发) │
+                    │      ├ WebGPU → overworld-wgpu │
+                    │      └ 回退   → overworld-iso  │
                     │    hub/overworld-ui.js (DOM)   │
                     └──────────────┬────────────────┘
                                    │ FastAPI
@@ -374,9 +387,12 @@ workspace/
 │
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
-│   ├── overworld.html           # ★ 六道大陆页（iso-engine 等距舞台 + DOM HUD + 小地图）
-│   ├── overworld-iso.js         # ★ 大陆渲染：等距色块地面 + 景观物体 + 光影 + 玩家/碰撞/POI + 沙盒训练场多面体 + 小地图/探索存档
+│   ├── overworld.html           # ★ 六道大陆页（渲染装载 + DOM HUD + 小地图）
+│   ├── overworld-load.js        # ★ 渲染器分发：WebGPU → overworld-wgpu；否则回退 overworld-iso
+│   ├── overworld-wgpu.js        # ★ 大陆渲染（WebGPU）：高度场地形 + 实例化装饰 + SSAO/体积光/Bloom/HDR/雾 + 相机/碰撞/POI/小地图
+│   ├── overworld-iso.js         # 大陆渲染（回退，iso-engine）：等距色块地面 + 景观物体 + 光影 + 玩家/碰撞/POI + 小地图/探索存档
 │   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
+│   ├── wgpu/                    # WebGPU 渲染器（shaders.js 等，模块化）
 │   ├── sandbox.html             # 纯净模式选棋类界面（由大陆沙盒训练场按 E 进入）
 │   ├── sandbox.js               # 纯净棋类卡片渲染 + 状态检测
 │   ├── vendor/iso-engine/       # iso-engine v0.1.1（CSS 3D Transform 等距引擎）

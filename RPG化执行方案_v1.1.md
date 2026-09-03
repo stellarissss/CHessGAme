@@ -1,8 +1,9 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v1.3
+# 棋圣·六道轮回 —— RPG化技术执行方案 v1.5
 
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
 > **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、75% 透明对话框、CSS transform 立绘微幅动画、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
+> **次世代渲染**：大地图默认走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 在无 WebGPU 时回退 iso-engine（`overworld-iso.js`）。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做了不降质的性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。
 
 ---
 
@@ -14,7 +15,7 @@
 ### 1.2 核心系统
 | 系统 | 职责 | 关键文件 |
 | --- | --- | --- |
-| **六道大陆（剧情模式入口）** | 2.5D 等距自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键） | `hub/overworld.html` `hub/overworld-iso.js` `hub/overworld-ui.js` `configs/overworld.json` |
+| **六道大陆（剧情模式入口）** | 2.5D 等距自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键）。渲染由 `overworld-load.js` 分发：WebGPU（`overworld-wgpu.js`，高度场 + compute 细节场 + 顶点置换 + 实例化 + SSAO/体积光/Bloom/HDR）优先，否则回退 iso-engine（`overworld-iso.js`） | `hub/overworld.html` `hub/overworld-load.js` `hub/overworld-wgpu.js` `hub/overworld-iso.js` `hub/overworld-ui.js` `configs/overworld.json` |
 | 剧情数据管理 | 集中存储角色、六道、关卡、结局、记忆碎片数据 | `configs/story.json` |
 | 关卡推进（线性） | 道内 5-6 个关卡，胜利推进 levels_passed；整道通关解锁沙盒（取消节点路径制） | `samsara/levels.py` `samsara/progression.py` `samsara/state.py` |
 | 选择系统 | 处理玩家在关卡中的分支选择，影响四维属性 | `samsara/choices.py` |
@@ -579,7 +580,7 @@ app.mount("/story", story_router)
 
 ### 9.5 配置与接口
 - 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回，由启动器挂载在 main.py 的 FastAPI 应用。
-- 前端运行路径：`hub/overworld.html` → `overworld-ui.js`（Overlay UI）+ `overworld-iso.js`（iso-engine 场景）。
+- 前端运行路径：`hub/overworld.html` → `overworld-load.js`（渲染分发）＋ `overworld-ui.js`（Overlay UI）；WebGPU 路径 `overworld-wgpu.js`、回退路径 `overworld-iso.js`（iso-engine 场景）。
 - 测试：`tests/test_overworld.py` 校验 JSON 结构与覆盖，`tests/test_samsara_linear.py` 校验线性推进/沙盒解锁/API 回归。
 
 ---
