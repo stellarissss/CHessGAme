@@ -42,7 +42,6 @@ WINDOWS_FLAGS = []
 if os.name == "nt":
     WINDOWS_FLAGS = [
         "--windows-console-mode=disable",   # 不弹出命令行控制台
-        "--windows-onefile-tempdir-spec={TEMP}/chesssage",  # 多文件 standalone 默认即可
     ]
 
 
@@ -51,7 +50,7 @@ def build() -> None:
     print("  棋圣 ChessSage RPG · Nuitka 打包")
     print("=" * 58)
 
-    cmd = [sys.executable, "-m", "nuitka", "--standalone", "--output-dir", str(OUT_DIR)]
+    cmd = [sys.executable, "-m", "nuitka", "--standalone", f"--output-dir={OUT_DIR}"]
     cmd += ["--assume-yes-for-downloads", "--nofollow-import-to=tkinter"]
     for d in DATA_DIRS:
         cmd += [f"--include-data-dir={d}={d}"]
