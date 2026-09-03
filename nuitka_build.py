@@ -15,9 +15,16 @@
     Windows:  python nuitka_build.py
     Linux:    python3 nuitka_build.py
 
+可选环境变量：
+    CHESSSAGE_COMPILER=msvc  使用已安装的 Visual Studio Build Tools (MSVC) 编译；
+                             缺省自动使用 Zig（Python 3.13 不支持 MinGW64）。
+    CHESSSAGE_TMP=<绝对路径> 把编译临时目录指到空间充足的盘（C 盘空间不足时用，如 D:\\）。
+
 说明：
     - 多文件 = Nuitka --standalone（内置依赖，无需外部 Python 解释器）。
     - Windows 版 .exe 必须且只能在 Windows 上构建（Nuitka 不支持交叉编译）。
+    - C 编译器：Python 3.13 起 MinGW64 不可用，脚本默认自动加 --zig 让 Nuitka 下载 Zig；
+      若装了 MSVC，可设 CHESSSAGE_COMPILER=msvc 改用。需联网以便 Nuitka 下载编译器。
     - 冻结包内按需以进程内线程方式拉起棋类服务（见 main.py _IS_FROZEN），
       因此不同棋类无需各自单独编译，只需把源代码目录作为数据一并带上。
 """
@@ -40,9 +47,13 @@ DATA_DIRS = [
 
 WINDOWS_FLAGS = []
 if os.name == "nt":
-    WINDOWS_FLAGS = [
-        "--windows-console-mode=disable",   # 不弹出命令行控制台
-    ]
+    # Python 3.13 及以上无法使用 MinGW64 作为 C 编译器，统一默认改用 Zig
+    #（Nuitka 在 --assume-yes-for-downloads 下会自动下载；仅支持 64 位 Python）。
+    # 若本机已装 Visual Studio Build Tools(MSVC)，可设 CHESSSAGE_COMPILER=msvc 改回 MSVC。
+    compiler = os.environ.get("CHESSSAGE_COMPILER", "zig")
+    if compiler == "zig":
+        WINDOWS_FLAGS.append("--zig")
+    WINDOWS_FLAGS.append("--windows-console-mode=disable")   # 不弹出命令行控制台
 
 
 def build() -> None:
@@ -50,7 +61,9 @@ def build() -> None:
     print("  棋圣 ChessSage RPG · Nuitka 打包")
     print("=" * 58)
 
-    cmd = [sys.executable, "-m", "nuitka", "--standalone", f"--output-dir={OUT_DIR}"]
+    cache_dir = OUT_DIR.parent / "nuitka_cache"
+    cmd = [sys.executable, "-m", "nuitka", "--standalone", f"--output-dir={OUT_DIR}",
+           f"--cache-dir={cache_dir}"]
     cmd += ["--assume-yes-for-downloads", "--nofollow-import-to=tkinter"]
     for d in DATA_DIRS:
         cmd += [f"--include-data-dir={d}={d}"]
@@ -61,7 +74,15 @@ def build() -> None:
     cmd += [str(ROOT / "main.py")]
 
     print("  >", " ".join(cmd))
-    rc = subprocess.run(cmd, cwd=str(ROOT)).returncode
+    env = dict(os.environ)
+    # C 盘空间不足时，可把编译临时目录/缓存整目录指到空间充足的盘（如 D:\）
+    # CHESSSAGE_TMP=<绝对路径>；脚本自动让 Nuitka/编译器使用该目录。
+    if "CHESSSAGE_TMP" in env:
+        tmp = os.path.abspath(env["CHESSSAGE_TMP"])
+        os.makedirs(tmp, exist_ok=True)
+        env["TMP"] = env["TEMP"] = tmp
+        cmd += [f"--temp-dir={tmp}"]
+    rc = subprocess.run(cmd, cwd=str(ROOT), env=env).returncode
     if rc != 0:
         print("✗ Nuitka 构建失败")
         sys.exit(1)
