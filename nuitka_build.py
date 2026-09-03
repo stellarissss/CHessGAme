@@ -61,9 +61,7 @@ def build() -> None:
     print("  棋圣 ChessSage RPG · Nuitka 打包")
     print("=" * 58)
 
-    cache_dir = OUT_DIR.parent / "nuitka_cache"
-    cmd = [sys.executable, "-m", "nuitka", "--standalone", f"--output-dir={OUT_DIR}",
-           f"--cache-dir={cache_dir}"]
+    cmd = [sys.executable, "-m", "nuitka", "--standalone", f"--output-dir={OUT_DIR}"]
     cmd += ["--assume-yes-for-downloads", "--nofollow-import-to=tkinter"]
     for d in DATA_DIRS:
         cmd += [f"--include-data-dir={d}={d}"]
