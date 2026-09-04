@@ -22,9 +22,25 @@ const gameUrl = `http://localhost:${port}/?embed=1&realm=${encodeURIComponent(re
 frame.src = gameUrl;
 railTitle.textContent = `${REALM_NAMES[realm] || realm} · 对局`;
 
+// ── 进程保活与主动回收 ──
+// 只要该对局容器页仍打开，就周期心跳刷新服务最近使用时间，避免空闲回收器在对局中误杀。
+// （玩家切走焦点/切标签页时此页仍在，心跳继续，进程保活；关闭页面后由兜底超时回收。）
+function hubPing() {
+    try { fetch(`/api/lazy/ping?port=${encodeURIComponent(port)}`, { cache: "no-store" }).catch(() => {}); } catch (e) {}
+}
+hubPing();
+const pingTimer = setInterval(hubPing, 40000);
+
+// 玩家主动返回地图：立即回收该棋类进程（而不是等空闲超时）
+function stopGameProcess() {
+    clearInterval(pingTimer);
+    try { fetch(`/api/lazy/stop?port=${encodeURIComponent(port)}`, { method: "POST", cache: "no-store" }).catch(() => {}); } catch (e) {}
+}
+
 // 返回 2.5D 大陆大地图并强制刷新状态（?r=时间戳），并按当前道（realm）回填导航焦点
 backBtn.addEventListener("click", (e) => {
     e.preventDefault();
+    stopGameProcess();
     location.href = `/overworld?r=${Date.now()}&backrealm=${encodeURIComponent(realm)}`;
 });
 

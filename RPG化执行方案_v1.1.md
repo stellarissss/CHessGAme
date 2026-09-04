@@ -1,9 +1,9 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v1.5
+# 棋圣·六道轮回 —— RPG化技术执行方案 v1.6
 
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
-> **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、75% 透明对话框、CSS transform 立绘微幅动画、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
-> **次世代渲染**：大地图默认走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 在无 WebGPU 时回退 iso-engine（`overworld-iso.js`）。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做了不降质的性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。
+> **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、对话界面对标柚子社重制（挂名牌/工具栏/履历/自动/隐藏）、立绘 AI 连续帧动画（24FPS×48 帧，v1.6 起替代旧 CSS transform/CSS 动画）、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
+> **次世代渲染**：大地图默认走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 在无 WebGPU 时回退 iso-engine（`overworld-iso.js`）。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标与 WebGPU 失败自动回退 iso、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条、全页面统一 75% 缩放，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。
 
 ---
 

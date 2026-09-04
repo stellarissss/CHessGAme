@@ -57,6 +57,8 @@ var BIOME_KINDS = [
   ['cacti', 'dune', 'rock'],           // s_desert
   ['dead', 'rock', 'ruin']             // se_battle
 ];
+// 索引对齐 BIOME_LIST 的区域装饰密度（区分繁茂/荒芜，避免全图均一 5%）
+var BIOME_DENSITY = [0.16, 0.10, 0.14, 0.06, 0.12, 0.08, 0.055, 0.06, 0.07];
 
 /* ═══════════════ 数学辅助（mat4，列主序 Float32Array） ═══════════════ */
 function m4Identity() { var m = new Float32Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; }
@@ -158,10 +160,21 @@ function buildWorld(spec) {
 
   var F_WATER = 1, F_ROAD = 2, F_MOUNT = 4, F_WALL = 8, F_SOLID = 16;
 
+  /* 生物群系采样：用分形噪声做域扭曲（domain warp），把原本由轴对齐矩形逐格填充的
+     平直线边界“卷”成有机、自然过渡的曲线边缘——景观之间不再是笔直的线。 */
+  function warpBiome(tx, ty) {
+    var s = 4.5;  // 扭曲幅度（格），越大边界越蜿蜒
+    var wx = tx + (fbm(tx * 0.115 + 7.3, ty * 0.115 + 1.1) - 0.5) * s * 2;
+    var wy = ty + (fbm(tx * 0.115 + 3.7, ty * 0.115 + 5.9) - 0.5) * s * 2;
+    if (wx < 0) wx = 0; else if (wx >= W - 1) wx = W - 1;
+    if (wy < 0) wy = 0; else if (wy >= H - 1) wy = H - 1;
+    return biome[(wy | 0) * W + (wx | 0)];
+  }
+
   function tileH(tx, ty) {
     var i = ty * W + tx;
     var f = flags[i];
-    var rid = biome[i];
+    var rid = warpBiome(tx, ty);
     var base = BIOME_BASE[rid] || 0.6;
     if (f & F_WATER) return (f & F_WALL) ? 14 + rng(tx, ty, 50) * 5 : -0.6;
     if (f & F_WALL) return 13 + fbm(tx * 0.13, ty * 0.13) * 7;
@@ -175,7 +188,15 @@ function buildWorld(spec) {
     if (f & F_MOUNT) return C_ROCK;
     if (f & F_WALL) return C_ROCK;
     if (f & F_WATER) return C_WATER;
-    return BIOME_C[biome[i]] || [0x5f, 0x9e, 0x4e];
+    var c = BIOME_C[warpBiome(tx, ty)];
+    // 轻微噪声色偏，让地面色块更自然、减少“贴纸感”
+    if (c) {
+      var sh = (noise(tx * 0.05 + 2.2, ty * 0.05 + 9.4) - 0.5) * 18;
+      return [Math.max(0, Math.min(255, Math.round(c[0] + sh))),
+              Math.max(0, Math.min(255, Math.round(c[1] + sh))),
+              Math.max(0, Math.min(255, Math.round(c[2] + sh)))];
+    }
+    return [0x5f, 0x9e, 0x4e];
   }
 
   // —— 高度场顶点 ——
@@ -273,7 +294,8 @@ function buildWorld(spec) {
     if (f & F_SOLID) continue;
     var kinds = BIOME_KINDS[rid];
     if (!kinds) continue;
-    if (r(x3, y3, 1) > 0.05) {
+    var dens = BIOME_DENSITY[rid] || 0.05;
+    if (r(x3, y3, 1) > dens) {
       // 稀疏灵粒/野花点缀，让大地更有生气
       if (r(x3, y3, 63) < 0.02) addMote(gc, gy, groundH + 2);
       continue;
@@ -281,6 +303,14 @@ function buildWorld(spec) {
     var kind = kinds[Math.floor(r(x3, y3, 2) * kinds.length)];
     var s = 0.6 + r(x3, y3, 3) * 0.7;
     place(gc, gy, groundH, kind, s, cx3, cy3, r);
+    // 设计化的景观过渡：紧邻不同生物群系的边界格，以噪声概率补一棵矮灌/一颗小石，
+    // 把直线分界弱化为有层次的植物过渡带（对应旧 iso 路径的 buildBoundaries）。
+    var wr = warpBiome(x3, y3);
+    if (wr !== rid && r(x3, y3, 31) < 0.16) {
+      var edgeK = r(x3, y3, 32) < 0.5 ? 'grass' : 'rock';
+      place(gc + (r(x3, y3, 33) - 0.5) * CELL * 0.4, gy + (r(x3, y3, 34) - 0.5) * CELL * 0.4,
+            groundH, edgeK, 0.55 + r(x3, y3, 35) * 0.4, cx3, cy3, r);
+    }
   }
   function addMote(x, y, z) {
     var s = CELL * 0.05;
@@ -436,7 +466,13 @@ var OverworldGame = {
       return self._initGPU();
     }).catch(function (err) {
       console.error('[WebGPU] init failed:', err);
-      if (UI) UI.showError('未检测到可用 WebGPU。请使用最新版 Chrome / Edge 以启用次世代渲染，或回退到兼容渲染。');
+      if (UI) UI.removeLoading();   // 别让加载遮罩盖住 HUD
+      // 自动回退到兼容渲染（iso-engine），保证大地图与 HUD 始终可用可点；幂等由分发起保护
+      if (window.__owFallbackToIso) {
+        window.__owFallbackToIso(err);
+        return null;
+      }
+      if (UI) UI.showError('未能启动次世代渲染，请刷新重试，或确认浏览器开启了 WebGPU。');
       throw err;
     });
     return this._ready;
@@ -454,6 +490,7 @@ var OverworldGame = {
                    'var BIOME_C=' + JSON.stringify(BIOME_C) + ';' +
                    'var BIOME_ID=' + JSON.stringify(BIOME_ID) + ';' +
                    'var BIOME_KINDS=' + JSON.stringify(BIOME_KINDS) + ';' +
+                   'var BIOME_DENSITY=' + JSON.stringify(BIOME_DENSITY) + ';' +
                    'var C_ROAD=' + JSON.stringify(C_ROAD) + ';' +
                    'var C_WATER=' + JSON.stringify(C_WATER) + ';' +
                    'var C_ROCK=' + JSON.stringify(C_ROCK) + ';';
@@ -571,6 +608,8 @@ OverworldGame._initGPU = function () {
     while (vp.firstChild) vp.removeChild(vp.firstChild);
     vp.appendChild(self._canvas);
     self._canvas.style.position = 'absolute'; self._canvas.style.inset = '0'; self._canvas.style.width = '100%'; self._canvas.style.height = '100%';
+    // canvas 永远不拦截鼠标：交互走 window 键鼠 + 独立的 DOM 标点层，避免画布盖住 HUD 按钮
+    self._canvas.style.pointerEvents = 'none';
     self._ctx = self._canvas.getContext('webgpu');
     self._ctx.configure({ device: device, format: self.presentFormat, alphaMode: 'opaque' });
     self._sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });

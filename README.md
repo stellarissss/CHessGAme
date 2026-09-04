@@ -679,7 +679,7 @@ workspace/
 
 ### 资产与前端升级
 
-> 本节记录对资产管线与前端表现的 7 项升级，均已落地到代码与资产目录。剧情权威源为 `configs/story.json`（含 `_meta`、`tiandao.boss_dialogues`、`endings[*].cg_video`、`realms[*].memory_fragment.cg_video`、`protagonist.animation`、`real_world_characters.陈默.animation` 等资产映射字段）；`configs/tiandao_boss.json` 现仅保留机械配置。
+> 本节记录对资产管线与前端表现的 13 项升级，均已落地到代码与资产目录。剧情权威源为 `configs/story.json`（含 `_meta`、`tiandao.boss_dialogues`、`endings[*].cg_video`、`realms[*].memory_fragment.cg_video`、`protagonist.animation`、`real_world_characters.陈默.animation` 等资产映射字段）；`configs/tiandao_boss.json` 现仅保留机械配置。
 
 1. **rembg ML 抠图（含 alpha 二值化）**：`shared/assets/cutout_rembg.py`（rembg U2Net 语义分割），替代旧 `cutout_all.py`（颜色距离算法）；`cutout_all.py` 保留作回退。`requirements.txt` 已加 `rembg>=2.0.50`。v1.5 新增 alpha 二值化（阈值 128 + 1.2px 边缘羽化）修复 rembg 软蒙版在头发/衣服/皮肤等区域半透明的问题。
 2. **类 Galgame 对话框（对标柚子社）**：`hub/dialogue.html` 重构消息窗——`.dialogue-box` 上半圆角、顶部 2px 金线 + 细金饰线、底部略方，半透渐变底 + 深阴影；左上沿**挂名牌**（`nameplate`，斜切角烫金，旁白用 `narrator` 变体）承载 `<span id="speaker-name">`；右上**工具栏**（履历 / 自动 / 隐藏）；正文用宣纸白 + 金色打字光标 + 下沿「点击或空格继续」与右下 ▶ 翻页指示。`.character-portrait` `78vh` 脚贴画面底缘、立绘 z-index:1 位于消息窗 z-index:2 之下；`.dialogue-box` 支持 `.hidden` 淡出（隐藏窗口）。立绘入场 `portraitIn` 上浮淡入。
@@ -688,6 +688,12 @@ workspace/
 5. **陈默形象统一**：可爱 + 温和并存，固定 CANON——齐肩黑色短发左侧别小发夹、柔和杏眼、白衬衫深蓝校服外套红色领结、胸前小棋子胸针。重新生成并抠图 9 张图：7 张陈默立绘（portrait/smile/thinking/surprised/silent/awkward/playing）+ `flipper_as_chenmo.png`（Boss 化陈默，带裂痕幻象特效）+ `cg/covers/cg_memory_hungry.jpg`（记忆 CG）。
 6. **立绘 AI 连续帧动画**：v1.6 起立绘动画为 24FPS×48 帧（2 秒循环）连续帧——白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧 48 张（`{prefix}_{emotion}_f{1-48}.png`），rembg 抠图为透明 PNG；`dialogue.js` 的 `startPortraitAnimation` 探测 `_f1.png` 存在即预加载并循环已成功加载的帧，无动画帧回退静态抠图 PNG（含 v1.7 履历/自动/隐藏工具栏联动）。
 7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
+8. **大地图景观有机化（WebGPU）**：`overworld-wgpu.js` 的 `buildWorld` 新增**生物群系域扭曲**（`warpBiome`，fbm 域扭曲幅度≈4.5 格）——把原先按 `regions[].rect` 轴对齐矩形逐格填充的**笔直分界线卷成有机曲线**，并叠加轻微噪声色偏弱化"贴纸感"；装饰改用按区域密度 `BIOME_DENSITY`（繁茂/荒芜差异化，原均一 5%），并在不同生物群系边界带以噪声概率补矮灌/小石形成**设计化的过渡带**（对标 iso 的 `buildBoundaries`）。
+9. **大地图渲染可信显示 + 自适应回退**：`overworld-load.js` 左上角新增**渲染器角标**（`#renderer-badge`）显示当前是 `次世代·WebGPU` 还是 `兼容·iso-engine`——若无 GPU/WebGPU 会静默走 iso（即"和之前看起来一样"的直接原因）；WebGPU 适配器/设备初始化失败时**自动回退 iso**，canvas `pointer-events:none` 不拦截按钮；加载遮罩 12s 兜底移除、`overworld-ui.js` 按钮幂等绑定，确保 HUD（大陆总览/技能树等）始终可点。
+10. **棋类进程保活与主动回收**：仅靠兜底空闲超时会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活（切走焦点不回收），`play.js` 与胜负页"返回地图/返回大陆"按钮主动调用 `/api/lazy/stop?port=` 立即回收——只有玩家**主动关闭**界面才回收进程。
+11. **棋类启动加载进度条**：全部 12 个棋类 `static/index.html` 启动时先显示全屏"正在加载对局…"+进度条遮罩（`#boot-loader`），待棋盘组件发出 `ready` 事件后淡出（附 3s 走满 + 9s 兜底），不再白屏等待。
+12. **统一 75% 页面缩放**：`overworld.html` 与全部 12 个棋类 `index.html` 补 `html{zoom:0.75}`（与 title/sandbox/dialogue 等一致），各界面字面改小至 75%。
+13. **动物棋"落子即消失"修复**：`dongwuqi/main.py` 移除与 `rules.json trap_neutralizes_rank` 冲突的"进敌陷阱即死"；`rule_engine.py` 删除 4 个**幻影陷阱**格并让 `_is_in_enemy_trap` 仅计真陷阱（排除兽穴），动物进入兽穴/幻影格不再被误杀，进入真陷阱改由吃子判定降级（防守方等级归零可被吃）。
 
 ---
 

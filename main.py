@@ -341,8 +341,22 @@ def _run_game_in_thread(name: str, script_path: Path, port: int):
     return server
 
 
-def _lazy_key(mode: str, gid: str):
+def _layout_key(mode: str, gid: str):
     return f"{mode}:{gid}"
+
+
+def _port_to_key(port: str) -> str | None:
+    """按服务端口解析懒加载 key（rpg/sandbox 各自端口表）。"""
+    try:
+        p = int(port)
+    except (TypeError, ValueError):
+        return None
+    for mode, mapping in (("sandbox", _LAZY_KEY_BY_SANDBOX_PORT),
+                          ("rpg", _LAZY_KEY_BY_RPG_PORT)):
+        gid = mapping.get(p)
+        if gid:
+            return _layout_key(mode, gid)
+    return None
 
 
 def _all_game_keys():
@@ -567,10 +581,30 @@ def build_hub_app():
     async def lazy_stop(request: Request):
         q = request.query_params
         mode, gid = q.get("mode", "rpg"), q.get("game", "")
+        port = q.get("port", "")
+        if port:
+            key = _port_to_key(port)
+            if key:
+                _dispose_game(key)
+                return _nc({"ok": True, "stopped": key})
+            return _nc({"ok": False, "error": "unknown port"})
         if not gid:
             return _nc({"ok": False, "error": "missing game"})
         _dispose_game(_lazy_key(mode, gid))
         return _nc({"ok": True})
+
+    @app.get("/api/lazy/ping")
+    async def lazy_ping(request: Request):
+        """对局进程心跳：按端口刷新最近使用时间，避免空闲回收器在对局进行中误杀。
+        只要对局界面仍打开（例如玩家切走焦点但未关闭），前端持续心跳，进程保活；
+        只有玩家主动关闭界面（返回地图/回标题）才由前端调用 /api/lazy/stop 立即回收。"""
+        q = request.query_params
+        port = q.get("port", "")
+        key = _port_to_key(port)
+        if not key:
+            return _nc({"ok": False, "error": "unknown port"})
+        _ensure_game(key)   # 刷新 last 时间戳（幂等：未启动会拉起）
+        return _nc({"ok": True, "port": int(port)})
 
     @app.get("/api/lazy/running")
     async def lazy_running():

@@ -126,12 +126,11 @@ class RuleEngine:
         # trap：陷阱（斗兽棋标准位置：兽穴邻接的 3 个格）
         #    黑方 den 在 (3,0) 附近：(2,0)/(4,0)/(3,1)
         #    红方 den 在 (3,8) 附近：(2,8)/(4,8)/(3,7)
-        # 额外补充测试场景 / 约定格位的 trap，保证索引可命中
+        # 仅补充与 board_state 一致的 6 个真陷阱（不含幻影格位/兽穴），保证测试场景
+        # 未携带 terrain 配置时索引也能命中；其余格位一律不视为陷阱。
         standard_traps = [
             (2, 0, "black"), (4, 0, "black"), (3, 1, "black"),
             (2, 8, "red"),   (4, 8, "red"),   (3, 7, "red"),
-            (0, 3, "black"), (6, 3, "red"),
-            (0, 5, "red"),   (6, 5, "black"),
         ]
         for tx, ty, ts in standard_traps:
             fake = {
@@ -181,8 +180,10 @@ class RuleEngine:
         return bool(self._get_terrain_pieces_at(pos, board_state))
 
     def _is_in_enemy_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
-        """是否在 side 的敌方陷阱中（即对方设置的陷阱棋子所在格）"""
+        """是否在 side 的敌方陷阱中（仅计入真陷阱棋子，排除兽穴等其它地形）"""
         for tp in self._get_terrain_pieces_at(pos, board_state):
+            if tp.get("type") != "trap":
+                continue  # 兽穴/其它地形不算"敌方陷阱"
             if tp.get("side") != side:
                 return True
         return False
@@ -193,6 +194,8 @@ class RuleEngine:
         """获取 pos 处由 side 的敌方陷阱施加的效果列表"""
         effects: List[dict] = []
         for tp in self._get_terrain_pieces_at(pos, board_state):
+            if tp.get("type") != "trap":
+                continue  # 仅真陷阱产生敌方陷阱效果（兽穴等不算）
             if tp.get("side") == side:
                 continue  # 己方陷阱对己方棋子无效果
             tp_config = self._get_piece_config(tp.get("type"), tp.get("side"))

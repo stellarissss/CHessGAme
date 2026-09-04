@@ -36,6 +36,44 @@
 
     const BroadcastChannel = (typeof window !== 'undefined') ? window.BroadcastChannel : null;
     let _sharedChannel = null;
+    /* 大厅 API 源：供棋类进程心跳与主动回收使用（进程保活/回收见 main.py /api/lazy/*） */
+    const _HUB_ORIGIN = 'http://localhost:8080';   // 六道大厅默认端口（与 main.py HUB_PORT 一致）
+
+    /* 当前棋类服务端口：由本页 origin 推导（页面由某棋类自己的端口服务） */
+    function _gamePort() {
+        try {
+            const p = parseInt(window.location.port, 10);
+            return Number.isFinite(p) && p ? p : 0;
+        } catch (e) { return 0; }
+    }
+
+    /* 对局进程心跳：只要页面打开就周期刷新最近使用时间，防止空闲回收器在对局中误杀 */
+    function startHeartbeat(target) {
+        if (target._hbStarted) return;
+        target._hbStarted = true;
+        const port = _gamePort();
+        if (!port || port === 8080) return;   // 大厅自身无需心跳
+        target._hbPort = port;
+        target._hbTimer = setInterval(function () {
+            try {
+                fetch(`${_HUB_ORIGIN}/api/lazy/ping?port=${port}`, { cache: 'no-store' }).catch(() => {});
+            } catch (e) {}
+        }, 40000);
+        // 立即补一次，确保进程已被拉起
+        try { fetch(`${_HUB_ORIGIN}/api/lazy/ping?port=${port}`, { cache: 'no-store' }).catch(() => {}); } catch (e) {}
+    }
+
+    /* 玩家主动关闭界面（返回地图/回标题）时回收进程 */
+    function closeGameProcess(target) {
+        try {
+            if (target._hbTimer) { clearInterval(target._hbTimer); target._hbTimer = null; }
+            const port = target._hbPort || _gamePort();
+            if (port && port !== 8080) {
+                fetch(`${_HUB_ORIGIN}/api/lazy/stop?port=${port}`, { method: 'POST', cache: 'no-store' }).catch(() => {});
+            }
+        } catch (e) {}
+    }
+
     function _getChannel() {
         if (_sharedChannel) return _sharedChannel;
         try {
@@ -328,7 +366,7 @@
         const returnBtn = overlay.querySelector('.rpg-returnbtn');
         const mapBtn = overlay.querySelector('.rpg-mapbtn');
         if (mapBtn) {
-            mapBtn.addEventListener('click', () => { window.location.href = mapReturnHref; });
+            mapBtn.addEventListener('click', () => { if (typeof target.closeGameProcess === 'function') target.closeGameProcess(); window.location.href = mapReturnHref; });
         }
         if (nextBtn && !nextBtnDisabled) {
             nextBtn.addEventListener('click', () => {
@@ -348,7 +386,7 @@
             });
         }
         if (returnBtn) {
-            returnBtn.addEventListener('click', () => { window.location.href = returnHref; });
+            returnBtn.addEventListener('click', () => { if (typeof target.closeGameProcess === 'function') target.closeGameProcess(); window.location.href = returnHref; });
         }
 
         container.appendChild(overlay);
@@ -535,6 +573,9 @@
         instance.rpgResetConfigsHandler = function (mode) { return rpgResetConfigsHandler(instance, mode); };
         instance.showRpgGameOver = function (extras) { return showRpgGameOver(instance, extras); };
         instance.initRpgEventListeners = function () { return initRpgEventListeners(instance); };
+        instance.startHeartbeat = function () { return startHeartbeat(instance); };
+        instance.closeGameProcess = function () { return closeGameProcess(instance); };
+        instance.startHeartbeat();   // 对局进程保活
     }
 
     window.GameSharedRPG = {

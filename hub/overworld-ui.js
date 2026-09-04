@@ -87,9 +87,20 @@
         dom.rpgClose = $('close-rpg-modal');
     }
 
+    var _boundOnce = false;
     function init(overworldRef) {
         cacheDom();
         game = overworldRef || null;
+        /* 幂等：无论被 WebGPU / iso 渲染器调用几次，按钮只绑定一次。
+           否则 wgpu→iso 回退时重复绑定会让单个点击触发多次 handler（表现为"点了没反应/闪关"）。 */
+        if (!_boundOnce) {
+            _boundOnce = true;
+            bindCore();
+        }
+        refreshHUD();
+    }
+
+    function bindCore() {
         reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (reduceMotion) document.documentElement.classList.add('reduce-motion');
 
@@ -114,8 +125,6 @@
         dom.errorRetry.addEventListener('click', function () {
             location.reload();
         });
-
-        refreshHUD();
     }
 
     function bindClose(modal, btn) {

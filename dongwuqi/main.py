@@ -320,9 +320,10 @@ async def make_move(req: MoveRequest):
         # 吃子恢复业力
         await _trigger_karma_recover(piece, target_piece)
 
-    # 陷阱规则：己方动物走进敌方陷阱立即死亡（陷阱不消失）
-    if state.rule_engine._is_in_enemy_trap(req.to, piece["side"], board):
-        piece["is_alive"] = False
+    # 陷阱规则：进入敌方陷阱的动物不会立即死亡，而是由 _can_capture 在后续
+    # 吃子判定中按 trap_neutralizes_rank 将防守方等级归零（可被任何敌棋吃掉），
+    # 从而与 rules.json 登记的机制语义一致，避免"落子即消失"（含幻影陷阱 / 兽穴误判）。
+    # 兽穴进入由 check_win 的 enter_den 判定胜利，此处不做额外处理。
 
     # 记录历史
     board.setdefault("move_history", []).append(
@@ -469,9 +470,8 @@ async def ai_move():
         # 吃子恢复业力
         await _trigger_karma_recover(piece, target_piece)
 
-    # 陷阱规则：己方动物走进敌方陷阱立即死亡（陷阱不消失）
-    if state.rule_engine._is_in_enemy_trap(move["to"], piece["side"], board):
-        piece["is_alive"] = False
+    # 陷阱规则：进入敌方陷阱不立即死亡，交由 _can_capture 的 trap_neutralizes_rank
+    # 在吃子判定中降级；兽穴进入由 check_win enter_den 判定胜利。（与玩家走棋一致）
 
     board.setdefault("move_history", []).append(move)
 
