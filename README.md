@@ -399,7 +399,7 @@ workspace/
 │   ├── _dev_server.py           # 开发用轻量静态服务器（沙盒验证，非成品）
 │   ├── achievements.html        # 成就殿堂
 │   ├── dialogue.html            # RPG 剧情对话系统
-│   ├── dialogue.js              # 打字机/立绘/选择面板逻辑
+│   ├── dialogue.js              # 打字机/立绘/选择面板/履历·自动·隐藏逻辑
 │   ├── memory_album.html        # 记忆相册
 │   ├── memory_album.js          # 记忆碎片展示逻辑
 │   ├── ending.html              # 结局展示
@@ -682,11 +682,11 @@ workspace/
 > 本节记录对资产管线与前端表现的 7 项升级，均已落地到代码与资产目录。剧情权威源为 `configs/story.json`（含 `_meta`、`tiandao.boss_dialogues`、`endings[*].cg_video`、`realms[*].memory_fragment.cg_video`、`protagonist.animation`、`real_world_characters.陈默.animation` 等资产映射字段）；`configs/tiandao_boss.json` 现仅保留机械配置。
 
 1. **rembg ML 抠图（含 alpha 二值化）**：`shared/assets/cutout_rembg.py`（rembg U2Net 语义分割），替代旧 `cutout_all.py`（颜色距离算法）；`cutout_all.py` 保留作回退。`requirements.txt` 已加 `rembg>=2.0.50`。v1.5 新增 alpha 二值化（阈值 128 + 1.2px 边缘羽化）修复 rembg 软蒙版在头发/衣服/皮肤等区域半透明的问题。
-2. **类 Galgame 对话框**：`hub/dialogue.html` 内联 CSS 调整——`.dialogue-box` 背景 `rgba(20,20,30,0.25)`（75% 透明）+ `backdrop-filter: blur(8px)`、`margin: 0 40px 0`（紧贴下边沿）、`min-height: 200px`；`.character-portrait` `height: 82vh` 对齐底部；对话框 z-index:2 盖在立绘 z-index:1 之上，遮挡立绘下半身。
+2. **类 Galgame 对话框（对标柚子社）**：`hub/dialogue.html` 重构消息窗——`.dialogue-box` 上半圆角、顶部 2px 金线 + 细金饰线、底部略方，半透渐变底 + 深阴影；左上沿**挂名牌**（`nameplate`，斜切角烫金，旁白用 `narrator` 变体）承载 `<span id="speaker-name">`；右上**工具栏**（履历 / 自动 / 隐藏）；正文用宣纸白 + 金色打字光标 + 下沿「点击或空格继续」与右下 ▶ 翻页指示。`.character-portrait` `78vh` 脚贴画面底缘、立绘 z-index:1 位于消息窗 z-index:2 之下；`.dialogue-box` 支持 `.hidden` 淡出（隐藏窗口）。立绘入场 `portraitIn` 上浮淡入。
 3. **BGM 8 首清单**：新建 `shared/assets/audio/bgm/BGM清单.md`，共 8 首（序章 + 六道各一首 + 天道 Boss 战 1 首），文件名 `bgm_prologue/bgm_hell/bgm_hungry/bgm_animal/bgm_human/bgm_asura/bgm_heaven/bgm_tiandao_boss.mp3`。
 4. **6 张像素画 UI**：新建 `shared/assets/ui/` 目录，含 6 张 AI 生成像素画 JPG（非 SVG）：`ui_dharma_wheel.jpg`（佛法转轮）、`ui_realm_icon_sheet.jpg`（六道图标表）、`ui_particle_star.jpg`（金色星光粒子）、`ui_particle_ember.jpg`（暗红余烬粒子）、`ui_particle_black_white.jpg`（黑白粒子）、`ui_portrait_frame.jpg`（立绘边框）。
 5. **陈默形象统一**：可爱 + 温和并存，固定 CANON——齐肩黑色短发左侧别小发夹、柔和杏眼、白衬衫深蓝校服外套红色领结、胸前小棋子胸针。重新生成并抠图 9 张图：7 张陈默立绘（portrait/smile/thinking/surprised/silent/awkward/playing）+ `flipper_as_chenmo.png`（Boss 化陈默，带裂痕幻象特效）+ `cg/covers/cg_memory_hungry.jpg`（记忆 CG）。
-6. **CSS transform 立绘动画**：v1.5 起立绘动画从 6 帧 PNG 切换（12FPS，幅度大）改为 CSS @keyframes transform 驱动（`portrait-idle` 3.5s ±1.5px / `portrait-speak` 2.8s ±2px+±0.3°，60fps 无缝循环，幅度精确可控）。旧 48 帧 PNG（`{prefix}_{emotion}_f{1-6}.png`）保留但不再使用。CSS 在 `hub/dialogue.html`。
+6. **立绘 AI 连续帧动画**：v1.6 起立绘动画为 24FPS×48 帧（2 秒循环）连续帧——白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧 48 张（`{prefix}_{emotion}_f{1-48}.png`），rembg 抠图为透明 PNG；`dialogue.js` 的 `startPortraitAnimation` 探测 `_f1.png` 存在即预加载并循环已成功加载的帧，无动画帧回退静态抠图 PNG（含 v1.7 履历/自动/隐藏工具栏联动）。
 7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
 
 ---

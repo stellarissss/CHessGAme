@@ -1,6 +1,9 @@
 /**
- * 剧情对话系统（v1.6）
+ * 剧情对话系统（v1.7）
  * 功能：打字机效果、立绘切换、选择面板、祈求低语、识破警告
+ *
+ * v1.7 变更：对话界面对标柚子社 galgame 重制（上部圆角+顶部金线+挂名牌+右上
+ * 工具栏），新增「履历（Backlog）」「自动播放」「隐藏窗口」。剧情与立绘不变。
  *
  * v1.6 变更：立绘动画改回 AI 关键帧插值连续动画帧（24FPS，48帧/2秒循环）。
  * 白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧为 48 张
@@ -27,6 +30,12 @@
     let currentPhase = 'dialogues'; // dialogues / dialogues_before / dialogues_after / choice_response
     let choicesShown = false;
     let storyData = null;
+
+    // 对话履历（Backlog）与自动播放 / 隐藏窗口（v1.7）
+    const dialogueLog = [];   // { speaker, text, isNarrator }
+    let autoMode = false;
+    let autoTimer = null;
+    let windowHidden = false;
 
     // 立绘动画：24FPS 帧序列（48帧/2秒循环），由 Seedance 图生视频抽帧生成。
     // updatePortraits 探测 _f1.png 存在则启动 24FPS 循环，否则用静态抠图 PNG。
@@ -75,6 +84,7 @@
         document.getElementById('mission-objective').textContent = levelData.objective || '';
         document.getElementById('mission-panel').classList.add('active');
         document.getElementById('dialogue-box').style.display = 'none';
+        setAuto(false);   // 任务确认不属对话流，关掉自动播放
         // P3-⑦ 增补结构化目标：胜利条件 + 回合限制（与选关弹窗口径一致）
         fillStructuredGoal();
     }
@@ -211,15 +221,28 @@
 
         // 显示对话框
         const box = document.getElementById('dialogue-box');
+        box.classList.remove('hidden');
+        windowHidden = false;
         box.style.display = 'block';
 
-        // 说话者名称
+        // 说话者名称（名牌：旁白用 narrator 变体）
+        const nameplate = document.getElementById('nameplate');
         const nameEl = document.getElementById('speaker-name');
         if (isNarrator) {
-            nameEl.innerHTML = '<span class="narrator-tag">旁白</span>';
+            nameplate.classList.add('narrator');
+            nameEl.textContent = '旁白';
         } else {
+            nameplate.classList.remove('narrator');
             nameEl.textContent = dialogue.speaker;
         }
+
+        // 记录到对话履历（Backlog）
+        dialogueLog.push({
+            speaker: isNarrator ? '旁白' : (dialogue.speaker || ''),
+            text: dialogue.text || '',
+            isNarrator,
+        });
+        if (dialogueLog.length > 300) dialogueLog.splice(0, dialogueLog.length - 300);
 
         // 打字机效果
         typewriter(dialogue.text || '');
@@ -253,6 +276,7 @@
                 textEl.innerHTML = text;
                 hintEl.textContent = '点击或空格继续';
                 nextBtn.disabled = false;
+                if (autoMode) scheduleAuto();
             }
         }, 40);
     }
@@ -271,11 +295,104 @@
         isTyping = false;
         document.getElementById('dialogue-hint').textContent = '点击或空格继续';
         document.getElementById('dialogue-next-btn').disabled = false;
+        if (autoMode) scheduleAuto();
     }
 
     // ── 播放对话音效 ──
     function playBlip() {
         // 轻量文字音效（可静默）
+    }
+
+    // ── 工具栏交互（v1.7）：自动播放 / 隐藏窗口 / 对话履历 ──
+
+    // 自动播放：打完一行后延时自动进入下一行
+    function scheduleAuto() {
+        if (autoTimer) clearTimeout(autoTimer);
+        autoTimer = setTimeout(() => {
+            autoTimer = null;
+            if (!autoMode) return;
+            if (isMissionOpen() || choicesShown || !isVisibleBox()) return;
+            showNextDialogue();
+        }, 1100);
+    }
+    function clearAuto() {
+        if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
+    }
+    function setAuto(on) {
+        autoMode = !!on;
+        const btn = document.getElementById('auto-btn');
+        if (btn) btn.classList.toggle('on', autoMode);
+        const chip = document.getElementById('auto-chip');
+        if (chip) chip.classList.toggle('show', autoMode);
+        if (!autoMode) clearAuto();
+    }
+    function toggleAuto() {
+        if (autoMode) { setAuto(false); return; }
+        setIsTypingDone();   // 自动打开时若正在打字，立即补全当前行
+        setAuto(true);
+        if (!isTyping) scheduleAuto();
+    }
+
+    // 隐藏窗口：临时隐藏消息窗（再点或按空格恢复）
+    function isVisibleBox() {
+        const box = document.getElementById('dialogue-box');
+        return !!(box && box.style.display !== 'none' && !box.classList.contains('hidden'));
+    }
+    function toggleBoxHidden() {
+        const box = document.getElementById('dialogue-box');
+        if (!box || box.style.display === 'none') return;
+        windowHidden = !windowHidden;
+        box.classList.toggle('hidden', windowHidden);
+        // 恢复时给玩家提示
+        const hint = document.getElementById('dialogue-hint');
+        if (hint && windowHidden) hint.textContent = '按空格或点击恢复消息窗';
+    }
+
+    // 对话履历（Backlog）overlay
+    function isLogOpen() {
+        const ov = document.getElementById('log-overlay');
+        return !!(ov && ov.classList.contains('active'));
+    }
+    function toggleLog() {
+        if (isLogOpen()) { closeLog(); return; }
+        renderLog();
+        document.getElementById('log-overlay').classList.add('active');
+    }
+    function renderLog() {
+        const list = document.getElementById('log-list');
+        list.innerHTML = '';
+        for (const line of dialogueLog) {
+            const entry = document.createElement('div');
+            entry.className = 'log-line';
+            const sp = document.createElement('div');
+            sp.className = 'log-speaker' + (line.isNarrator ? ' narrator' : '');
+            sp.textContent = line.speaker;
+            const tx = document.createElement('div');
+            tx.className = 'log-text';
+            tx.textContent = line.text;
+            entry.appendChild(sp);
+            entry.appendChild(tx);
+            list.appendChild(entry);
+        }
+        if (list.scrollHeight > list.clientHeight) {
+            list.scrollTop = list.scrollHeight;
+        }
+    }
+    function closeLog() {
+        document.getElementById('log-overlay').classList.remove('active');
+    }
+
+    // 若当前行正在打字，立即完整打出（供开启自动前的状态对齐）
+    function setIsTypingDone() {
+        if (!isTyping) return;
+        if (typeTimer) { clearInterval(typeTimer); typeTimer = null; }
+        const dialogue = dialogueQueue[dialogueIndex - 1];
+        if (dialogue) {
+            document.getElementById('dialogue-text').textContent = dialogue.text || '';
+        }
+        isTyping = false;
+        document.getElementById('dialogue-hint').textContent = '点击或空格继续';
+        document.getElementById('dialogue-next-btn').disabled = false;
     }
 
     // ── 更新立绘 ──
@@ -398,6 +515,7 @@
 
     // ── 对话队列结束处理 ──
     function onDialogueQueueEnd() {
+        setAuto(false);   // 对话流结束，停止自动播放
         if (currentPhase === 'dialogues_before' && levelData) {
             // Boss 战前对话结束 → 显示"进入棋局"控制面板
             // 不直接显示 choices（choices 应在 dialogues_after 之后显示）
@@ -491,6 +609,7 @@
     // ── 显示选择面板 ──
     function showChoices() {
         if (!levelData || !levelData.choices) return;
+        setAuto(false);   // 选择面板需玩家手动操作，停止自动播放
 
         const choices = levelData.choices;
         let choiceIndex = 0;
@@ -694,7 +813,20 @@
         const nextBtn = document.getElementById('dialogue-next-btn');
         const box = document.getElementById('dialogue-box');
 
+        function isBoxHidden() {
+            return windowHidden || box.classList.contains('hidden');
+        }
+        function unHideBox() {
+            windowHidden = false;
+            box.classList.remove('hidden');
+            document.getElementById('dialogue-hint').textContent = '点击或空格继续';
+        }
+
         function handleNext() {
+            // 履历打开时，空格/点击优先关闭履历
+            if (isLogOpen()) { closeLog(); return; }
+            // 隐藏窗口后，空格/点击优先恢复消息窗
+            if (isBoxHidden()) { unHideBox(); return; }
             if (isMissionOpen()) { closeMission(); return; }
             if (isTyping) {
                 skipTypewriter();
@@ -705,13 +837,25 @@
 
         document.getElementById('mission-start').addEventListener('click', handleNext);
         nextBtn.addEventListener('click', handleNext);
-        box.addEventListener('click', handleNext);
+        box.addEventListener('click', (e) => {
+            // 点工具栏按钮不触发翻页
+            if (e.target.closest('.window-toolbar')) return;
+            handleNext();
+        });
+
+        // v1.7 工具栏
+        document.getElementById('log-btn').addEventListener('click', toggleLog);
+        document.getElementById('auto-btn').addEventListener('click', toggleAuto);
+        document.getElementById('hide-btn').addEventListener('click', toggleBoxHidden);
+        document.getElementById('log-close').addEventListener('click', closeLog);
 
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'Enter') {
                 e.preventDefault();
                 handleNext();
             }
+            if (e.code === 'KeyL') { toggleLog(); }
+            if (e.code === 'KeyH') { toggleBoxHidden(); }
         });
     }
 

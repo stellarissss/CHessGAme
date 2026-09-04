@@ -40,9 +40,9 @@
 - 加载路径：`/shared/assets/characters/`。
 - 命名约定：`{portrait_prefix}_{emotion}.png`（抠图后透明 PNG），例如 `boy_happy.png`、`flipper_as_chenmo.png`。
 - 抠图：`shared/assets/cutout_rembg.py`（rembg U2Net ML 语义分割 + alpha 二值化修复半透明问题；旧 `cutout_all.py` 作回退保留）。alpha 二值化将 rembg 输出的软蒙版（alpha 1-254）在头发/衣服/皮肤等区域半透明的问题修复：alpha > 128 → 255（不透明），否则 → 0（透明），边缘做 1.2px 高斯羽化保留抗锯齿。
-- 动画：v1.5 起立绘动画改为 CSS @keyframes transform 驱动（`portrait-idle` 3.5s / `portrait-speak` 2.8s，±1.5-2px 垂直浮动 + ±0.3° 微摆，60fps 无缝循环）。旧 6 帧 PNG 切换（`{prefix}_{emotion}_f{1-6}.png`，12FPS）已弃用但文件保留。CSS 在 `hub/dialogue.html`，配置见 `story.json` 的 `protagonist.animation` 与 `real_world_characters.陈默.animation`。
+- 动画：v1.6 起立绘动画为 24FPS×48 帧（2 秒循环）连续帧——白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧 48 张（`{prefix}_{emotion}_f{1-48}.png`），rembg 抠图为透明 PNG；`dialogue.js` 的 `startPortraitAnimation` 探测 `_f1.png` 存在即预加载并循环已成功加载的帧，无动画帧回退静态抠图 PNG。
 - 陈默形象统一：可爱+温和并存，齐肩黑色短发左侧别小发夹、白衬衫深蓝校服外套红色领结、棋子胸针；9 张图（7 立绘 + `flipper_as_chenmo` + `cg_memory_hungry`）已重新生成并抠图。
-- 用途：对话系统立绘显示（已改为对齐画面下边沿，由半透明对话框盖住下半身）。
+- 用途：对话系统立绘显示（v1.7 起 `78vh` 脚贴画面下边沿，由挂名牌消息窗置于立绘之上）。
 
 ### 2.2 场景背景
 - 尺寸：1920×1080 电影质感插画。
@@ -338,9 +338,11 @@ app.mount("/story", story_router)
 
 #### 功能模块
 - **打字机效果台词展示**：逐字渲染台词，可点击跳过至整句。
-- **立绘显示**：根据台词 `speaker` 字段映射到 `characters/{portrait_prefix}_{emotion}.png`。
+- **立绘显示**：根据台词 `speaker` 字段映射到 `characters/{portrait_prefix}_{emotion}.png`；v1.6 起支持 24FPS 连续帧动画。
+- **消息窗（v1.7 对标柚子社）**：上半圆角 + 顶部金线、左上挂名牌（`nameplate`，旁白用 narrator 变体）、右上工具栏、正文用宣纸白 + 金色打字光标，下沿「点击或空格继续」+ 右下 ▶ 翻页指示；`.hidden` 淡出支持「隐藏窗口」。
+- **工具栏（v1.7）**：**履历（Backlog）** overlay 回看已播放台词 + **自动播放**（打完一行延时自动推进，遇任务面板/选择面板自动暂停）+ **隐藏窗口**（空格/点击恢复）。
 - **选择面板**：选项按钮 + 效果标签（如 `悟道+1`）+ 提示文字（如"此选择将影响结局"）。
-- **四属性 HUD**：悟道 / 堕落 / 理性 / 情感，SVG 进度条实时刷新。
+- **任务面板**：进入关卡先弹「背景 + 目标」确认，再进入对白。
 - **场景背景切换**：进入关卡时按 `realm.background` 加载，过渡使用淡入淡出。
 
 #### API 调用
