@@ -796,17 +796,99 @@ def _hub_ready(port: int, timeout: float = 25.0) -> bool:
     return False
 
 
-def open_desktop_window(url: str) -> None:
-    """以 pywebview 原生 WebView 打开总坛，替代外部浏览器。
+# ── 独立桌面窗口 · WebGPU 内核选择 ──────────────────────────────
+# WebGPU 是页面渲染的前提（大地图走 WebGPU）。是否可用完全取决于嵌入式 Web 引擎：
+#   - Chromium 系（Windows WebView2/EdgeChromium、QtWebEngine、CEF）：默认可开 WebGPU；
+#   - Apple WKWebView：较新系统支持 WebGPU，缺失时由页面升级到系统浏览器；
+#   - Linux WebKitGTK：*根本不支持* WebGPU，只能让位给系统浏览器。
+# Chromium 系通过注入命令行标志显式开启 WebGPU，确保任何机器默认可用。
 
-    高性能说明：
-    - Windows 优先使用 WebView2/EdgeChromium（Chromium 内核），
-      与系统浏览器无关，渲染与渲染后的交互性能最佳，且无浏览器工具栏。
-    - macOS 使用 WKWebView，Linux 使用 GTK(WKWebKit2)。
-    在 pygame 设置下，主线程运行 GUI 事件循环，阻塞直至窗口关闭。
+_CHROMIUM_WGPU_FLAGS = (
+    "--enable-unsafe-webgpu "
+    "--ignore-gpu-blocklist "
+    "--enable-features=Vulkan,WebGPU,WebGPUDeveloperFeatures"
+)
+
+
+def _has_module(name):
+    try:
+        __import__(name)
+        return True
+    except Exception:
+        return False
+
+
+def _enable_webview2_webgpu():
+    """Windows WebView2(EdgeChromium)：SDK 会读取环境变量 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS，
+    向其追加开启 WebGPU 的 Chromium 命令行参数。"""
+    prev = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "").strip()
+    os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = " ".join(
+        [p for p in (prev, _CHROMIUM_WGPU_FLAGS) if p]
+    )
+
+
+def _enable_qtwebengine_webgpu():
+    """QtWebEngine(Chromium)：QWebEngine 在启动前读取 QTWEBENGINE_CHROMIUM_FLAGS，
+    必须在 QApplication 构造（webview.start）之前设置。"""
+    prev = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").strip()
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(
+        [p for p in (prev, _CHROMIUM_WGPU_FLAGS) if p]
+    )
+
+
+def _pick_webgpu_gui():
+    """按平台挑选支持 WebGPU 的 pywebview GUI 后端。
+    返回 (gui, 说明标签)；gui 为 None 表示本机只有不支持 WebGPU 的内核（Linux WebKitGTK），
+    调用方应回退到系统浏览器以保证玩家仍能用 WebGPU。"""
+    if os.name == "nt":
+        _enable_webview2_webgpu()
+        return "edgechromium", "WebView2(EdgeChromium/Chromium·WebGPU)"
+    # Chromium 系优先：QtWebEngine > CEF
+    if _has_module("PyQt6.QtWebEngineWidgets") or _has_module("PySide6.QtWebEngineWidgets"):
+        _enable_qtwebengine_webgpu()
+        return "qt", "QtWebEngine(Chromium·WebGPU)"
+    if _has_module("cefpython3"):
+        return "cef", "CEF(Chromium)"
+    if sys.platform == "darwin":
+        # macOS WKWebView：较新系统支持 WebGPU，缺失时由页面升级到系统浏览器
+        return "webkit", "WKWebView(WebKit)"
+    # Linux 仅剩 WebKitGTK：不支持 WebGPU，让位给系统浏览器
+    return None, None
+
+
+class _DesktopWindowBridge:
+    """通过 pywebview js_api 暴露给页面：当嵌入引擎不支持 WebGPU 时，
+    用系统浏览器（Chromium，必支持 WebGPU）打开同一地址以继续游玩。"""
+
+    def __init__(self, url):
+        self._url = url
+
+    def webgpu_unavailable(self):
+        """页面探测到当前窗口内核没有 WebGPU。交由系统浏览器打开同一页面。"""
+        try:
+            webbrowser.open(self._url, new=2)
+            return True
+        except Exception as e:
+            print(f"[桌面窗口] 升级到系统浏览器失败: {e}")
+            return False
+
+
+def open_desktop_window(url: str) -> bool:
+    """以支持 WebGPU 的 Chromium WebView 打开总坛。
+    返回 True 表示已打开窗口（阻塞直至关闭）；返回 False 表示本机内核不支持 WebGPU，
+    调用方应回退到系统浏览器模式，保证玩家仍能使用 WebGPU 渲染。
+
+    内核选择：Windows→WebView2(EdgeChromium)、Linux/macOS→QtWebEngine(优先)/CEF。
+    主线程运行 GUI 事件循环，阻塞直至窗口关闭。
     """
     import webview  # 延迟导入：仅桌面窗口模式需要
 
+    gui, gui_label = _pick_webgpu_gui()
+    if gui is None:
+        log_warn("  当前环境桌面内核（WebKitGTK）不支持 WebGPU，改用系统浏览器以启用 WebGPU。")
+        return False
+
+    log_info(f"  使用 {gui_label} 内核独立桌面窗口（已开启 WebGPU）。")
     webview.create_window(
         "棋圣 ChessSage · 六道众生",
         url=url,
@@ -817,14 +899,16 @@ def open_desktop_window(url: str) -> None:
         text_select=False,
         zoomable=True,
         easy_drag=True,
+        js_api=_DesktopWindowBridge(url),
     )
-    log_info(f"\n  [独立桌面窗口] 已打开: {url}")
+    log_info(f"\n  [独立桌面窗口] 已打开: {url}  ({gui_label})")
     log_info("  " + "=" * 54)
     log_info("  关闭窗口即停止全部服务。")
-    log_info("  Windows 使用 WebView2(Chromium) 内核，性能最佳。")
+    log_info("  Chromium 内核，默认已开启 WebGPU（次世代渲染）。")
     log_info("  " + "=" * 54)
     # GUI 事件循环在主线程运行，阻塞直至所有窗口关闭
-    webview.start(gui=None, private_mode=False, debug=False)
+    webview.start(gui=gui, private_mode=False, debug=False)
+    return True
 
 
 def _hold_and_monitor(processes):
@@ -904,15 +988,20 @@ def main():
     if window_mode:
         if _hub_ready(HUB_PORT):
             try:
-                open_desktop_window(hub_url)  # 阻塞直至窗口关闭
+                # 返回 False：本机桌面内核不支持 WebGPU（如 Linux WebKitGTK），
+                # 自动回退到系统浏览器模式，保证玩家仍能用 WebGPU 渲染。
+                opened = open_desktop_window(hub_url)  # 阻塞直至窗口关闭
             except Exception as e:
                 log_warn(f"\n  pywebview 启动失败: {e}")
                 log_warn("  若需独立窗口请安装: pip install pywebview")
                 log_warn("  本次退回浏览器模式")
                 browser_mode = True
             else:
-                _dispose_all()
-                return
+                if not opened:
+                    browser_mode = True
+                else:
+                    _dispose_all()
+                    return
         else:
             log_warn("  总坛服务启动超时，退回浏览器模式")
             browser_mode = True

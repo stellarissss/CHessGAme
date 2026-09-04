@@ -13,6 +13,7 @@
 - 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
 - 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
 - **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。
+- **独立窗口 WebGPU**：桌面窗口（pywebview）优先选用 WebGPU 内核——Windows WebView2(EdgeChromium)、Linux/macOS QtWebEngine(优先)/CEF，并注入 `--enable-unsafe-webgpu` 等 Chromium 标志默认开启 WebGPU；仅当本机内核无 WebGPU（Linux WebKitGTK）时自动升级到系统浏览器，保证任何玩家都能用 WebGPU。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -254,8 +255,7 @@
                     │  └ 六道大陆                     │
                     │    hub/overworld.html          │
                     │    hub/overworld-load.js(分发) │
-                    │      ├ WebGPU → overworld-wgpu │
-                    │      └ 回退   → overworld-iso  │
+                    │      └ WebGPU → overworld-wgpu │
                     │    hub/overworld-ui.js (DOM)   │
                     └──────────────┬────────────────┘
                                    │ FastAPI
@@ -387,9 +387,9 @@ workspace/
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
 │   ├── overworld.html           # ★ 六道大陆页（渲染装载 + DOM HUD + 小地图）
-│   ├── overworld-load.js        # ★ 渲染器分发：WebGPU → overworld-wgpu；否则回退 overworld-iso
+│   ├── overworld-load.js        # ★ 渲染器分发：强制 WebGPU → overworld-wgpu（禁用 iso 回退）
 │   ├── overworld-wgpu.js        # ★ 大陆渲染（WebGPU）：高度场地形 + 实例化装饰 + SSAO/体积光/Bloom/HDR/雾 + 相机/碰撞/POI/小地图
-│   ├── overworld-iso.js         # 大陆渲染（回退，iso-engine）：等距色块地面 + 景观物体 + 光影 + 玩家/碰撞/POI + 小地图/探索存档
+│   ├── overworld-iso.js         # 大陆渲染（旧 iso-engine，仅保留作历史参考，默认不再启用）
 │   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
 │   ├── wgpu/                    # WebGPU 渲染器（shaders.js 等，模块化）
 │   ├── sandbox.html             # 纯净模式选棋类界面（由大陆沙盒训练场按 E 进入）

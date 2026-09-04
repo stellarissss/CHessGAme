@@ -3,7 +3,7 @@
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
 > **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、对话界面对标柚子社重制（挂名牌/工具栏/履历/自动/隐藏）、立绘 AI 连续帧动画（24FPS×48 帧，v1.6 起替代旧 CSS transform/CSS 动画）、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
-> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条、全页面统一 75% 缩放，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退，大陆渲染固定使用 WebGPU。
+> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条、全页面统一 75% 缩放，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退、大陆渲染固定使用 WebGPU，并让独立窗口（pywebview）默认支持 WebGPU：优先选用 WebView2/QtWebEngine/CEF Chromium 内核并注入 `--enable-unsafe-webgpu` 等标志，Linux WebKitGTK 等无 WebGPU 内核时自动升级到系统浏览器。
 
 ---
 
@@ -544,7 +544,7 @@ app.mount("/story", story_router)
 - [ ] 二周目功能正常：记忆碎片与结局记录保留，其余状态重置。
 
 ### 8.4 六道大陆（剧情模式入口）
-- [ ] `GET /overworld` 返回 200 并正确加载 iso-engine 等距场景（`#iso-scene` 已注入、`window.OverworldGame` 就绪）。
+- [ ] `GET /overworld` 返回 200 并正确加载 WebGPU 场景（`overworld-wgpu.js` 创建 canvas、`window.OverworldGame` 就绪）。
 - [ ] `GET /api/overworld/config` 返回 overworld.json 权威内容，字段合法（world / tilesets / regions / roads / decor_plant / water_overlays / mountain_overlays / river_snow / river_ridge / pois / player）。
 - [ ] 大陆瓦片覆盖：所有 112×84 瓦片均归属至少一个区域；POI 瓦片在合法范围且非实体（solid=false）。
 - [ ] 六道入口 ×6、技能 NPC ×1、生灭台 ×1，总数正确；每个 POI 均能被交互命中（_updateInteraction 识别 closestPoi）。
@@ -554,35 +554,34 @@ app.mount("/story", story_router)
 
 ---
 
-## 九、六道大陆（iso-engine）实现规范
+## 九、六道大陆（WebGPU）实现规范
 
 ### 9.1 物理与渲染
-- **引擎**：iso-engine v0.1.1（本地模块 `hub/vendor/iso-engine/isometric-engine.js`，CSS 3D Transform / Lit Web Components），浏览器自动深度排序；无显式烘焙层。
-- **逻辑尺寸**：大陆世界 112×84 瓦片，等距渲染 CELL=30px；`iso-scene` 原点由 `origin-x / origin-y` 对齐，舞台随相机 translate + scale。
-- **地面**：逐行合并同色连续段生成 829 个 `iso-plane` 色块（REG_COLOR 主题：绿/黄绿/黄/红/黑/白/灰），水域/道路/山脉以 `iso-plane`/`iso-cube` 叠色。
-- **景观物体**：依 `KIND_BY_REGION` 以 `_rng(x,y,salt)` 确定性散布 iso-cube（岩石/草丛/松树/阔叶树/雪堆/沙丘/仙人掌/枯木/废墟），三面明暗自带光影。
-- **相机**：视口 `#iso-viewport`，相机 zoom + translate（`applyCamera`），跟随玩家保持既定边距，+/- 缩放。
-- **光影**：立方体三面明暗（库内置 shadow-overlay）+ 屏幕环境光 / 暗角（`#iso-lighting`）合成层次。
+- **引擎**：自家 WebGPU 渲染器 `overworld-wgpu.js` + `wgpu/shaders.js`（WGSL）；在 `#iso-viewport` 内创建 canvas 承接渲染，物理尺寸 CELL=46px。
+- **逻辑尺寸**：大陆世界 112×84 瓦片，外观/碰撞以瓦片坐标求解；相机为透视投影 MVP，`frame` uniform 每帧上传相机/光照/时间。
+- **地形**：真 3D 高度场 + compute 高频细节场（`TERRAIN_DETAIL_CS`，1 纹元=1 格）+ 顶点着色器位移置换（`TERRAIN_VS`）；分块视口剔除只绘制可见 chunk；生物群系经**域扭曲**形成有机曲线边界，按区域密度与边界过渡带散布装饰。
+- **装饰**：实例化树/石/雪/水/植被/灵粒，按生物群系差异化密度确定散布。
+- **光照/后处理**：半球环境 + 暖阳漫反/高光 + 指数雾；HDR 前向 GBuffer → SSAO(compute) → 屏幕空间体积光(God Ray) → Bloom(逐级下采样) → ACES 色调映射 + Gamma + 暗角 + 去条带抖动。
+- **构建**：地形网格 + 实例 + 分块区间在 Web Worker 多线程构建，失败退回主线程。
 
 ### 9.2 碰撞与几何
-- **碰撞网格**：`solid[H][W]` 由 `buildSolidGrid` 预计算，水体、山脉、装饰锚点、配置 `solid_regions` 均为实体。
-- **边界**：玩家半径 `playerR=13`；对玩家四角采样瓦片实体状态（`_willCollide`）。
-- **水体/山脉网格**：`_fillRectGrid` 支持 `["rect", name, x1, y1, x2, y2]` 矩形区域集合，生成 `waterGrid` / `mountainGrid`。河流（`river_snow` / `river_ridge`）统一汇入水网格。
+- **碰撞网格**：地图边缘群山外障（`wallGrid`，四周 6 格厚）与 `solid_regions` 指定区为不可通行屏障；水域/障碍按规则可自由穿越。
+- **玩家判定**：按格中心 + 半径做碰撞判定，玩家四向移动，相机跟随夹在可见范围内。
 
 ### 9.3 装饰与分层
-- **装饰**：区域级 `decor_plant.{regionId}`，字段 `base_density` + 精灵池 `sprites` + `collide` 标志。植物/岩石锚点被记录进实体网格。
-- **分层（z 轴 / depth）**：烘焙底图 depth=0，生灭台 depth=2，玩家容器 depth=5，POI halo / 徽章 depth=3+6；保证玩家覆盖地面、阴影在地。
-- **特殊装饰**：山脉顶面撒 battle 6/7（冰川）与 dungeon 66（岩石），岸线 battle 72/73 做浅滩，绿洲 farm 15 棕榈树，密林 farm 1 常青树 ＋ farm 3 矮灌木。
+- **装饰**：`BIOME_DENSITY` 按区域设差异化密度；跨生物群系边界带以噪声概率补矮灌/小石形成自然过渡带。
+- **覆盖层**：玩家 / 六道入口 / 告示牌等 DOM 覆盖层用与 GPU 相同的 mvp 每帧精确投影，确保与 3D 地形严丝合缝。
 
 ### 9.4 POI 与交互
-- **六道入口**：Emoji 徽章 + 金色呼吸光圈（0xd4af37 外发光 + 主题色内晕），tween 缩放 1.0 ↔ 1.15。
+- **六道入口**：Emoji 徽章 + 金色呼吸光圈，DOM 覆盖层投影到地形。
 - **技能 NPC**：🧙 菩提老者 + 发光光圈，触发时打开 `skill-tree-modal`。
-- **E 键互动**：键盘 `keydown` 捕获 → `_onInteract` → realm 调 `UI.openRealmSelect(realm)`；npc 调 `UI.openSkillTree()`。
+- **E 键互动**：键盘 `keydown` 捕获 → `_onInteract` → realm 调 `UI.openRealmSelect(realm)`；npc 调 `UI.openSkillTree()`；交互走 window 键鼠 + DOM 标点层。
 - **8s 轮询**：`startPolling()` 每 8 秒刷新 Samsara 状态（levels_passed / completed / sandbox_unlocked），更新徽章与 HUD。
 
-### 9.5 配置与接口
-- 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回，由启动器挂载在 main.py 的 FastAPI 应用。
-- 前端运行路径：`hub/overworld.html` → `overworld-load.js`（渲染分发）＋ `overworld-ui.js`（Overlay UI）；WebGPU 路径 `overworld-wgpu.js`、回退路径 `overworld-iso.js`（iso-engine 场景）。
+### 9.5 加载与兼容
+- 渲染分发：`overworld-load.js` 强制加载 `overworld-wgpu.js`，禁用 iso-engine 回退；无 WebGPU 时仅提示错误；桌面窗口内核若无 WebGPU 则自动升级到系统浏览器继续游玩。
+- 独立窗口（pywebview）：Windows WebView2(EdgeChromium)、Linux/macOS QtWebEngine(优先)/CEF，注入 `--enable-unsafe-webgpu --ignore-gpu-blocklist --enable-features=WebGPU,Vulkan` 等标志默认开启 WebGPU。
+- 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回。
 - 测试：`tests/test_overworld.py` 校验 JSON 结构与覆盖，`tests/test_samsara_linear.py` 校验线性推进/沙盒解锁/API 回归。
 
 ---
