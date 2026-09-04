@@ -1,4 +1,4 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.7 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.8 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
@@ -13,7 +13,7 @@
 - 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
 - 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
 - **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。
-- **独立窗口 WebGPU**：桌面窗口（pywebview）优先选用 WebGPU 内核——Windows WebView2(EdgeChromium)、Linux/macOS QtWebEngine(优先)/CEF，并注入 `--enable-unsafe-webgpu` 等 Chromium 标志默认开启 WebGPU；仅当本机内核无 WebGPU（Linux WebKitGTK）时自动升级到系统浏览器，保证任何玩家都能用 WebGPU。
+- **浏览器 WebGPU（默认）**：启动器默认唤起系统浏览器访问 `http://localhost:HUB_PORT`——localhost 为安全上下文，Chrome/Edge 桌面版直接可用 WebGPU（不受嵌入窗口内核如 WebKitGTK 限制），保障任何玩家都能走 WebGPU 次世代渲染。独立窗口（pywebview）保留为可选项，仅以 `--window` 显式启用（Chromium 内核同样注入 `--enable-unsafe-webgpu` 等标志）。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -372,7 +372,7 @@ python main.py
 
 > **沙盒模式**（`sandbox/`，纯净对弈、无 RPG 规则）：象棋 `8010`、五子棋 `8011`、围棋 `8012`、动物棋 `8013`、跳棋 `8014`、黑白棋 `8015`。自 v1.5 起统一收拢进大陆：标题页只留「进入世界」，玩家在大陆南部的「沙盒训练场」按 E 进入纯净选棋界面，返回直达 `/overworld`。沙盒棋类由同一启动器在剧情模式之后一并拉起。
 
-可选参数：`--no-browser` 不自动打开浏览器，`HUB_PORT=8080` 自定义 Hub 端口。
+可选参数：`--browser`/`--no-window` 明确以浏览器模式启动（默认即此），`--window` 改用独立桌面窗口（pywebview），`--no-browser` 不自动打开浏览器，`HUB_PORT=8080` 自定义 Hub 端口。
 
 ---
 

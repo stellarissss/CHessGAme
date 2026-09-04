@@ -668,6 +668,10 @@ OverworldGame._ensureSize = function () {
   if (w === this._rtsW && h === this._rtsH) return;
   this._rtsW = w; this._rtsH = h;
   this._canvas.width = w; this._canvas.height = h;
+  // WebGPU swapchain 必须在 canvas 尺寸变化后重新 configure，否则呈现的纹理尺寸
+  // 仍是最初 configure 时的值（首次 _initGPU 里 configure 用默认 300×150），
+  // 导致 canvas 尺寸变大全靠缩放开，某些环境输出为空/白屏。
+  this._ctx.configure({ device: this.device, format: this.presentFormat, alphaMode: 'opaque' });
   this._colorRT = this._rt('rgba16float', w, h);
   this._normalRT = this._rt('rgba8unorm', w, h);
   this._posRT = this._rt('rgba32float', w, h);

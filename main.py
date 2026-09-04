@@ -949,11 +949,13 @@ def main():
     no_browser = "--no-browser" in sys.argv
     production_mode = "--production" in sys.argv or os.environ.get("CHESSSAGE_PRODUCTION") == "1"
     browser_mode = "--browser" in sys.argv or "--no-window" in sys.argv
+    # 显式 --window 才启用独立桌面窗口（pywebview，可选）；默认一律走系统浏览器。
+    # 浏览器访问 http://localhost:HUB_PORT（安全上下文）即可用 WebGPU（Chrome/Edge 桌面版），
+    # 不受嵌入窗口内核（如 Linux WebKitGTK 无 WebGPU）限制，是最稳妥的 WebGPU 渲染通道。
+    window_mode = "--window" in sys.argv
     # 生产模式：仅启动服务，不自动打开任何界面（供服务器/打包后后台运行）
     if production_mode:
         no_browser = True
-    # 默认（未指定参数）：独立桌面窗口模式
-    window_mode = not no_browser and not browser_mode and not production_mode
 
     if not check_dependencies():
         sys.exit(1)
@@ -981,9 +983,10 @@ def main():
     print(_c("yellow", "\n  关闭窗口 / 按 Ctrl+C 停止所有服务"))
     print(_c("cyan", "  " + "=" * 56))
 
-    # 3. 打开方式：
-    #    默认：pywebview 独立桌面窗口（原生 WebView，Chromium 高性能）
-    #    --browser / --no-window：兼容旧版，唤起系统浏览器
+    # 打开方式：
+    #    默认：唤起系统浏览器（localhost 安全上下文，可用 WebGPU，栈次世代渲染）
+    #    --browser / --no-window：同默认，明确以浏览器模式启动
+    #    --window：改用独立桌面窗口（pywebview，可选，Chromium 内核已注入 WebGPU 标志）
     #    --no-browser：仅启动服务，不打开任何界面
     if window_mode:
         if _hub_ready(HUB_PORT):
