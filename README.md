@@ -4,7 +4,7 @@
 
 以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
 
-**次世代渲染（WebGPU）**：大陆默认由自家 WebGPU 渲染器 `overworld-wgpu.js` 无缝承接旧 iso-engine 阶段——
+**次世代渲染（WebGPU）**：大陆由自家 WebGPU 渲染器 `overworld-wgpu.js` 承接（不再回退 iso-engine）——
 - 真 3D 高度场地形 + 实例化装饰（树/石/雪/水/植被/灵粒），分块视口剔除只绘制可见 chunk；
 - 次世代式着色器栈（`wgpu/shaders.js`，WGSL）：HDR 前向 GBuffer（颜色/法线/世界坐标）→ **SSAO（compute）** → **屏幕空间体积光（God Ray 步进）** → **Bloom（亮部提取+逐级下采样）** → **ACES 色调映射** + Gamma + 暗角 + 去条带抖动；
 - 光照 = 半球环境 + 暖阳漫反/高光 + 指数雾；`frame` uniform 每帧上传相机/光照/动画时间；
@@ -12,8 +12,7 @@
 - **性能优化（不降质）**：附件 View 跨帧缓存、Bloom 模糊 bind group 预创建复用、SSAO/细节 compute 派发数预计算——消除逐帧 `createView`/`createBindGroup` 分配与 GC 抖动；
 - 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
 - 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
-
-**兼容回退**：无 WebGPU / WebGPU 加载失败时，`overworld-load.js` 自动回退到旧版 iso-engine（CSS 3D Transform / Lit Web Components）渲染，DOM Overlay（+ 仿射投影）逻辑保持不变，老浏览器仍可游玩。
+- **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 

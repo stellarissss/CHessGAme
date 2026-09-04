@@ -467,7 +467,7 @@ var OverworldGame = {
     }).catch(function (err) {
       console.error('[WebGPU] init failed:', err);
       if (UI) UI.removeLoading();   // 别让加载遮罩盖住 HUD
-      // 自动回退到兼容渲染（iso-engine），保证大地图与 HUD 始终可用可点；幂等由分发起保护
+      // 不做 iso-engine 回退：强制 WebGPU，失败时由分发起提示错误（保持 HUD 可点）。
       if (window.__owFallbackToIso) {
         window.__owFallbackToIso(err);
         return null;
