@@ -24,6 +24,8 @@ var CELL = 46;          // 世界坐标每格长度（与 DOM 版本一致，方
 var WALL = 6;           // 边缘群山外障厚度（格）
 var CHUNK = 16;         // 分块尺寸（格）
 var EXPLORED_KEY = 'chesssage_ow_explored';
+var UI = null;          // DOM OverworldUI 句柄（必须提前声明：ES Module 中对未声明标识符的读取会抛 ReferenceError，
+                        // 否则在 WebGPU 初始化失败时「if (UI) removeLoading」反倒把原始错误"吞"成 UI is not defined）
 var S = window.OWSHADERS;
 
 var REALM_NAMES = {
@@ -466,13 +468,25 @@ var OverworldGame = {
       return self._initGPU();
     }).catch(function (err) {
       console.error('[WebGPU] init failed:', err);
-      if (UI) UI.removeLoading();   // 别让加载遮罩盖住 HUD
-      // 不做 iso-engine 回退：强制 WebGPU，失败时由分发起提示错误（保持 HUD 可点）。
-      if (window.__owFallbackToIso) {
-        window.__owFallbackToIso(err);
+      // 1) 无条件移除加载遮罩：UI 未初始化时直接操作 DOM，避免 loading-overlay 盖住按钮
+      try {
+        var ov = document.getElementById('loading-overlay');
+        if (ov) ov.classList.add('hidden');
+      } catch (e) { /* ignore */ }
+      if (UI && typeof UI.removeLoading === 'function') UI.removeLoading();
+      // 2) 渲染分发起存在时优先走其统一诊断/升级路径，能产出更明确的 WebGPU 失败原因。
+      if (typeof window.__owFallbackToIso === 'function') {
+        try { window.__owFallbackToIso(err); } catch (e) { console.error(e); }
         return null;
       }
-      if (UI) UI.showError('未能启动次世代渲染，请刷新重试，或确认浏览器开启了 WebGPU。');
+      if (UI && typeof UI.showError === 'function') {
+        UI.showError('未能启动次世代渲染，请刷新重试，或确认浏览器开启了 WebGPU。');
+      } else {
+        try {
+          var uia = document.getElementById('renderer-badge');
+          if (uia) uia.textContent = 'WebGPU 初始化失败：' + (err && err.message ? err.message : err);
+        } catch (e) { /* ignore */ }
+      }
       throw err;
     });
     return this._ready;
@@ -1261,23 +1275,39 @@ OverworldGame.start = function () {
 /* ── 引导 ── */
 function wgpuBoot() {
   var game = window.OverworldGame = OverworldGame;
-  if (window.OverworldUI) { window.OverworldUI.init(game); UI = window.OverworldUI; }
-  if (UI) UI.showLoading();
+  try {
+    if (window.OverworldUI) { window.OverworldUI.init(game); UI = window.OverworldUI; }
+  } catch (e) {
+    console.error('[wgpu] OverworldUI.init 失败，继续但禁用 UI 交互：', e);
+  }
+  if (UI && typeof UI.showLoading === 'function') UI.showLoading();
   // 补 WGPU overlay 样式
   injectStyles();
   fetch('/api/overworld/config').then(function (r) { return r.json(); }).then(function (ow) {
-    if (!ow || !ow.world) { if (UI) UI.showError('大陆配置加载失败，请重试'); return; }
-    if (UI) UI.setLoadingProgress(30);
+    if (!ow || !ow.world) {
+      if (UI && typeof UI.showError === 'function') UI.showError('大陆配置加载失败，请重试');
+      return;
+    }
+    if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(30);
     game.bootstrapGeometry(ow);
-    var backRealm = (function () { try { return new URLSearchParams(location.search).get('backrealm'); } catch (e) { return null; } })();
     requestAnimationFrame(function () { requestAnimationFrame(function () {
-      if (UI) UI.setLoadingProgress(78);
+      if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(78);
       game.buildScene();
       game.initMinimap();
       game.start();
     }); });
-    if (UI) UI.refreshHUD();
-  }).catch(function () { if (UI) UI.showError('大陆配置加载失败，请重试'); });
+    if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
+  }).catch(function (e) {
+    console.error('[wgpu] 大陆配置加载失败：', e);
+    if (UI && typeof UI.showError === 'function') {
+      UI.showError('大陆配置加载失败，请重试');
+    } else {
+      try {
+        var uia = document.getElementById('renderer-badge');
+        if (uia) uia.textContent = '大陆配置加载失败：' + (e && e.message ? e.message : e);
+      } catch (_) {}
+    }
+  });
 }
 function injectStyles() {
   if (document.getElementById('wgpu-styles')) return;
