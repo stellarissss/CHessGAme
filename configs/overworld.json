@@ -139,7 +139,7 @@
     { "id": "realm_human", "type": "realm", "emoji": "♜",  "x": 58, "y": 78, "realm": "human"  },
     { "id": "realm_asura", "type": "realm", "emoji": "⚔️", "x": 104,"y": 72, "realm": "asura"  },
 
-    { "id": "realm_sandbox","type": "sandbox","emoji": "♟", "x": 40, "y": 63, "label": "沙盒训练场" }
+    { "id": "realm_sandbox","type": "sandbox","emoji": "♟", "x": 56, "y": 44, "label": "沙盒训练场" }
   ],
 
   "decor_anchors": [

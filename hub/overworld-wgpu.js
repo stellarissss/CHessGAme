@@ -942,10 +942,11 @@ OverworldGame._buildPoisOverlay = function () {
       marker.billboard = self._buildBillboard(p);
     } else {
       var em = document.createElement('div');
-      em.className = 'poi-emoji' + (p.type === 'realm' ? ' realm' : ' npc');
-      em.style.fontSize = (CELL * 1.15) + 'px';
+      var isSandbox = p.type === 'sandbox';
+      em.className = 'poi-emoji' + (p.type === 'realm' ? ' realm' : ' npc') + (isSandbox ? ' sandbox' : '');
+      em.style.fontSize = (CELL * (isSandbox ? 1.85 : 1.15)) + 'px';
       em.style.lineHeight = '1';
-      em.style.width = (CELL * 1.8) + 'px'; em.style.height = (CELL * 1.8) + 'px';
+      em.style.width = (CELL * (isSandbox ? 2.6 : 1.8)) + 'px'; em.style.height = (CELL * (isSandbox ? 2.6 : 1.8)) + 'px';
       em.style.display = 'flex'; em.style.alignItems = 'center'; em.style.justifyContent = 'center';
       em.textContent = p.emoji;
       em.setAttribute('data-poi', p.id || '');
@@ -1035,8 +1036,9 @@ OverworldGame._updateOverlay = function () {
     }
     if (m.emoji) {
       m.emoji.style.display = '';
-      m.emoji.style.left = (wpos.x - CELL * 0.9 * sx).toFixed(1) + 'px';
-      m.emoji.style.top = (wpos.y - CELL * 1.35 * sx).toFixed(1) + 'px';
+      var big = m.poi.type === 'sandbox';
+      m.emoji.style.left = (wpos.x - CELL * (big ? 1.3 : 0.9) * sx).toFixed(1) + 'px';
+      m.emoji.style.top = (wpos.y - CELL * (big ? 1.75 : 1.35) * sx).toFixed(1) + 'px';
     }
     if (m.badgeEl) {
       m.badgeEl.style.display = '';
@@ -1082,13 +1084,15 @@ OverworldGame.initMinimap = function () {
     var p = m.poi;
     if (!p) return;
     var div = document.createElement('div');
-    div.className = 'minimap-poi';
+    var isSandbox = p.type === 'sandbox';
+    div.className = 'minimap-poi' + (isSandbox ? ' sandbox' : '');
     div.style.left = ((p.x + 0.5) / W * 100) + '%';
     div.style.top = ((p.y + 0.5) / H * 100) + '%';
     if (p.label) div.setAttribute('title', p.label);
     poisEl.appendChild(div);
     self.minimapPois[p.id] = { div: div, base: p.emoji };
-    if (self._isExplored(p.id)) { div.classList.add('explored'); div.textContent = p.emoji; }
+    if (isSandbox) { div.classList.add('explored'); div.textContent = p.emoji; }
+    else if (self._isExplored(p.id)) { div.classList.add('explored'); div.textContent = p.emoji; }
     else { div.classList.add('unexplored'); div.textContent = '❓'; }
   });
   this._refreshMinimapPlayer();
@@ -1319,13 +1323,14 @@ function injectStyles() {
   st.textContent = '.wgpu-overlay .poi-emoji{position:absolute;text-align:center;filter:drop-shadow(0 5px 6px rgba(0,0,0,0.6));}' +
     '.wgpu-overlay .poi-emoji.realm{animation:realmPulse 2.2s ease-in-out infinite;}' +
     '.wgpu-overlay .poi-emoji.active{animation:none;filter:drop-shadow(0 0 12px #fff) drop-shadow(0 0 6px rgba(255,255,255,0.9));}' +
+    '.poi-emoji.sandbox{filter:drop-shadow(0 0 14px rgba(139,92,246,0.9));}' +
     '.wgpu-overlay .realm-badge{position:absolute;color:#d4af37;font-size:15px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,0.85);}' +
     '.wgpu-overlay .realm-badge.realm-done{color:#0d7377;}' +
     '.wgpu-overlay .player-marker{position:absolute;width:0;height:0;}' +
     '.wgpu-overlay .player-shade{position:absolute;left:-20px;top:-10px;width:40px;height:12px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,0.5),rgba(0,0,0,0) 70%);}' +
     '.wgpu-overlay .player-avatar{position:absolute;left:-23px;top:-44px;width:46px;height:46px;display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1;color:#ffe08a;background:radial-gradient(circle,rgba(212,175,55,0.32),rgba(15,15,22,0.62) 72%);border:2px solid rgba(255,224,138,0.9);border-radius:50%;box-shadow:0 5px 16px rgba(0,0,0,0.6),0 0 20px rgba(212,175,55,0.45);transform-origin:50% 100%;animation:playerFloat 2.4s ease-in-out infinite;}' +
     '@keyframes realmPulse{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}@keyframes playerFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}' +
-    '.wgpu-overlay .ow-billboard{position:absolute;transform:scale(0.66);transform-origin:center bottom;pointer-events:none;}' +
+    '.wgpu-overlay .ow-billboard{position:absolute;transform:scale(0.5);transform-origin:center bottom;pointer-events:none;}' +
     '.wgpu-overlay .ow-billboard .bb-post{position:relative;background:linear-gradient(180deg,rgba(120,74,28,.96),rgba(90,55,20,.96) 70%,rgba(60,36,14,.96));border:2px solid #c9a35c;border-radius:6px;box-shadow:inset 0 0 24px rgba(0,0,0,0.5);width:188px;min-height:260px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:14px 12px;text-align:center;color:#f7ecd0;box-sizing:border-box;}' +
     '.wgpu-overlay .bb-title{font-family:var(--font-display);font-size:24px;color:#d4af37;letter-spacing:.12em;margin:4px 0 2px;text-shadow:0 2px 4px rgba(0,0,0,.7);}' +
     '.wgpu-overlay .bb-sub{font-size:11px;letter-spacing:.28em;color:#d8c9a4;margin-bottom:8px;}' +

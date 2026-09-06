@@ -844,7 +844,8 @@ import './vendor/iso-engine/isometric-engine.js';
                 var p = entry.poi;
                 if (p.type === 'spawn') return;
                 var div = document.createElement('div');
-                div.className = 'minimap-poi';
+                var isSandbox = p.type === 'sandbox';
+                div.className = 'minimap-poi' + (isSandbox ? ' sandbox' : '');
                 var left = (p.x + 0.5) / W * 100;
                 var top = (p.y + 0.5) / H * 100;
                 div.style.left = left + '%';
@@ -852,7 +853,7 @@ import './vendor/iso-engine/isometric-engine.js';
                 if (p.label) div.setAttribute('title', p.label);
                 poisEl.appendChild(div);
                 self.minimapPois[p.id] = { div: div, base: p.emoji };
-                if (self._isExplored(p.id)) {
+                if (isSandbox || self._isExplored(p.id)) {
                     div.classList.add('explored');
                     div.textContent = p.emoji;
                 } else {

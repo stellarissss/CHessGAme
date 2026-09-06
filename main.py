@@ -307,42 +307,15 @@ _LAZY_KEY_BY_REALM = {g["realm"]: g["id"] for g in GAMES}
 _LAZY_KEY_BY_SANDBOX_PORT = {g["port"]: g["id"] for g in SANDBOX_GAMES}
 _LAZY_KEY_BY_RPG_PORT = {g["port"]: g["id"] for g in GAMES}
 
-# 识别冻结环境（Nuitka 编译产物）：冻结包内无法再用 subprocess 拉取解释器跑独立脚本，
-# 改为在进程内以线程方式运行各棋类的 uvicorn 服务。
-_IS_FROZEN = bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
-
-
-def _run_game_in_thread(name: str, script_path: Path, port: int):
-    """在进程内以线程方式加载某棋类的 FastAPI 应用并启动 uvicorn 服务。"""
-    try:
-        import importlib.util as _ilu
-        import uvicorn
-    except Exception as e:
-        log_error(f"  ✗ 缺少运行依赖: {e}")
-        return None
-    mod_name = "_frozen_" + name
-    try:
-        spec = _ilu.spec_from_file_location(mod_name, str(script_path))
-        if spec is None or spec.loader is None:
-            return None
-        mod = _ilu.module_from_spec(spec)
-        sys.modules[mod_name] = mod
-        spec.loader.exec_module(mod)
-    except Exception as e:
-        log_error(f"  ✗ 进程内启动失败 {name}: {e}")
-        return None
-    app = getattr(mod, "app", None)
-    if not app:
-        log_error(f"  ✗ {name} 未暴露 FastAPI app")
-        return None
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
-    server = uvicorn.Server(config)
-    threading.Thread(target=server.run, daemon=True).start()
-    return server
-
-
+# 冻结（PyInstaller/Nuitka）产物中以子进程方式拉起棋类：sys.executable 即打包入口，
+# 传 [exe, 脚本路径] 触发 bootstrap 子进程分支（bootstrap.py），与开发态 python 运行脚本等价，
+# 为各棋类提供独立解释器/模块命名空间，避免同目录同名模块（chess_ai 等）跨棋类冲突。
 def _layout_key(mode: str, gid: str):
     return f"{mode}:{gid}"
+
+
+# 兼容别名：懒加载端点统一用 _lazy_key(mode, gid) 生成服务布局 key
+_lazy_key = _layout_key
 
 
 def _port_to_key(port: str) -> str | None:
@@ -382,14 +355,6 @@ def _ensure_game(key):
         if entry and not _is_dead(entry):
             entry["last"] = now
             return {"ok": True, "port": entry["port"], "url": f"http://localhost:{entry['port']}/"}
-        if _IS_FROZEN:
-            # 冻结包：在进程内以线程方式运行服务
-            server = _run_game_in_thread(game["name"], argv, game["port"])
-            if server is None:
-                return {"ok": False, "error": f"start failed {key}"}
-            _LAZY[key] = {"proc": None, "server": server, "name": game["name"],
-                          "port": game["port"], "last": now}
-            return {"ok": True, "port": game["port"], "url": f"http://localhost:{game['port']}/"}
         proc = start_process(game["name"], argv, game["port"])
         _LAZY[key] = {"proc": proc, "name": game["name"], "port": game["port"],
                       "cwd": argv.parent, "last": now}
@@ -397,9 +362,6 @@ def _ensure_game(key):
 
 
 def _is_dead(entry):
-    if entry.get("server") is not None:
-        # 线程型服务：直接视为活着（由空闲回收负责退出）
-        return False
     proc = entry.get("proc")
     return proc is None or proc.poll() is not None
 
@@ -410,12 +372,6 @@ def _dispose_game(key):
         entry = _LAZY.pop(key, None)
         if not entry:
             return
-        server = entry.get("server")
-        if server is not None:
-            try:
-                server.should_exit = True
-            except Exception:
-                pass
         proc = entry.get("proc")
         if proc and proc.poll() is None:
             try:
