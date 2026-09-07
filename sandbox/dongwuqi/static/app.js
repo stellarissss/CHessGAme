@@ -2958,6 +2958,7 @@ class DongwuqiBoard extends HTMLElement {
         if (depth > 10) return;
 
         this.addMessage('AI思考中...', 'info');
+        this.rpgShowThinking();
 
         try {
             const resp = await fetch(`${this.apiBase}/api/ai_move`, {
@@ -2966,6 +2967,7 @@ class DongwuqiBoard extends HTMLElement {
                 body: JSON.stringify({})
             });
             const data = await resp.json();
+            this.rpgHideThinking();
 
             if (data.success) {
                 this.boardState = data.board_state;
@@ -3008,6 +3010,7 @@ class DongwuqiBoard extends HTMLElement {
             }
         } catch (e) {
             this.addMessage(`AI错误: ${e.message}`, 'error');
+            this.rpgHideThinking();
             this._dispatchError('AI移动失败', e);
         }
     }

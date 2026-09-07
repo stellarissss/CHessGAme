@@ -526,6 +526,61 @@
         });
     }
 
+    /* ── 六道统一 UX 打磨（对全部棋类生效，含沙盒） ──────────────────
+     * 1) AI 思考浮层：AI 走子/推演期间给出明确"正在思考"反馈，消除"假死/卡顿"观感。
+     * 2) 走子落点高亮：上一步落子做一次柔和高亮闪现，缓解棋子整体重建导致的"瞬移突兀"。
+     * 3) 注入统一 CSS：随 install() 注入到各游戏 shadowRoot，保证样式一致且随组件共存亡。 */
+    const _UX_POLISH_CSS = [
+        '#rpg-thinking{position:fixed;inset:0;z-index:2147483000;display:none;align-items:center;justify-content:center;background:rgba(4,6,12,.24);backdrop-filter:blur(1px);-webkit-backdrop-filter:blur(1px);}',
+        '.rpg-think-card{display:flex;align-items:center;gap:14px;padding:15px 22px;border-radius:14px;background:linear-gradient(135deg,#1f2937,#111827);border:1px solid rgba(212,175,55,.45);color:#f5ead0;box-shadow:0 14px 44px rgba(0,0,0,.5);font-family:\'DM Sans\',\'PingFang SC\',\'Microsoft YaHei\',sans-serif;animation:rpg-think-in .18s ease-out both;}',
+        '.rpg-think-spinner{width:24px;height:24px;flex:none;border-radius:50%;border:3px solid rgba(212,175,55,.28);border-top-color:#e6c465;animation:rpg-spin .72s linear infinite;}',
+        '.rpg-think-text{font-size:14px;letter-spacing:.05em;}',
+        '@keyframes rpg-spin{to{transform:rotate(360deg)}}',
+        '@keyframes rpg-think-in{from{opacity:0;transform:translateY(6px) scale(.97);}to{opacity:1;transform:none;}}',
+        /* 上一步走子：落点闪亮后回落，柔和地"落"到位；仅命中 .piece.last-moved
+           （各游戏该选择器均为静态高亮，无 animation），不会与 .ai-moved 的常驻脉动冲突；
+           围棋 .stone 走子本已带 battlePulse 常驻动画，故不覆盖。 */
+        '#board-container .piece.last-moved{animation:rpg-emerge .45s ease-out;}',
+        '@keyframes rpg-emerge{0%{filter:brightness(2.5) drop-shadow(0 0 10px rgba(255,235,170,.95));}70%{filter:brightness(1.15) drop-shadow(0 0 4px rgba(255,235,170,.6));}100%{filter:brightness(1) drop-shadow(0 0 0 rgba(255,235,170,0));}}',
+    ].join('\n');
+
+    function _injectUxPolish(target) {
+        if (!target || !target.shadowRoot) return;
+        try {
+            if (target.shadowRoot.getElementById('rpg-ux-polish')) return;
+            const style = document.createElement('style');
+            style.id = 'rpg-ux-polish';
+            style.textContent = _UX_POLISH_CSS;
+            target.shadowRoot.appendChild(style);
+        } catch (e) {}
+    }
+
+    /* AI 思考浮层：非侵入、可复用，仅显示文字+转圈 */
+    function _showAIThinking(target, text) {
+        const root = target && target.shadowRoot;
+        if (!root) return;
+        let ov = root.getElementById('rpg-thinking');
+        if (!ov) {
+            try {
+                ov = document.createElement('div');
+                ov.id = 'rpg-thinking';
+                ov.innerHTML = '<div class="rpg-think-card"><div class="rpg-think-spinner"></div><div class="rpg-think-text"></div></div>';
+                root.appendChild(ov);
+            } catch (e) { ov = null; }
+        }
+        if (!ov) return;
+        const t = ov.querySelector('.rpg-think-text');
+        if (t) t.textContent = text || 'AI 正在思考…';
+        ov.style.display = 'flex';
+    }
+
+    function _hideAIThinking(target) {
+        const root = target && target.shadowRoot;
+        if (!root) return;
+        const ov = root.getElementById('rpg-thinking');
+        if (ov) ov.style.display = 'none';
+    }
+
     /* 成就弹条（轻量版） */
     function _showAchievementToast(target, ach) {
         if (!ach) return;
@@ -582,6 +637,10 @@
         if (typeof instance._showAchievementToast !== 'function') {
             instance._showAchievementToast = function (a) { return _showAchievementToast(instance, a); };
         }
+
+        _injectUxPolish(instance);
+        instance.rpgShowThinking = function (text) { return _showAIThinking(instance, text); };
+        instance.rpgHideThinking = function () { return _hideAIThinking(instance); };
 
         instance.rpgResetBattleAndApply = function (options) { return rpgResetBattleAndApply(instance, options); };
         instance.advanceNextLevel = function (prevNextLevel) { return advanceNextLevel(instance, prevNextLevel); };
