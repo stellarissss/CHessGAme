@@ -37,6 +37,14 @@ function stopGameProcess() {
     try { fetch(`/api/lazy/stop?port=${encodeURIComponent(port)}`, { method: "POST", cache: "no-store" }).catch(() => {}); } catch (e) {}
 }
 
+// 关闭网页/浏览器退出时回收：pagehide 仅在真实离开/关闭页面时触发，
+// 切标签页、休眠、焦点移开走 visibilitychange（不触发），因此不会在后台误回收。
+// 用 sendBeacon 保证页面卸载瞬间请求仍被发出。
+function stopOnPageHide() {
+    try { navigator.sendBeacon(`/api/lazy/stop?port=${encodeURIComponent(port)}`); } catch (e) {}
+}
+window.addEventListener("pagehide", stopOnPageHide);
+
 // 返回 2.5D 大陆大地图并强制刷新状态（?r=时间戳），并按当前道（realm）回填导航焦点
 backBtn.addEventListener("click", (e) => {
     e.preventDefault();

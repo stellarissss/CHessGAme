@@ -1068,11 +1068,9 @@ import './vendor/iso-engine/isometric-engine.js';
                 this.moving = true;
                 if (sx !== 0) this.facing = sx > 0 ? 1 : -1;
                 var spd = this.playerSpeed * dt;
-                var sdx = (sx / inv) * spd, sdy = (sy / inv) * spd;
-                /* 屏幕位移 → 等距格位移（逆仿射） */
-                var dA = sdx / COS_Z;
-                var dB = sdy / SIN_ZX;
-                this._moveAxis((dA + dB) / 2, (dB - dA) / 2);
+                /* W/S/A/D 严格映射世界轴向（W 北/-y、S 南/+y、A 西/-x、D 东/+x），
+                   使俯视北向小地图与小地图移动方向一致（避免 W/S 呈 45° 斜移）。 */
+                this._moveAxis((sx / inv) * spd, (sy / inv) * spd);
             } else {
                 this.moving = false;
             }

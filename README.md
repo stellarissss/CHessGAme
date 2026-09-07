@@ -689,9 +689,9 @@ workspace/
 7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
 8. **大地图景观有机化（WebGPU）**：`overworld-wgpu.js` 的 `buildWorld` 新增**生物群系域扭曲**（`warpBiome`，fbm 域扭曲幅度≈4.5 格）——把原先按 `regions[].rect` 轴对齐矩形逐格填充的**笔直分界线卷成有机曲线**，并叠加轻微噪声色偏弱化"贴纸感"；装饰改用按区域密度 `BIOME_DENSITY`（繁茂/荒芜差异化，原均一 5%），并在不同生物群系边界带以噪声概率补矮灌/小石形成**设计化的过渡带**（对标 iso 的 `buildBoundaries`）。
 9. **大地图渲染可信显示 + 自适应回退**：`overworld-load.js` 左上角新增**渲染器角标**（`#renderer-badge`）显示当前是 `次世代·WebGPU` 还是 `兼容·iso-engine`——若无 GPU/WebGPU 会静默走 iso（即"和之前看起来一样"的直接原因）；WebGPU 适配器/设备初始化失败时**自动回退 iso**，canvas `pointer-events:none` 不拦截按钮；加载遮罩 12s 兜底移除、`overworld-ui.js` 按钮幂等绑定，确保 HUD（大陆总览/技能树等）始终可点。
-10. **棋类进程保活与主动回收**：仅靠兜底空闲超时会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活（切走焦点不回收），`play.js` 与胜负页"返回地图/返回大陆"按钮主动调用 `/api/lazy/stop?port=` 立即回收——只有玩家**主动关闭**界面才回收进程。
+10. **棋类进程保活与主动回收**：仅靠兜底空闲超会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活；`play.js`、胜负页"返回地图/返回大陆"按钮与**页面 `pagehide`（真正关闭网页/浏览器退出）**时调用 `/api/lazy/stop?port=` 立即回收。**只在玩家主动关闭界面/关闭网页时回收**：切标签、休眠、焦点移开走 `visibilitychange`（不触发 pagehide），不会在后台误回收；后端 `LAZY_IDLE_SECONDS` 兜底阈值加大（默认 1800s），仅回收异常遗留（如浏览器崩溃、pagehide 未送达）的进程。
 11. **棋类启动加载进度条**：全部 12 个棋类 `static/index.html` 启动时先显示全屏"正在加载对局…"+进度条遮罩（`#boot-loader`），待棋盘组件发出 `ready` 事件后淡出（附 3s 走满 + 9s 兜底），不再白屏等待。
-12. **统一 75% 页面缩放**：`overworld.html` 与全部 12 个棋类 `index.html` 补 `html{zoom:0.75}`（与 title/sandbox/dialogue 等一致），各界面字面改小至 75%。
+12. **界面缩放与大地图黑屏修复**：移除 `overworld.html` 与全部 12 个棋类 `index.html` 的整页 `html{zoom:0.75}`——该全局缩放会压缩/裁切布局、破坏棋盘居中留边，并与 WebGPU 画布（自行管理后备缓冲尺寸 + swapchain）冲突导致**打开即黑屏**。改为让棋盘按自身尺寸（如 `min(85vmin,650px)`）自然渲染并在屏幕居中、四周留出内边距；大地图（含 DOM 覆盖层）以真实视口缩放，为避免 W/S 在小地图呈 45° 斜移，WASD 改为严格世界轴向移动。
 13. **动物棋"落子即消失"修复**：`dongwuqi/main.py` 移除与 `rules.json trap_neutralizes_rank` 冲突的"进敌陷阱即死"；`rule_engine.py` 删除 4 个**幻影陷阱**格并让 `_is_in_enemy_trap` 仅计真陷阱（排除兽穴），动物进入兽穴/幻影格不再被误杀，进入真陷阱改由吃子判定降级（防守方等级归零可被吃）。
 
 ---

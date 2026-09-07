@@ -74,6 +74,22 @@
         } catch (e) {}
     }
 
+    /* 关闭网页/浏览器退出时回收：pagehide 仅在真实离开/关闭页面时触发，
+       切标签页、休眠、焦点移开走 visibilitychange（不触发）→ 不会在后台误回收。
+       用 sendBeacon 保证页面卸载瞬间请求仍被发出。 */
+    let _pageHideBound = false;
+    function bindPageHideStop() {
+        if (_pageHideBound) return;
+        _pageHideBound = true;
+        try {
+            window.addEventListener('pagehide', function () {
+                const port = _gamePort();
+                if (!port || port === 8080) return;
+                try { navigator.sendBeacon(`${_HUB_ORIGIN}/api/lazy/stop?port=${port}`); } catch (e) {}
+            });
+        } catch (e) {}
+    }
+
     function _getChannel() {
         if (_sharedChannel) return _sharedChannel;
         try {
@@ -576,6 +592,7 @@
         instance.startHeartbeat = function () { return startHeartbeat(instance); };
         instance.closeGameProcess = function () { return closeGameProcess(instance); };
         instance.startHeartbeat();   // 对局进程保活
+        bindPageHideStop();          // 关闭网页时回收（pagehide 触发）
     }
 
     window.GameSharedRPG = {

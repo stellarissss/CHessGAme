@@ -1134,9 +1134,9 @@ OverworldGame.step = function (dt) {
     this.moving = true;
     if (sx !== 0) this.facing = sx > 0 ? 1 : -1;
     var spd = this.playerSpeed * dt;
-    var sdx = (sx / inv) * spd, sdy = (sy / inv) * spd;
-    var dA = sdx / 0.7071, dB = sdy / 0.3536;
-    this._moveAxis((dA + dB) / 2, (dB - dA) / 2);
+    // W/S/A/D 严格映射到世界轴向：W 向北（世界 -y），S 向南（+y），A 向西（-x），D 向东（+x），
+    // 使俯视北向小地图与小地图移动方向一致（避免 W/S 呈 45° 斜移）。
+    this._moveAxis((sx / inv) * spd, (sy / inv) * spd);
   } else this.moving = false;
   if (this.moving) this.walkPhase += 0.6;
   this._refreshMinimapPlayer();

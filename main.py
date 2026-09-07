@@ -302,7 +302,10 @@ def start_process(name, script_path, port, cwd=None):
 # ═══════════════════════════════════════════════════════════════
 _LAZY = {}            # key -> {proc, name, port, cwd, last}
 _LAZY_LOCK = threading.Lock()
-LAZY_IDLE_SECONDS = int(os.environ.get("LAZY_IDLE_SECONDS", 180))
+# 兜底空闲阈值（秒）：仅用于回收异常遗留（如浏览器崩溃、pagehide 未触发）的进程。
+# 主回收路径为前端「主动关闭界面/关闭网页」时调用 /api/lazy/stop（pagehide + sendBeacon）。
+# 阈值取较大值，避免网页休眠/焦点移开/切标签页（心跳被节流）时误杀进行中的对局。
+LAZY_IDLE_SECONDS = int(os.environ.get("LAZY_IDLE_SECONDS", 1800))
 _LAZY_KEY_BY_REALM = {g["realm"]: g["id"] for g in GAMES}
 _LAZY_KEY_BY_SANDBOX_PORT = {g["port"]: g["id"] for g in SANDBOX_GAMES}
 _LAZY_KEY_BY_RPG_PORT = {g["port"]: g["id"] for g in GAMES}
