@@ -183,7 +183,7 @@ class CheckersBoard extends HTMLElement {
                     <div class="samsara-bar-container">
                         <div class="samsara-bar-fill karma-fill" id="karma-fill"></div>
                     </div>
-                    <span class="samsara-value" id="karma-value">0/150</span>
+                    <span class="samsara-value" id="karma-value">0/120</span>
                 </div>
             </div>
             <div class="samsara-item detection-item">
@@ -2891,7 +2891,7 @@ class CheckersBoard extends HTMLElement {
                 this.samsaraState = {
                     ...this.samsaraState,
                     karma: data.karma?.current ?? 0,
-                    karma_max: data.karma?.max ?? 150,
+                    karma_max: data.karma?.max ?? 120,
                     detection: data.detection ?? 0,
                 };
                 this.updateSamsaraUI();
@@ -2941,7 +2941,7 @@ class CheckersBoard extends HTMLElement {
     updateSamsaraUI() {
         const state = this.samsaraState || {};
         const karma = state.karma || 0;
-        const maxKarma = state.karma_max || 150;
+        const maxKarma = state.karma_max || 120;
         const detection = state.detection || 0;
         const currentTurn = state.current_turn || 0;
         const maxTurns = (this.levelInfo && this.levelInfo.turn_limit) || state.level_turn_limit || 20;
@@ -3526,7 +3526,7 @@ class CheckersBoard extends HTMLElement {
         if (depth > 10) return;
 
         this.addMessage('AI思考中...', 'info');
-        this.rpgShowThinking();
+        if (typeof this.rpgShowThinking === 'function') this.rpgShowThinking();
 
         try {
             const resp = await fetch(`${this.apiBase}/api/ai_move`, {
@@ -3535,7 +3535,7 @@ class CheckersBoard extends HTMLElement {
                 body: JSON.stringify({})
             });
             const data = await resp.json();
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
 
             if (data.success) {
                 this.boardState = data.board_state;
@@ -3579,7 +3579,7 @@ class CheckersBoard extends HTMLElement {
             }
         } catch (e) {
             this.addMessage(`AI错误: ${e.message}`, 'error');
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
             this._dispatchError('AI移动失败', e);
         }
     }
@@ -3703,7 +3703,7 @@ class CheckersBoard extends HTMLElement {
                         this.samsaraState = {
                             ...this.samsaraState,
                             karma: kd.karma?.current ?? kd.karma ?? 0,
-                            karma_max: kd.karma?.max ?? kd.karma_max ?? 150,
+                            karma_max: kd.karma?.max ?? kd.karma_max ?? 120,
                             detection: kd.detection?.current ?? kd.detection ?? 0,
                         };
                         this.updateSamsaraUI();

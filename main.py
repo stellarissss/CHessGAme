@@ -907,7 +907,12 @@ def main():
 
     no_browser = "--no-browser" in sys.argv
     production_mode = "--production" in sys.argv or os.environ.get("CHESSSAGE_PRODUCTION") == "1"
-    browser_mode = "--browser" in sys.argv or "--no-window" in sys.argv
+    # 默认唤起系统浏览器（localhost 安全上下文，可用 WebGPU）：
+    #   --browser / --no-window 显式声明浏览器模式；无参数时同样走浏览器。
+    #   仅当代码判定成功打开独立桌面窗口（--window）时才改为不唤系统浏览器。
+    browser_mode = not ("--window" in sys.argv)
+    if "--browser" in sys.argv or "--no-window" in sys.argv:
+        browser_mode = True
     # 显式 --window 才启用独立桌面窗口（pywebview，可选）；默认一律走系统浏览器。
     # 浏览器访问 http://localhost:HUB_PORT（安全上下文）即可用 WebGPU（Chrome/Edge 桌面版），
     # 不受嵌入窗口内核（如 Linux WebKitGTK 无 WebGPU）限制，是最稳妥的 WebGPU 渲染通道。

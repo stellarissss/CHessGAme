@@ -580,11 +580,16 @@ OverworldGame.setupCamera = function () {
 OverworldGame._updateView = function () {
   var c = this.cam, z = c.zoom;
   var tx = this.playerPos.x * CELL, ty = this.playerPos.y * CELL;
-  var eye = [tx - 34, ty - 34, 44 + (z - 1) * 6]; // 拉近/拉远 = 升高/降高
+  // 正向俯视（与图标/小地图同向）：相机垂直俯视，不再斜 45°
+  //   · 世界 +x（东）→ 屏幕右
+  //   · 世界 +y（南，即小地图下方）→ 屏幕下
+  // 这样大陆地形与世界图标、小地图方向完全一致，玩家不再看到"斜向大陆"。
+  var eye = [tx, ty, 44 + (z - 1) * 6];
   var target = [tx, ty, 0];
-  var view = m4LookAt(eye, target, [0, 0, 1]);
+  var view = m4LookAt(eye, target, [0, 1, 0]);
   var hl = c.vw / (2 * z), vt = c.vh / (2 * z);
-  var proj = m4Ortho(-hl, hl, -vt, vt, -600, 600);
+  // b/t 互换实现 y 翻转：+y（南）落到屏幕下方，与俯视小地图轴向一致
+  var proj = m4Ortho(-hl, hl, vt, -vt, -600, 600);
   this._view = view; this._proj = proj;
   this._mvp = m4Mul(proj, view);
   this._invMvp = m4Invert(this._mvp);
@@ -608,13 +613,36 @@ OverworldGame._project = function () { return { x: 0, y: 0 }; }; // 兼容旧调
 /* ── GPU 初始化 ── */
 OverworldGame._initGPU = function () {
   var self = this;
+  // ── 详细诊断日志（便于定位黑屏：适配器 / 特性 / 设备 / 管线）──
+  function diag(msg) {
+    try { console.log('[WebGPU] ' + msg); } catch (e) {}
+  }
   if (!navigator.gpu) return Promise.reject(new Error('no WebGPU'));
+  diag('navigator.gpu 可用，开始 requestAdapter');
   return navigator.gpu.requestAdapter().then(function (adapter) {
     if (!adapter) throw new Error('no adapter');
+    try {
+      diag('适配器: ' + (adapter.info ? adapter.info.description || adapter.info.architecture || '' : '') + ' | vendor=' + (adapter.info ? adapter.info.vendor : '?'));
+      var feats = [];
+      try { feats = Array.from(adapter.features || []); } catch (e) {}
+      diag('适配器特性(' + feats.length + '): ' + feats.join(','));
+      self._float32Renderable = !!(adapter.features && typeof adapter.features.has === 'function' && adapter.features.has('float32-renderable'));
+      diag('float32-renderable 特性可用 = ' + self._float32Renderable);
+    } catch (e) { diag('读取适配器信息失败: ' + e.message); }
     return adapter.requestDevice();
   }).then(function (device) {
     self.device = device;
     self.presentFormat = navigator.gpu.getPreferredCanvasFormat();
+    // 位置缓冲（世界坐标）缺省首选 rgba32float（高精度），但该格式仅当设备具备
+    // float32-renderable 特性时才允许作为渲染目标；否则管线校验失败→黑屏。
+    // 不具备该特性的设备（常见集成显卡/默认 WebGPU 关闭 32 位浮点渲染）退化为
+    // rgba16float，坐标为有界范围（≤数千），半精度足敷使用。
+    try {
+      self._float32Renderable = !!(device.features && typeof device.features.has === 'function' && device.features.has('float32-renderable'));
+      diag('设备 float32-renderable = ' + self._float32Renderable);
+    } catch (e) { self._float32Renderable = !!self._float32Renderable; }
+    self._posFormat = self._float32Renderable ? 'rgba32float' : 'rgba16float';
+    try { diag('位置缓冲格式 = ' + self._posFormat + ' | presentFormat = ' + self.presentFormat); } catch (e) {}
     self._canvas = document.createElement('canvas');
     var vp = document.getElementById('iso-viewport');
     if (!vp) throw new Error('no viewport');
@@ -632,6 +660,7 @@ OverworldGame._initGPU = function () {
     self._ensureSize();
     self._makeOverlay();
     self._canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); });
+    try { diag('GPU 初始化完成，管线/资源构建成功'); } catch (e) {}
     return device;
   });
 };
@@ -674,7 +703,7 @@ OverworldGame._ensureSize = function () {
   this._ctx.configure({ device: this.device, format: this.presentFormat, alphaMode: 'opaque' });
   this._colorRT = this._rt('rgba16float', w, h);
   this._normalRT = this._rt('rgba8unorm', w, h);
-  this._posRT = this._rt('rgba32float', w, h);
+  this._posRT = this._rt(this._posFormat || 'rgba32float', w, h);
   this._depthRT = this.device.createTexture({ size: [w, h], format: 'depth32float', usage: GPUTextureUsage.RENDER_ATTACHMENT });
   this._aoRT = this.device.createTexture({ size: [w, h], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
   this._volRT = this._rt('rgba16float', w, h);
@@ -700,6 +729,7 @@ OverworldGame._buildPipelines = function () {
   var d = this.device, sh = S, modConfig = { module: this._module };
   function module(src) { return d.createShaderModule({ code: src }); }
   var self = this;
+  var posFmt = this._posFormat || 'rgba32float';
   this._frameLayout = d.createBindGroupLayout({ entries: [{ binding: 0, visibility: 13, buffer: { type: 'uniform' } }] }); // vert(1)|frag(4)|compute(8)
   // 地形细节场布局：group(1) = 计算生成的细节纹理 + 采样器（顶点置换 + 法线锐化）
   this._detailLayout = d.createBindGroupLayout({ entries: [
@@ -711,7 +741,7 @@ OverworldGame._buildPipelines = function () {
     layout: d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._detailLayout] }),
     vertex: { module: module(sh.TERRAIN_VS), buffers: [{ arrayStride: 40, attributes: [
       { shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x4' }, { shaderLocation: 2, offset: 28, format: 'float32x3' }] }] },
-    fragment: { module: module(sh.TERRAIN_FS), targets: [this._fmt('rgba16float', null), this._fmt('rgba8unorm', null), this._fmt('rgba32float', null)] },
+    fragment: { module: module(sh.TERRAIN_FS), targets: [this._fmt('rgba16float', null), this._fmt('rgba8unorm', null), this._fmt(posFmt, null)] },
     primitive: { topology: 'triangle-list', cullMode: 'none' },
     depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' }
   });
@@ -726,7 +756,7 @@ OverworldGame._buildPipelines = function () {
         { shaderLocation: 6, offset: 56, format: 'float32x4' }, { shaderLocation: 7, offset: 72, format: 'float32x4' }] }] },
     fragment: { module: module(sh.DECO_FS), targets: [
       this._fmt('rgba16float', { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }),
-      this._fmt('rgba8unorm', null), this._fmt('rgba32float', null)] },
+      this._fmt('rgba8unorm', null), this._fmt(posFmt, null)] },
     primitive: { topology: 'triangle-list', cullMode: 'none' },
     depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' }
   });

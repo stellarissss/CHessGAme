@@ -110,6 +110,14 @@ class SamsaraState:
         # 迁移：v2→v3 RPG 字段
         if self._data.get("version", 1) < 3:
             self._data["version"] = 3
+        # 迁移：v3→v4 业力上限统一为 120（此前空技能表会自动下发 karma_capacity_t1，
+        # 使其 +20 后变为 140，导致上限在 120/140 之间漂移）。该技能改为需玩家手动点亮，
+        # 已自动下发的一次性回收，保证初始上限恒为 120。
+        if self._data.get("version", 1) < 4:
+            self._data["version"] = 4
+            if "karma_capacity_t1" in self._data.get("skills", {}):
+                self._data["skills"].pop("karma_capacity_t1", None)
+            # 保留单次上限为 150（与业力评估口径一致），仅回退安全阈值相关加成
         # 补齐 realm_progress 子字段（向后兼容）
         for r in REALMS:
             rp = self._data["realm_progress"].get(r, {})
@@ -119,10 +127,6 @@ class SamsaraState:
 
         if not self._data["skills"]:
             self._data["skills"] = {
-                "karma_capacity_t1": {
-                    "unlocked_at": datetime.now().isoformat(),
-                    "tier": 1,
-                },
                 "stealth_t1": {
                     "unlocked_at": datetime.now().isoformat(),
                     "tier": 1,

@@ -2481,7 +2481,7 @@ export class GoBoard extends HTMLElement {
         if (depth > 10) return;
 
         this.addMessage('AI思考中...', 'info');
-        this.rpgShowThinking();
+        if (typeof this.rpgShowThinking === 'function') this.rpgShowThinking();
         this.aiThinking = true;
 
         try {
@@ -2492,7 +2492,7 @@ export class GoBoard extends HTMLElement {
             });
 
             const data = await resp.json();
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
 
             if (data.success) {
                 this.lastMove = data.ai_move;
@@ -2546,7 +2546,7 @@ export class GoBoard extends HTMLElement {
                 lastMsg.remove();
             }
             this.addMessage(`AI错误: ${error.message}`, 'error');
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
             this._dispatchError('AI落子失败', error);
         }
 

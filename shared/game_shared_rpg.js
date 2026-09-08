@@ -542,6 +542,36 @@
            围棋 .stone 走子本已带 battlePulse 常驻动画，故不覆盖。 */
         '#board-container .piece.last-moved{animation:rpg-emerge .45s ease-out;}',
         '@keyframes rpg-emerge{0%{filter:brightness(2.5) drop-shadow(0 0 10px rgba(255,235,170,.95));}70%{filter:brightness(1.15) drop-shadow(0 0 4px rgba(255,235,170,.6));}100%{filter:brightness(1) drop-shadow(0 0 0 rgba(255,235,170,0));}}',
+        /* ── 4) 界面紧凑化（桌面端）：侧边栏 / 上栏 / 下栏缩放至约 60%，
+           让棋盘占据更大视觉主体。仅 min-width:901px 生效，不触碰 1200/900/600 的
+           响应式换行规则（手机/小窗仍用各游戏自身的横向布局）。 */
+        '@media (min-width:901px){',
+        '.side-panel{width:185px;gap:12px;}',
+        '.side-panel .panel-section,.side-panel .panel-card{padding:9px 12px;}',
+        '.side-panel .panel-section h3,.side-panel .panel-card h3{font-size:1.05rem;margin-bottom:6px;}',
+        '.side-panel .messages,.side-panel .rules-list,.side-panel .mechanisms-list,.side-panel .objectives-list{font-size:0.92rem;}',
+        '.side-panel .personality-desc{font-size:0.9rem;}',
+        '.side-panel .personality-type{font-size:0.98rem;}',
+        '.side-panel .token-stat .stat-label{font-size:0.8rem;}',
+        '.side-panel .token-stat .stat-value{font-size:0.95rem;}',
+        '.main{padding:8px 16px;gap:16px;}',
+        '.header{padding:6px 16px;}',
+        '.header h1{font-size:1.35rem;}',
+        '.header-actions{gap:10px;}',
+        '#turn-indicator{padding:6px 14px;font-size:0.75rem;}',
+        '.samsara-bar{gap:10px;padding:4px 16px;}',
+        '.samsara-item{gap:5px;padding:3px 9px;}',
+        '.samsara-icon{font-size:1rem;}',
+        '.samsara-label{font-size:0.56rem;}',
+        '.samsara-bar-container{width:56px;height:5px;}',
+        '.samsara-value{font-size:0.66rem;}',
+        '.input-section{padding:7px 16px;}',
+        '#command-input{padding:8px 12px;font-size:0.8rem;}',
+        '.hints{margin-top:8px;font-size:0.66rem;}',
+        '.btn{padding:7px 12px;font-size:0.85rem;}',
+        '.btn-primary{padding:8px 16px;font-size:0.9rem;}',
+        '.level-info-bar{font-size:0.72rem;}',
+        '}',
     ].join('\n');
 
     function _injectUxPolish(target) {

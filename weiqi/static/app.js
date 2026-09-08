@@ -154,7 +154,7 @@ export class GoBoard extends HTMLElement {
                     <div class="samsara-bar-container">
                         <div class="samsara-bar-fill karma-fill" id="karma-fill"></div>
                     </div>
-                    <span class="samsara-value" id="karma-value">0/150</span>
+                    <span class="samsara-value" id="karma-value">0/120</span>
                 </div>
             </div>
             <div class="samsara-item detection-item">
@@ -2704,7 +2704,7 @@ export class GoBoard extends HTMLElement {
                 this.samsaraState = {
                     ...this.samsaraState,
                     karma: data.karma?.current ?? 0,
-                    karma_max: data.karma?.max ?? 150,
+                    karma_max: data.karma?.max ?? 120,
                     detection: data.detection ?? 0,
                 };
                 this.updateSamsaraUI();
@@ -2754,7 +2754,7 @@ export class GoBoard extends HTMLElement {
     updateSamsaraUI() {
         const state = this.samsaraState || {};
         const karma = state.karma || 0;
-        const maxKarma = state.karma_max || 150;
+        const maxKarma = state.karma_max || 120;
         const detection = state.detection || 0;
         const currentTurn = state.current_turn || 0;
         const maxTurns = (this.levelInfo && this.levelInfo.turn_limit) || state.level_turn_limit || 20;
@@ -3197,7 +3197,7 @@ export class GoBoard extends HTMLElement {
         if (depth > 10) return;
 
         this.addMessage('AI思考中...', 'info');
-        this.rpgShowThinking();
+        if (typeof this.rpgShowThinking === 'function') this.rpgShowThinking();
         this.aiThinking = true;
 
         try {
@@ -3208,7 +3208,7 @@ export class GoBoard extends HTMLElement {
             });
 
             const data = await resp.json();
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
 
             if (data.success) {
                 this.lastMove = data.ai_move;
@@ -3262,7 +3262,7 @@ export class GoBoard extends HTMLElement {
                 lastMsg.remove();
             }
             this.addMessage(`AI错误: ${error.message}`, 'error');
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
             this._dispatchError('AI落子失败', error);
         }
 
@@ -3814,7 +3814,7 @@ export class GoBoard extends HTMLElement {
                         this.samsaraState = {
                             ...this.samsaraState,
                             karma: kd.karma?.current ?? kd.karma ?? 0,
-                            karma_max: kd.karma?.max ?? kd.karma_max ?? 150,
+                            karma_max: kd.karma?.max ?? kd.karma_max ?? 120,
                             detection: kd.detection?.current ?? kd.detection ?? 0,
                         };
                         this.updateSamsaraUI();

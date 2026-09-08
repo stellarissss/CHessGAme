@@ -2865,7 +2865,7 @@ class HeibaiqiBoard extends HTMLElement {
     async makeAIMove(depth = 0) {
         if (depth > 10) return;
         this.addMessage('AI思考中...', 'info');
-        this.rpgShowThinking();
+        if (typeof this.rpgShowThinking === 'function') this.rpgShowThinking();
 
         try {
             const resp = await fetch(`${this.apiBase}/api/ai_move`, {
@@ -2874,7 +2874,7 @@ class HeibaiqiBoard extends HTMLElement {
                 body: JSON.stringify({})
             });
             const data = await resp.json();
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
 
             if (data.success) {
                 this.boardState = data.board_state;
@@ -2918,7 +2918,7 @@ class HeibaiqiBoard extends HTMLElement {
             }
         } catch (e) {
             this.addMessage(`AI错误: ${e.message}`, 'error');
-            this.rpgHideThinking();
+            if (typeof this.rpgHideThinking === 'function') this.rpgHideThinking();
             this._dispatchError('AI移动失败', e);
         }
     }

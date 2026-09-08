@@ -806,6 +806,10 @@
             </div>
         `;
         box.style.display = 'block';
+        // 序章结束自动跳转大地图（+ 短暂停留让玩家看到"序章完"）
+        setTimeout(() => {
+            try { window.location.href = '/overworld?r=' + Date.now(); } catch (e) {}
+        }, 1600);
     }
 
     // ── 事件绑定 ──
