@@ -39,7 +39,7 @@ struct FrameUB {
   pad0        : f32,       // 196
 };
 // struct size = 208 bytes
-var<uniform> frame : FrameUB;   // bound at @group(0) @binding(0)
+@group(0) @binding(0) var<uniform> frame : FrameUB;   // bound at @group(0) @binding(0)
 `;
 
   // ── 全屏三角形顶点 shader（合成/体积光/Bloom 共用）─────────────────
@@ -66,8 +66,8 @@ fn noise2(p : vec2f) -> f32 {
     mix(hash21(i + vec2f(0,1)), hash21(i + vec2f(1,1)), u.x), u.y);
 }
 fn fbm(p : vec2f) -> f32 {
-  var v = 0.0; var a = 0.5;
-  for (var i = 0; i < 4; i++) { v += a * noise2(p); p = p * 2.03 + 11.7; a *= 0.5; }
+  var q = p; var v = 0.0; var a = 0.5;
+  for (var i = 0; i < 4; i++) { v += a * noise2(q); q = q * 2.03 + 11.7; a *= 0.5; }
   return v;
 }
 `;
@@ -127,8 +127,8 @@ struct FSOut { @location(0) color : vec4f, @location(1) normal : vec4f, @locatio
 @fragment fn main(in : VSOut) -> FSOut {
   // 程序化纹理细节：细噪声叠加在底色上，原理仿"雅克比噪声"贴图
   let detail = fbm(in.vWorld.xy * 0.09) * 0.5 + 0.5;
-  let macro  = fbm(in.vWorld.xy * 0.018 + 3.3);
-  let base   = in.vColor.rgb * (0.72 + 0.35 * detail) * (0.92 + 0.12 * macro);
+  let macroN = fbm(in.vWorld.xy * 0.018 + 3.3);
+  let base   = in.vColor.rgb * (0.72 + 0.35 * detail) * (0.92 + 0.12 * macroN);
   let col    = lit(in.vWorld, in.vN, base, 0.35);
   var n = normalize(in.vN);
   if (!all(isFinite(n))) n = vec3f(0.0, 0.0, 1.0);

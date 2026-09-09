@@ -12,7 +12,8 @@
 - **性能优化（不降质）**：附件 View 跨帧缓存、Bloom 模糊 bind group 预创建复用、SSAO/细节 compute 派发数预计算——消除逐帧 `createView`/`createBindGroup` 分配与 GC 抖动；
 - 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
 - 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
-- **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。内置全套运行时校验诊断：`device.lost` / `oncuncapturederror` / WGSL `getCompilationInfo` / `pushErrorScope·popErrorScope`，任一环节（适配器/设备/着色器/管线/附件）失败都会在控制台打印 `[WebGPU]` 明确日志，便于精确定位黑屏步骤。
+- **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。内置全套运行时校验诊断：`device.lost` / `oncuncapturederror` / WGSL `getCompilationInfo`（逐着色器打印错误行与上下文） / `pushErrorScope·popErrorScope`，任一环节（适配器/设备/着色器/管线/附件）失败都会在控制台打印 `[WebGPU]` 明确日志。
+- **黑屏根治与自愈**：依据上述诊断修复三处真实 WGSL 编译错误（帧级 uniform 缺失 `@group(0) @binding(0)`、`fbm` 参数重赋值、`macro` 保留字变量——任一均使整套着色器编译失败→黑屏）；并内置设备丢失自动恢复——中途 `device.lost` 且非页面卸载/销毁时自动重载一次，界面不再永久卡黑。
 - **浏览器 WebGPU（默认）**：启动器默认唤起系统浏览器访问 `http://localhost:HUB_PORT`——localhost 为安全上下文，Chrome/Edge 桌面版直接可用 WebGPU（不受嵌入窗口内核如 WebKitGTK 限制），保障任何玩家都能走 WebGPU 次世代渲染。独立窗口（pywebview）保留为可选项，仅以 `--window` 显式启用（Chromium 内核同样注入 `--enable-unsafe-webgpu` 等标志）。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
