@@ -641,12 +641,16 @@ OverworldGame._initGPU = function () {
       device.lost.then(function (info) {
         try { diag('⚠ device lost: ' + JSON.stringify(info) + (info && info.reason ? ' (reason=' + info.reason + ')' : '')); } catch (e) {}
         // 设备中途丢失（非页面卸载、也非主动销毁）时自动重载，避免界面永久停在黑屏。
-        // 仅在 renderer 已真正开始工作后、且本会话仅重试一次，防止重载风暴。
+        // 用 sessionStorage 限频（每标签页会话至多 2 次），防止极端不稳的设备触发重载风暴。
         try {
           if (document.visibilityState !== undefined && document.visibilityState === 'hidden') return;
           if (self._unloading) return;
           if (info && (info.reason === 'destroyed' || info.reason === 'forced')) return;
           if (self._recoveryScheduled) return;
+          var tries = 0;
+          try { tries = parseInt(sessionStorage.getItem('chesssage_ow_devicelost') || '0', 10) || 0; } catch (e) {}
+          if (tries >= 2) { diag('⚠ 设备多次丢失，已停止自动重载；请刷新页面重试。'); return; }
+          try { sessionStorage.setItem('chesssage_ow_devicelost', String(tries + 1)); } catch (e) {}
           self._recoveryScheduled = true;
           diag('↻ 检测到设备丢失，自动重新加载页面以恢复地图……');
           setTimeout(function () { try { location.reload(); } catch (e) {} }, 300);

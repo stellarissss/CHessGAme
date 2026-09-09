@@ -131,7 +131,7 @@ struct FSOut { @location(0) color : vec4f, @location(1) normal : vec4f, @locatio
   let base   = in.vColor.rgb * (0.72 + 0.35 * detail) * (0.92 + 0.12 * macroN);
   let col    = lit(in.vWorld, in.vN, base, 0.35);
   var n = normalize(in.vN);
-  if (!all(isFinite(n))) n = vec3f(0.0, 0.0, 1.0);
+  if (!all(n == n)) { n = vec3f(0.0, 0.0, 1.0); }   // NaN 防护（isFinite 非 WGSL 内建）
   // 同时输出法线(0.5+0.5n → rgba8unorm)与世界坐标(≤数千米，rgba16float 半精度足敷)
   return FSOut(vec4f(col, 1.0), vec4f(n * 0.5 + 0.5, 1.0), vec4f(in.vWorld, 1.0));
 }
@@ -209,7 +209,7 @@ struct VOut { @builtin(position) clip : vec4f,
 struct FOut { @location(0) color : vec4f, @location(1) normal : vec4f, @location(2) worldPos : vec4f };
 @fragment fn main(in : VOut) -> FOut {
   var n = normalize(in.vN);
-  if (!all(isFinite(n))) n = vec3f(0.0, 0.0, 1.0);
+  if (!all(n == n)) { n = vec3f(0.0, 0.0, 1.0); }   // NaN 防护（isFinite 非 WGSL 内建）
   let an = abs(n);
   var base = in.vColF.rgb;
   if (an.z > an.x && an.z > an.y) {
@@ -220,9 +220,9 @@ struct FOut { @location(0) color : vec4f, @location(1) normal : vec4f, @location
     base = in.vColF.rgb;          // 前/后
   }
   var alpha = 1.0;
-  if (in.vWater > 0.5 && in.vWater < 1.5) alpha = in.vColT.w;   // 水面半透明
-  else if (in.vWater > 1.5) alpha = in.vColT.w;                 // 植被受距离淡出
-  let col = lit(in.vWorld, n, base, in.vWater > 0.5 ? 0.6 : 0.35);
+  if (in.vWater > 0.5 && in.vWater < 1.5) { alpha = in.vColT.w; }   // 水面半透明
+  else if (in.vWater > 1.5) { alpha = in.vColT.w; }                 // 植被受距离淡出
+  let col = lit(in.vWorld, n, base, select(0.35, 0.6, in.vWater > 0.5));
   return FOut(vec4f(col, alpha), vec4f(n * 0.5 + 0.5, 1.0), vec4f(in.vWorld, 1.0));
 }
 `;
@@ -295,7 +295,7 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
       let occl = 1.0;
       col += frame.sunColor.xyz * frame.sunIntensity * dens * trans * occl * stepL * 0.02;
       trans *= exp(-dens * stepL);
-      if (trans < 0.01) break;
+      if (trans < 0.01) { break; }
     }
   }
   return vec4f(col, 1.0);
