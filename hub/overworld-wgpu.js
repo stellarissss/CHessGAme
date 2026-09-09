@@ -633,6 +633,15 @@ OverworldGame._initGPU = function () {
   }).then(function (device) {
     self.device = device;
     self.presentFormat = navigator.gpu.getPreferredCanvasFormat();
+    // 监听设备丢失与未捕获错误：黑屏时能第一时间在控制台看到明确原因，而非常无声。
+    try {
+      device.onuncapturederror = function (ev) {
+        try { diag('❗ device.onuncapturederror: ' + JSON.stringify(ev && ev.error) + ' — ' + (ev && ev.error && ev.error.message)); } catch (e) {}
+      };
+      device.lost.then(function (info) {
+        try { diag('⚠ device lost: ' + JSON.stringify(info) + (info && info.reason ? ' (reason=' + info.reason + ')' : '')); } catch (e) {}
+      });
+    } catch (e) {}
     // 位置缓冲（世界坐标）缺省首选 rgba32float（高精度），但该格式仅当设备具备
     // float32-renderable 特性时才允许作为渲染目标；否则管线校验失败→黑屏。
     // 不具备该特性的设备（常见集成显卡/默认 WebGPU 关闭 32 位浮点渲染）退化为
@@ -655,10 +664,21 @@ OverworldGame._initGPU = function () {
     self._ctx = self._canvas.getContext('webgpu');
     self._ctx.configure({ device: device, format: self.presentFormat, alphaMode: 'opaque' });
     self._sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
-    self._buildPipelines();
-    self._uploadWorld();
-    self._ensureSize();
-    self._makeOverlay();
+    // 用验证队捕获资源/管线/附件的创建期校验错误：若渲染目标格式、纹理视图 aspect、
+    // bind group 布局等在真实设备上不合法，这里会弹出明确错误，而非静默黑屏。
+    device.pushErrorScope('validation');
+    device.pushErrorScope('out-of-memory');
+    try {
+      self._buildPipelines();
+      self._uploadWorld();
+      self._ensureSize();
+      self._makeOverlay();
+    } catch (e) {
+      diag('❗ GPU 初始化（管线/资源）抛出异常: ' + (e && e.message ? e.message : e));
+      throw e;
+    } finally {
+      self._checkScope('init', diag);
+    }
     self._canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); });
     try { diag('GPU 初始化完成，管线/资源构建成功'); } catch (e) {}
     return device;
@@ -666,6 +686,21 @@ OverworldGame._initGPU = function () {
 };
 
 // 帧级 uniform：52 floats
+OverworldGame._checkScope = function (tag, diag) {
+  if (!this.device) return;
+  try {
+    var dev = this.device;
+    var promise = dev.popErrorScope('out-of-memory');
+    if (promise && typeof promise.then === 'function') {
+      promise.then(function (err) {
+        if (err) { try { (diag || console.log).call(null, '[WebGPU][' + tag + '] out-of-memory scope error: ' + JSON.stringify(err) + ' — ' + (err.message || '')); } catch (e) {} }
+        return dev.popErrorScope('validation');
+      }).then(function (err) {
+        if (err) { try { (diag || console.log).call(null, '[WebGPU][' + tag + '] ❗ VALIDATION scope error: ' + JSON.stringify(err) + ' — ' + (err.message || '')); } catch (e) {} }
+      });
+    }
+  } catch (e) {}
+};
 OverworldGame._updateFrame = function () {
   var f = this._frameBuf; if (!f) return;
   f.fill(0);
@@ -727,8 +762,26 @@ OverworldGame._rt = function (fmt, w, h) {
 /* ── 管线构建 ── */
 OverworldGame._buildPipelines = function () {
   var d = this.device, sh = S, modConfig = { module: this._module };
-  function module(src) { return d.createShaderModule({ code: src }); }
   var self = this;
+  function diag(msg) { try { console.log('[WebGPU] ' + msg); } catch (e) {} }
+  // 编译 shader 后立即校验 WGSL 编译信息：出错时打印精确的行/列/诊断，便于定位黑屏。
+  function module(src, label) {
+    var m = d.createShaderModule({ code: src });
+    try {
+      if (typeof m.getCompilationInfo === 'function') {
+        m.getCompilationInfo().then(function (info) {
+          if (!info || !info.messages || !info.messages.length) return;
+          info.messages.forEach(function (msg) {
+            var level = msg.level || 'error';
+            if (level === 'error' || level === 'warning') {
+              diag('WGSL[' + (label || 'shader') + '] ' + level + ' L' + (msg.lineNum || '?') + ':' + (msg.linePos || '?') + ' — ' + (msg.message || ''));
+            }
+          });
+        }).catch(function () {});
+      }
+    } catch (e) {}
+    return m;
+  }
   var posFmt = this._posFormat || 'rgba32float';
   this._frameLayout = d.createBindGroupLayout({ entries: [{ binding: 0, visibility: 13, buffer: { type: 'uniform' } }] }); // vert(1)|frag(4)|compute(8)
   // 地形细节场布局：group(1) = 计算生成的细节纹理 + 采样器（顶点置换 + 法线锐化）
@@ -739,22 +792,22 @@ OverworldGame._buildPipelines = function () {
   // terrain（group(0)=frame，group(1)=细节场）
   this._pipeTerrain = d.createRenderPipeline({
     layout: d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._detailLayout] }),
-    vertex: { module: module(sh.TERRAIN_VS), buffers: [{ arrayStride: 40, attributes: [
+    vertex: { module: module(sh.TERRAIN_VS, 'TERRAIN_VS'), buffers: [{ arrayStride: 40, attributes: [
       { shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x4' }, { shaderLocation: 2, offset: 28, format: 'float32x3' }] }] },
-    fragment: { module: module(sh.TERRAIN_FS), targets: [this._fmt('rgba16float', null), this._fmt('rgba8unorm', null), this._fmt(posFmt, null)] },
+    fragment: { module: module(sh.TERRAIN_FS, 'TERRAIN_FS'), targets: [this._fmt('rgba16float', null), this._fmt('rgba8unorm', null), this._fmt(posFmt, null)] },
     primitive: { topology: 'triangle-list', cullMode: 'none' },
     depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' }
   });
   // deco
   this._pipeDeco = d.createRenderPipeline({
     layout: d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout] }),
-    vertex: { module: module(sh.DECO_VS), buffers: [
+    vertex: { module: module(sh.DECO_VS, 'DECO_VS'), buffers: [
       { arrayStride: 24, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x3' }] },
       { arrayStride: 80, stepMode: 'instance', attributes: [
         { shaderLocation: 2, offset: 0, format: 'float32x3' }, { shaderLocation: 3, offset: 12, format: 'float32x3' },
-        { shaderLocation: 4, offset: 24, format: 'float32x4' }, { shaderLocation: 5, offset: 40, format: 'float32x4' },
-        { shaderLocation: 6, offset: 56, format: 'float32x4' }, { shaderLocation: 7, offset: 72, format: 'float32x4' }] }] },
-    fragment: { module: module(sh.DECO_FS), targets: [
+        { shaderLocation: 4, offset: 24, format: 'float32x4' }, { shaderLocation: 5, offset: 32, format: 'float32x4' },
+        { shaderLocation: 6, offset: 48, format: 'float32x4' }, { shaderLocation: 7, offset: 64, format: 'float32x4' }] }] },
+    fragment: { module: module(sh.DECO_FS, 'DECO_FS'), targets: [
       this._fmt('rgba16float', { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' }),
       this._fmt('rgba8unorm', null), this._fmt(posFmt, null)] },
     primitive: { topology: 'triangle-list', cullMode: 'none' },
@@ -762,9 +815,9 @@ OverworldGame._buildPipelines = function () {
   });
   // 全屏后处理（vol / bright / blur / composite 共用顶点三角形）
   var fsLayout = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._postLayout || this._mkFsLayout()] });
-  this._pipeVol = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS) }, fragment: { module: module(sh.VOL_FS), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
-  this._pipeBright = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS) }, fragment: { module: module(sh.BRIGHT_FS), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
-  this._pipeBlur = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS) }, fragment: { module: module(sh.BLUR_FS), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  this._pipeVol = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.VOL_FS, 'VOL_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  this._pipeBright = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BRIGHT_FS, 'BRIGHT_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  this._pipeBlur = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BLUR_FS, 'BLUR_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
   // 合成
   var compLayout = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._compLayout || this._mkCompLayout()] });
   this._pipeComposite = d.createRenderPipeline({ layout: compLayout, vertex: { module: module(sh.FULLSCREEN_VS) }, fragment: { module: module(sh.COMPOSITE_FS), targets: [this._fmt(this.presentFormat, null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
@@ -1301,8 +1354,11 @@ OverworldGame.start = function () {
       self.step(dt);
       if (self.device && self._ctx) {
         self._updateView(); self._frameCB++;
+        var scoped = self._frameCB <= 3;
+        if (scoped) self.device.pushErrorScope('validation');
         self._render();
         self._updateOverlay();
+        if (scoped) self._checkScope('frame' + self._frameCB, null);
       }
       requestAnimationFrame(loop);
     })(performance.now());

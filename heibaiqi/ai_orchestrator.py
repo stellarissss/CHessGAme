@@ -379,7 +379,7 @@ class AIOrchestrator:
                 "log_id": len(self.logger.logs) - 1,
             }
 
-        classification = intent.get("classification", "")
+        classification = self._normalize_classification(intent.get("classification", ""))
         log_entry["classification"] = classification
         # 提取 cost_energy（RPG 用，0-10 整数，clamp）
         # 注意：必须在 feasible 检查之前提取，rejected 分支也会引用此值
@@ -717,6 +717,20 @@ class AIOrchestrator:
         )
 
         return self._extract_json(resp), elapsed, resp
+
+    @staticmethod
+    def _normalize_classification(cls):
+        """将 LLM 输出的分类规整到合法集合；无法识别的输入一律归为 E(闲聊)。"""
+        if not cls:
+            return "E"
+        cls = str(cls).strip().upper()
+        if cls in ("A", "B", "C", "C+", "D", "E", "F"):
+            return cls
+        if cls.startswith("C+"):
+            return "C+"
+        if cls.startswith("D"):
+            return "D"
+        return "E"
 
     def _get_board_summary(self, board: dict) -> str:
         """生成黑白棋棋盘摘要（8×8 矩阵 + 棋子统计 + 合法落子点 + 游戏状态 + 机制）

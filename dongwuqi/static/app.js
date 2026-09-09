@@ -5060,7 +5060,7 @@ class DongwuqiBoard extends HTMLElement {
             this.restart();
         });
 
-        getElementById('btn-reset-configs').addEventListener('click', async () => {
+        this.shadowRoot.getElementById('btn-reset-configs').addEventListener('click', async () => {
             if (!confirm('确定要重置所有配置吗？会同步重置六道关卡/业力（软重置：保留成就/技能），规则配置恢复默认。')) return;
             await this.rpgResetConfigsHandler('soft');
         });

@@ -1,9 +1,9 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v1.8
+# 棋圣·六道轮回 —— RPG化技术执行方案 v1.9
 
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
 > **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、对话界面对标柚子社重制（挂名牌/工具栏/履历/自动/隐藏）、立绘 AI 连续帧动画（24FPS×48 帧，v1.6 起替代旧 CSS transform/CSS 动画）、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
-> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退、大陆渲染固定使用 WebGPU，并回归浏览器作为默认启动方式：默认唤起系统浏览器访问 `http://localhost:HUB_PORT`（安全上下文，Chrome/Edge 桌面版直接可用 WebGPU，不受嵌入内核限制）；独立窗口（pywebview）降级为可选 `--window`（Chromium 内核注入 `--enable-unsafe-webgpu` 等标志，Linux WebKitGTK 无 WebGPU 时自动升级系统浏览器）。v1.8 起移除整页 `html{zoom:0.75}`（大地图与全部 12 个棋类界面改按自身尺寸居中留边渲染，消除压缩/裁切，并修复 WebGPU 大地图打开即黑屏）；WASD 改为严格世界轴向移动，消除俯视小地图上 45° 斜移；棋类进程回收改为仅在真正关闭界面/网页时触发（`pagehide`+`sendBeacon`，切标签/休眠/焦点不回收），兜底空闲阈值加大至 1800s。
+> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退、大陆渲染固定使用 WebGPU，并回归浏览器作为默认启动方式：默认唤起系统浏览器访问 `http://localhost:HUB_PORT`（安全上下文，Chrome/Edge 桌面版直接可用 WebGPU，不受嵌入内核限制）；独立窗口（pywebview）降级为可选 `--window`（Chromium 内核注入 `--enable-unsafe-webgpu` 等标志，Linux WebKitGTK 无 WebGPU 时自动升级系统浏览器）。v1.8 起移除整页 `html{zoom:0.75}`（大地图与全部 12 个棋类界面改按自身尺寸居中留边渲染，消除压缩/裁切，并修复 WebGPU 大地图打开即黑屏）；WASD 改为严格世界轴向移动，消除俯视小地图上 45° 斜移；棋类进程回收改为仅在真正关闭界面/网页时触发（`pagehide`+`sendBeacon`，切标签/休眠/焦点不回收），兜底空闲阈值加大至 1800s。v1.9 起：AI 意图分类在入口统一规整（可识别集 `{A,B,C,C+,D,E,F}` 之外一律归 E 闲聊，`UNKNOWN`/空值不再被技能树误拦截）；WebGPU 大地图补全套运行时校验诊断（`device.lost`/`oncuncapturederror`/`getCompilationInfo`/`pushErrorScope·popErrorScope`，黑屏时控制台 `[WebGPU]` 精确定位失败步骤）。
 
 ---
 
