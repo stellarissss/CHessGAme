@@ -665,8 +665,8 @@ class XiangqiBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 560px, calc((100vh - 180px) * 0.9));
-    height: calc(min(90vmin, 560px, calc((100vh - 180px) * 0.9)) * 10 / 9);
+    width: calc(min(90vmin, 560px, calc((100vh - 180px) * 0.9)) * 0.75);
+    height: calc(min(90vmin, 560px, calc((100vh - 180px) * 0.9)) * 0.75 * 10 / 9);
     background: linear-gradient(135deg, #9b6a3a 0%, #8b5a2b 25%, #7a4a25 50%, #8b5a2b 75%, #9b6a3a 100%);
     background-image:
         repeating-linear-gradient(

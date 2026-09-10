@@ -1,20 +1,15 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v1.9 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v2.0 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
 以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
 
-**次世代渲染（WebGPU）**：大陆由自家 WebGPU 渲染器 `overworld-wgpu.js` 承接（不再回退 iso-engine）——
-- 真 3D 高度场地形 + 实例化装饰（树/石/雪/水/植被/灵粒），分块视口剔除只绘制可见 chunk；
-- 次世代式着色器栈（`wgpu/shaders.js`，WGSL）：HDR 前向 GBuffer（颜色/法线/世界坐标）→ **SSAO（compute）** → **屏幕空间体积光（God Ray 步进）** → **Bloom（亮部提取+逐级下采样）** → **ACES 色调映射** + Gamma + 暗角 + 去条带抖动；
-- 光照 = 半球环境 + 暖阳漫反/高光 + 指数雾；`frame` uniform 每帧上传相机/光照/动画时间；
-- **精细化模型**：新增 `TERRAIN_DETAIL_CS` compute 生成世界锚定的高频细节场（1 纹元=1 格），地形**顶点着色器置换**（`TERRAIN_VS` 采样细节场做微位移并沿梯度锐化法线），轮廓与光照更精细，GPU 一次生成、按需采样，近乎零开销；
-- **性能优化（不降质）**：附件 View 跨帧缓存、Bloom 模糊 bind group 预创建复用、SSAO/细节 compute 派发数预计算——消除逐帧 `createView`/`createBindGroup` 分配与 GC 抖动；
-- 资源（地形网格 + 实例 + 分块区间）在 **Web Worker** 中离线构建（多线程），失败自动退回主线程；
-- 玩家 / 六道入口 / 告示牌等 DOM 覆盖层用**与 GPU 相同的 mvp** 每帧精确投影，确保与 3D 地形严丝合缝。
-- **强制 WebGPU**：`overworld-load.js` 仅加载 WebGPU 渲染器，禁用 iso-engine 回退；初始化失败时移除加载遮罩并在左上角角标提示，绝不降级兼容渲染。内置全套运行时校验诊断：`device.lost` / `oncuncapturederror` / WGSL `getCompilationInfo`（逐着色器打印错误行与上下文） / `pushErrorScope·popErrorScope`，任一环节（适配器/设备/着色器/管线/附件）失败都会在控制台打印 `[WebGPU]` 明确日志。
-- **黑屏根治与自愈**：依据上述诊断修复整套 WGSL 着色器的全部编译错误（帧级 uniform 缺失 `@group(0) @binding(0)`、`fbm` 参数重赋值、`macro` 保留字变量、`if` 必须带代码块、`isFinite` 非内建改 `all(n==n)`、`?:` 三元改 `select`——任一都使地形/装饰着色器编译失败而黑屏）；并内置设备丢失自动恢复——中途 `device.lost` 且非页面卸载/销毁时自动重载（sessionStorage 限频每标签 ≤2 次），界面不再永久卡黑。
-- **浏览器 WebGPU（默认）**：启动器默认唤起系统浏览器访问 `http://localhost:HUB_PORT`——localhost 为安全上下文，Chrome/Edge 桌面版直接可用 WebGPU（不受嵌入窗口内核如 WebKitGTK 限制），保障任何玩家都能走 WebGPU 次世代渲染。独立窗口（pywebview）保留为可选项，仅以 `--window` 显式启用（Chromium 内核同样注入 `--enable-unsafe-webgpu` 等标志）。
+**大陆渲染（melonJS v20 · 动态光影）**：大陆由自家 melonJS 渲染器 `overworld-melonjs.js` 承接（永久取代修复不尽的 WebGPU 版本 `overworld-wgpu.js`，黑屏问题根除）——
+- **全图预渲染一张离屏画布**：启动时读取 `configs/overworld.json`，把整张 112×84 大陆（区域地面以 `tiny-{town/farm/dungeon/battle}` 图集块、随机但哈希稳定）一次性绘制；水体 / 山路（北侧覆雪）/ 道路分别着色，装饰锚点 + 区域植被逐颗先画椭圆投影再叠图集精灵。
+- **逐帧一次 drawImage 切片**：每帧仅把「相机可视区」从预渲染画布 `drawImage` 一次拷到屏幕（外加暗色底），零逐格绘制开销——性能最优；渲染器为 WebGL 优先、Canvas2D 自动兜底（AUTO），任何机器都不会黑屏。
+- **动态光影（真实光照）**：舞台 `ambientLight` 昼夜循环（alpha 随正弦动画、夜晚偏蓝、白昼暖黄）；`Light2d` 大范围暖阳 + 玩家火把（逐帧 `pos` 跟随）+ 各道境辉光，光照充分用 GPU/CPU。
+- **复用 DOM 覆盖层胶水**：玩家标记 / 六道入口 / 告示牌 / 小地图 / HUD 与 `overworld-ui.js` 无缝对接（投影、交互 E、选关、技能树、成就、轮回修行、采样轮询）。
+- `overworld-load.js` 仅加载 melonJS + 渲染模块，左上角角标显示「渲染：melonJS · WebGL / 内置画布」。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -256,7 +251,7 @@
                     │  └ 六道大陆                     │
                     │    hub/overworld.html          │
                     │    hub/overworld-load.js(分发) │
-                    │      └ WebGPU → overworld-wgpu │
+                    │      └ melonJS → overworld-melonjs │
                     │    hub/overworld-ui.js (DOM)   │
                     └──────────────┬────────────────┘
                                    │ FastAPI
@@ -388,14 +383,15 @@ workspace/
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
 │   ├── overworld.html           # ★ 六道大陆页（渲染装载 + DOM HUD + 小地图）
-│   ├── overworld-load.js        # ★ 渲染器分发：强制 WebGPU → overworld-wgpu（禁用 iso 回退）
-│   ├── overworld-wgpu.js        # ★ 大陆渲染（WebGPU）：高度场地形 + 实例化装饰 + SSAO/体积光/Bloom/HDR/雾 + 相机/碰撞/POI/小地图
+│   ├── overworld-load.js        # ★ 渲染器分发：加载 melonJS + overworld-melonjs.js（AUTO 兜底，无黑屏）
+│   ├── overworld-melonjs.js     # ★ 大陆渲染（melonJS v20）：图集预渲染 + 逐帧一次 drawImage 切片 + 昼夜/火把/道境动态光 + 相机/碰撞/POI/小地图
+│   ├── overworld-wgpu.js        # 大陆渲染（旧 WebGPU 版，已废弃，仅保留未启用）
 │   ├── overworld-iso.js         # 大陆渲染（旧 iso-engine，仅保留作历史参考，默认不再启用）
 │   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
-│   ├── wgpu/                    # WebGPU 渲染器（shaders.js 等，模块化）
+│   ├── wgpu/                    # 旧 WebGPU 渲染器（shaders.js 等，已废弃）
 │   ├── sandbox.html             # 纯净模式选棋类界面（由大陆沙盒训练场按 E 进入）
 │   ├── sandbox.js               # 纯净棋类卡片渲染 + 状态检测
-│   ├── vendor/iso-engine/       # iso-engine v0.1.1（CSS 3D Transform 等距引擎）
+│   ├── vendor/melonjs/          # melonJS v20（ESM，本地内置，离线可用）
 │   ├── _dev_server.py           # 开发用轻量静态服务器（沙盒验证，非成品）
 │   ├── achievements.html        # 成就殿堂
 │   ├── dialogue.html            # RPG 剧情对话系统
@@ -688,8 +684,8 @@ workspace/
 5. **陈默形象统一**：可爱 + 温和并存，固定 CANON——齐肩黑色短发左侧别小发夹、柔和杏眼、白衬衫深蓝校服外套红色领结、胸前小棋子胸针。重新生成并抠图 9 张图：7 张陈默立绘（portrait/smile/thinking/surprised/silent/awkward/playing）+ `flipper_as_chenmo.png`（Boss 化陈默，带裂痕幻象特效）+ `cg/covers/cg_memory_hungry.jpg`（记忆 CG）。
 6. **立绘 AI 连续帧动画**：v1.6 起立绘动画为 24FPS×48 帧（2 秒循环）连续帧——白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧 48 张（`{prefix}_{emotion}_f{1-48}.png`），rembg 抠图为透明 PNG；`dialogue.js` 的 `startPortraitAnimation` 探测 `_f1.png` 存在即预加载并循环已成功加载的帧，无动画帧回退静态抠图 PNG（含 v1.7 履历/自动/隐藏工具栏联动）。
 7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
-8. **大地图景观有机化（WebGPU）**：`overworld-wgpu.js` 的 `buildWorld` 新增**生物群系域扭曲**（`warpBiome`，fbm 域扭曲幅度≈4.5 格）——把原先按 `regions[].rect` 轴对齐矩形逐格填充的**笔直分界线卷成有机曲线**，并叠加轻微噪声色偏弱化"贴纸感"；装饰改用按区域密度 `BIOME_DENSITY`（繁茂/荒芜差异化，原均一 5%），并在不同生物群系边界带以噪声概率补矮灌/小石形成**设计化的过渡带**（对标 iso 的 `buildBoundaries`）。
-9. **大地图渲染可信显示 + 自适应回退**：`overworld-load.js` 左上角新增**渲染器角标**（`#renderer-badge`）显示当前是 `次世代·WebGPU` 还是 `兼容·iso-engine`——若无 GPU/WebGPU 会静默走 iso（即"和之前看起来一样"的直接原因）；WebGPU 适配器/设备初始化失败时**自动回退 iso**，canvas `pointer-events:none` 不拦截按钮；加载遮罩 12s 兜底移除、`overworld-ui.js` 按钮幂等绑定，确保 HUD（大陆总览/技能树等）始终可点。
+8. **大陆渲染迁移 melonJS（v2.0，永久取代 WebGPU）**：修复不尽的 WebGPU 渲染器（`overworld-wgpu.js` + `wgpu/shaders.js`，黑屏）已整体废弃；`overworld-melonjs.js` 现接管大陆——加载图集 `tiny-{town/farm/dungeon/battle}` 后整图预渲染，body 水体/山路/道路着色 + 区域植被按密度补种、逐颗先画椭圆投影，逐帧仅一次 `drawImage` 切片（**一次拷贝零逐格绘制**），舞台 `ambientLight` 昼夜循环 + `Light2d` 暖阳/玩家火把/道境辉光。渲染器 WebGL 优先、Canvas 自动兜底，黑屏根除。
+9. **棋盘/棋子缩放与侧边栏**：全部棋类（含沙盒）棋盘 + 棋子缩至 75%（`#board-container` 尺寸包裹 `calc(...*0.75)`，棋子为 `%` 随棋盘联动缩放），右侧栏宽度提升至 150%（`shared/game_shared_rpg.js` 共享层 `.side-panel{width:277px}`）。
 10. **棋类进程保活与主动回收**：仅靠兜底空闲超会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活；`play.js`、胜负页"返回地图/返回大陆"按钮与**页面 `pagehide`（真正关闭网页/浏览器退出）**时调用 `/api/lazy/stop?port=` 立即回收。**只在玩家主动关闭界面/关闭网页时回收**：切标签、休眠、焦点移开走 `visibilitychange`（不触发 pagehide），不会在后台误回收；后端 `LAZY_IDLE_SECONDS` 兜底阈值加大（默认 1800s），仅回收异常遗留（如浏览器崩溃、pagehide 未送达）的进程。
 11. **棋类启动加载进度条**：全部 12 个棋类 `static/index.html` 启动时先显示全屏"正在加载对局…"+进度条遮罩（`#boot-loader`），待棋盘组件发出 `ready` 事件后淡出（附 3s 走满 + 9s 兜底），不再白屏等待。
 12. **界面缩放与大地图黑屏修复**：移除 `overworld.html` 与全部 12 个棋类 `index.html` 的整页 `html{zoom:0.75}`——该全局缩放会压缩/裁切布局、破坏棋盘居中留边，并与 WebGPU 画布（自行管理后备缓冲尺寸 + swapchain）冲突导致**打开即黑屏**。改为让棋盘按自身尺寸（如 `min(85vmin,650px)`）自然渲染并在屏幕居中、四周留出内边距；大地图（含 DOM 覆盖层）以真实视口缩放，为避免 W/S 在小地图呈 45° 斜移，WASD 改为严格世界轴向移动。
@@ -700,7 +696,7 @@ workspace/
 ## 十三、更多文档
 
 - [整体设计书 v3.1](六道轮回_整体设计书_v3.1.md) — 完整设计与机制详解（含 RPG 扩展 + 天道终战）
-- [RPG 化执行方案 v1.1](RPG化执行方案_v1.1.md) — RPG 开发规划
+- [RPG 化执行方案 v2.0](RPG化执行方案_v2.0.md) — RPG 开发规划
 - [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
 - [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
 

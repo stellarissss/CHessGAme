@@ -670,8 +670,8 @@ class CheckersBoard extends HTMLElement {
 /* 跳棋棋盘容器 — 正方形比例，适配六角星形 */
 #board-container {
     position: relative;
-    width: min(85vmin, 560px, calc(100vh - 200px));
-    height: min(85vmin, 560px, calc(100vh - 200px));
+    width: calc(min(85vmin, 560px, calc(100vh - 200px)) * 0.75);
+    height: calc(min(85vmin, 560px, calc(100vh - 200px)) * 0.75);
     background: linear-gradient(145deg, #0d0515 0%, #1a0a2e 50%, #0d0515 100%);
     border-radius: 8px;
     box-shadow:

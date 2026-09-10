@@ -723,8 +723,8 @@ export class WuziqiBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 560px, calc(100vh - 180px));
-    height: min(90vmin, 560px, calc(100vh - 180px));
+    width: calc(min(90vmin, 560px, calc(100vh - 180px)) * 0.75);
+    height: calc(min(90vmin, 560px, calc(100vh - 180px)) * 0.75);
     background: linear-gradient(135deg, 
         #f0f9ff 0%, 
         #e0f2fe 25%, 

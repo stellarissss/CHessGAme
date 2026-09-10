@@ -484,8 +484,8 @@ class XiangqiBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 600px);
-    height: calc(min(90vmin, 600px) * 10 / 9);
+    width: calc(min(90vmin, 600px) * 0.75);
+    height: calc(min(90vmin, 600px) * 0.75 * 10 / 9);
     background: var(--board-bg);
     border-radius: 4px;
     box-shadow:

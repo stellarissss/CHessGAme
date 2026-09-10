@@ -420,8 +420,8 @@
 
 .board-frame-inner {
     position: relative;
-    width: min(86vmin, 560px, calc(100vh - 220px));
-    height: min(86vmin, 560px, calc(100vh - 220px));
+    width: calc(min(86vmin, 560px, calc(100vh - 220px)) * 0.75);
+    height: calc(min(86vmin, 560px, calc(100vh - 220px)) * 0.75);
 }
 
 #board-container {
@@ -1518,7 +1518,7 @@
     .main { flex-direction: column; padding: 12px 14px; gap: 14px; }
     .side-panel { width: 100%; max-height: none; flex-direction: row; flex-wrap: wrap; }
     .side-panel .panel-card { flex: 1 1 240px; }
-    .board-frame-inner { width: min(82vmin, 480px); height: min(82vmin, 480px); }
+    .board-frame-inner { width: calc(min(82vmin, 480px) * 0.75); height: calc(min(82vmin, 480px) * 0.75); }
     .header h1 { font-size: 1.2rem; }
     .samsara-stats { gap: 14px; }
     .stat-content { min-width: 80px; }

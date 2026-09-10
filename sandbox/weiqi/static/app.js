@@ -450,8 +450,8 @@ export class GoBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 600px);
-    height: min(90vmin, 600px);
+    width: calc(min(90vmin, 600px) * 0.75);
+    height: calc(min(90vmin, 600px) * 0.75);
     background: var(--board-bg);
     border-radius: 4px;
     box-shadow:

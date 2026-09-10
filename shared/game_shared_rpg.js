@@ -546,8 +546,8 @@
            让棋盘占据更大视觉主体。仅 min-width:901px 生效，不触碰 1200/900/600 的
            响应式换行规则（手机/小窗仍用各游戏自身的横向布局）。 */
         '@media (min-width:901px){',
-        '.side-panel{width:185px;gap:12px;}',
-        '.side-panel .panel-section,.side-panel .panel-card{padding:9px 12px;}',
+        '.side-panel{width:277px;gap:16px;}',
+        '.side-panel .panel-section,.side-panel .panel-card{padding:12px 16px;}',
         '.side-panel .panel-section h3,.side-panel .panel-card h3{font-size:1.05rem;margin-bottom:6px;}',
         '.side-panel .messages,.side-panel .rules-list,.side-panel .mechanisms-list,.side-panel .objectives-list{font-size:0.92rem;}',
         '.side-panel .personality-desc{font-size:0.9rem;}',

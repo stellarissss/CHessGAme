@@ -678,8 +678,8 @@ class DongwuqiBoard extends HTMLElement {
 
 #board-container {
     position: relative;
-    width: min(90vmin, 560px, calc((100vh - 180px) * 7 / 9));
-    height: calc(min(90vmin, 560px, calc((100vh - 180px) * 7 / 9)) * 9 / 7);
+    width: calc(min(90vmin, 560px, calc((100vh - 180px) * 7 / 9)) * 0.75);
+    height: calc(min(90vmin, 560px, calc((100vh - 180px) * 7 / 9)) * 0.75 * 9 / 7);
     background: linear-gradient(135deg, #5c3d2e 0%, #4a3022 50%, #5c3d2e 100%);
     border-radius: 8px;
     box-shadow:

@@ -551,7 +551,8 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
 </head>
 <body>
 <div id="game-container" role="application" aria-label="六道大陆大地图">
-    <!-- iso-engine 等距 3D 舞台 -->
+    <!-- melonJS 画布宿主：渲染器启动后清空内部占位并挂载 <canvas>。
+         #iso-lighting（环境光 + 暗角 DOM 叠加）保留作为画面的额外层次。 -->
     <div id="iso-viewport">
         <div id="iso-stage"></div>
     </div>
