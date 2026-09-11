@@ -38,6 +38,7 @@ class GameState:
 
     def __init__(self):
         self.configs: Dict[str, dict] = {}
+        self._config_cache_valid: bool = False  # 配置缓存标志：True 时不再从磁盘读取
         self.ai_orchestrator = AIOrchestrator(api_key=get_api_key())
         self.rule_engine: Optional[RuleEngine] = None
         self.chess_ai: Optional[GoAI] = None
@@ -46,13 +47,23 @@ class GameState:
         self.load_configs()
 
     def load_configs(self):
-        """加载所有配置文件"""
-        for name in CONFIG_FILES:
-            path = CONFIGS_DIR / f"{name}.json"
-            if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    self.configs[name] = json.load(f)
+        """加载所有配置文件（仅缓存失效时才从磁盘读取）"""
+        if not self._config_cache_valid:
+            for name in CONFIG_FILES:
+                path = CONFIGS_DIR / f"{name}.json"
+                if path.exists():
+                    with open(path, "r", encoding="utf-8") as f:
+                        self.configs[name] = json.load(f)
+            self._config_cache_valid = True
         self._rebuild_engines()
+
+    def invalidate_config_cache(self):
+        """使配置缓存失效：下一次 load_configs 从磁盘重新读取"""
+        self._config_cache_valid = False
+
+    def mark_config_cache_fresh(self):
+        """标记内存配置为最新（缓存有效，复用内存）"""
+        self._config_cache_valid = True
 
     def save_config(self, name: str):
         """保存配置到文件"""
@@ -96,6 +107,7 @@ class GameState:
             self.configs[name] = data
             self.save_config(name)
 
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
 
     def undo_last_config_change(self) -> bool:
@@ -106,6 +118,7 @@ class GameState:
         for name, data in snapshot.items():
             self.configs[name] = data
             self.save_config(name)
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
         return True
 
@@ -119,6 +132,7 @@ class GameState:
                     self.configs[name] = json.load(f)
 
         self.undo_stack.clear()
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
         self.save_all()
 
@@ -664,6 +678,7 @@ async def set_difficulty(req: DifficultyRequest):
 
     state.configs["rules"]["ai_difficulty"]["current"] = req.difficulty
     state.save_config("rules")
+    state.mark_config_cache_fresh()
     state.chess_ai.set_difficulty(req.difficulty)
     return {"success": True, "message": f"难度已设置为{req.difficulty}"}
 
@@ -716,6 +731,7 @@ async def rpg_apply_patch(req: RpgApplyPatchReq):
         patched = _rpg_apply_patch(current, req.patch)
         state.configs[req.target] = patched
         state.save_config(req.target)
+        state.mark_config_cache_fresh()
         state._rebuild_engines()
         return {"success": True, "target": req.target, "configs": patched}
     except Exception as e:

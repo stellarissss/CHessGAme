@@ -113,8 +113,28 @@ var OverworldGame = {
     // 加载 4 张图集图（等待 onload）
     return this._loadAtlases().then(function () {
       self._prerender();
+      return self._prepDrawImage();
+    }).then(function () {
       if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(45);
     });
+  },
+
+  /* —— 把预渲染地图转成 melonJS 可上传的 ImageBitmap ——
+     裸 <canvas> 在 WebGL 的 texSubImage2D 上传会抛“Overload resolution failed”
+     导致整张地图不渲染（仅剩火光）。ImageBitmap 是 WebGL/Canvas2D 通用的纹理源，
+     且静态预渲染只上传一次、逐帧仅 drawImage 一次切片，性能开销不变。 */
+  _prepDrawImage: function () {
+    var self = this;
+    if (typeof createImageBitmap === 'function') {
+      return createImageBitmap(this.mapCanvas).then(function (bmp) {
+        self.mapImage = bmp;
+      }).catch(function () {
+        // 兜底：退回到原 canvas（Canvas2D 渲染器仍可用）
+        self.mapImage = self.mapCanvas;
+      });
+    }
+    this.mapImage = this.mapCanvas;
+    return Promise.resolve();
   },
 
   _loadAtlases: function () {
@@ -438,6 +458,11 @@ var OverworldGame = {
       b.text.textContent = b.done ? ('✓ 已通关') : (passed + ' / ' + total);
       b.text.style.color = b.done ? '#0a9396' : '#f4c542';
       b.el.classList.toggle('realm-done', !!b.done);
+      /* 叠加棋类定位标签（主推 / 不推荐的测试） */
+      var t = (window.OverworldUI && window.OverworldUI.realmTag) ? window.OverworldUI.realmTag(b.realm) : null;
+      if (!b.tagEl) { b.tagEl = document.createElement('span'); b.tagEl.className = 'rec-tag'; b.el.appendChild(b.tagEl); }
+      if (t) { b.tagEl.textContent = t.text; b.tagEl.className = 'rec-tag ' + t.cls; b.tagEl.style.display = ''; }
+      else { b.tagEl.textContent = ''; b.tagEl.style.display = 'none'; }
     }, this);
   },
   _updateOverlay: function () {
@@ -636,9 +661,10 @@ class MapLayer extends me.Renderable {
   }
   draw(renderer) {
     var g = this.game;
-    if (!g || !g.mapCanvas || !g.viewport) return;
+    var img = (g && (g.mapImage || g.mapCanvas));
+    if (!g || !img || !g.viewport) return;
     var cam = g.viewport;
-    var mapW = g.mapCanvas.width, mapH = g.mapCanvas.height;
+    var mapW = img.width, mapH = img.height;
     var vw = cam.width, vh = cam.height;
     var tx = cam.pos.x + cam.offset.x, ty = cam.pos.y + cam.offset.y;
 
@@ -655,7 +681,7 @@ class MapLayer extends me.Renderable {
     var ey = Math.min(mapH, Math.ceil(ty + vh) + m);
     if (ex > sx && ey > sy) {
       var sw = ex - sx, sh = ey - sy;
-      renderer.drawImage(g.mapCanvas, sx, sy, sw, sh, sx, sy, sw, sh);
+      renderer.drawImage(img, sx, sy, sw, sh, sx, sy, sw, sh);
     }
     renderer.restore();
   }

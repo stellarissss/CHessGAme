@@ -61,7 +61,15 @@ GO_RULE_PRIMER = """## ⚡ 围棋规则原语体系
 - current_turn: 当前回合（black/white）
 - ko_state: 打劫状态
 - captures: 提子数统计 {"black": 0, "white": 0}
-- mechanisms: 游戏机制"""
+- mechanisms: 游戏机制
+
+### 围棋机制原语（rules.json → modifiers.go）
+机制原语按 颜色/符号 配置，未配置时引擎保持原规则（不生效）。
+- `liberty_cap`: 限气——某色/某符号棋子连通块的气数上限，实际气数取 min(实际气, cap)。
+  例：`{"modifiers": {"go": {"black": {"liberty_cap": 3}}}}` 让黑棋每一块最多只有 3 口气。
+- `uncapturable`: 不可吃/不可断气——气尽也不会被提掉，提子数不增加。
+  例：`{"modifiers": {"go": {"black": {"uncapturable": true}}}}` 让黑棋不可被围吃。
+- 也支持符号级配置（符号覆盖颜色级），如 `{"modifiers": {"go": {"●": {"liberty_cap": 3}}}}`。"""
 
 
 INTENT_PARSER_SYSTEM = """你是"无限制围棋"游戏的第一级AI——意图解析专家。
@@ -263,6 +271,8 @@ RULE_MODIFIER_SYSTEM = """你是"无限制围棋"的规则修改AI。
 - 禁手规则：/special_rules/forbidden_black/enabled
 - AI性格：/ai_difficulty/personality
 - 胜利条件：/win_conditions
+- 限气（黑白每块最多N气）：/modifiers/go/{black|white}/liberty_cap
+- 不可吃/不可断气：/modifiers/go/{black|white}/uncapturable
 
 ## 修改原则
 1. 最小改动：只修改必要字段
@@ -292,6 +302,20 @@ RULE_MODIFIER_SYSTEM = """你是"无限制围棋"的规则修改AI。
   {"op": "replace", "path": "/ai_difficulty/personality/type", "value": "aggressive"},
   {"op": "replace", "path": "/ai_difficulty/personality/aggressiveness", "value": 0.8},
   {"op": "replace", "path": "/ai_difficulty/personality/conservatism", "value": 0.2}
+]
+```
+
+### 示例4：让黑棋每块最多只有3气
+```json
+[
+  {"op": "replace", "path": "/modifiers/go/black/liberty_cap", "value": 3}
+]
+```
+
+### 示例5：让黑棋不可被围吃（不可断气）
+```json
+[
+  {"op": "replace", "path": "/modifiers/go/black/uncapturable", "value": true}
 ]
 ```
 
@@ -549,6 +573,12 @@ MECHANISM_MODIFIER_SYSTEM = """你是"无限制围棋"的机制修改AI（A2类�
 - `capture_10`: 吃十子获胜（率先吃掉对方十个子的一方获胜）
 - `capture_all`: 全歼对方
 - `resign`: 认输
+
+## 围棋机制原语速查（rules.json → modifiers.go）
+- `liberty_cap`: 限气——某色/某符号棋子连通块的气数上限，实际气数取 min(实际气, cap)
+  路径: `/modifiers/go/{black|white}/liberty_cap`（如设置 3，即该方每块最多 3 气）
+- `uncapturable`: 不可吃/不可断气——气尽也不会被提掉，提子数不增加
+  路径: `/modifiers/go/{black|white}/uncapturable`（如设置 true，即该方不可被围吃）
 
 ## AI性格配置速查（rules.json → ai_difficulty.personality）
 

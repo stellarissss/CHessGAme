@@ -22,6 +22,9 @@ class FastBoard:
         self.ko_point = None
         self.move_count = 0
         self._directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        # 机制原语：按颜色配置的限气（liberty_cap）与不可吃（uncapturable），默认不生效
+        self._liberty_cap = {self.BLACK: None, self.WHITE: None}
+        self._uncapturable = {self.BLACK: False, self.WHITE: False}
 
     @classmethod
     def from_state(cls, state: dict, width: int, height: int) -> "FastBoard":
@@ -36,6 +39,32 @@ class FastBoard:
         fb.captures[cls.WHITE] = caps.get("white", 0)
         return fb
 
+    def configure_modifiers(self, rules: dict) -> "FastBoard":
+        """从 rules.json 读取围棋机制原语（rules.modifiers.go），按颜色配置限气/不可吃
+
+        默认（无配置）即保持原始规则：不设限气、非不可吃。
+        """
+        go = (rules or {}).get("modifiers", {}).get("go", {})
+        if not isinstance(go, dict):
+            go = {}
+        for color, side in ((self.BLACK, "black"), (self.WHITE, "white")):
+            entry = go.get(side)
+            if not isinstance(entry, dict):
+                self._liberty_cap[color] = None
+                self._uncapturable[color] = False
+                continue
+            cap = entry.get("liberty_cap")
+            self._liberty_cap[color] = cap if isinstance(cap, int) and cap > 0 else None
+            self._uncapturable[color] = bool(entry.get("uncapturable", False))
+        return self
+
+    def _effective_liberties(self, color: int, actual: int) -> int:
+        """按机制原语计算有效气数：设了 liberty_cap 时取 min(实际气, 上限)"""
+        cap = self._liberty_cap.get(color)
+        if cap is not None:
+            return min(actual, cap)
+        return actual
+
     def clone(self) -> "FastBoard":
         """克隆棋盘（比deepcopy快得多）"""
         fb = FastBoard.__new__(FastBoard)
@@ -46,6 +75,8 @@ class FastBoard:
         fb.ko_point = self.ko_point
         fb.move_count = self.move_count
         fb._directions = self._directions
+        fb._liberty_cap = dict(self._liberty_cap)
+        fb._uncapturable = dict(self._uncapturable)
         return fb
 
     def in_bounds(self, x: int, y: int) -> bool:
@@ -88,7 +119,7 @@ class FastBoard:
                 elif val == color:
                     stack.append((nx, ny))
 
-        return group, len(liberties)
+        return group, self._effective_liberties(color, len(liberties))
 
     def _get_group_liberties(self, x: int, y: int) -> int:
         """只计算气数，不收集全部棋子（更快）"""
@@ -119,7 +150,7 @@ class FastBoard:
                 elif val == color and (nx * 1000 + ny) not in visited:
                     stack.append((nx, ny))
 
-        return len(liberties)
+        return self._effective_liberties(color, len(liberties))
 
     def is_valid_move(self, x: int, y: int, color: int, ko_enabled: bool = True, suicide_enabled: bool = True) -> bool:
         """快速判断落子合法性"""
@@ -142,6 +173,8 @@ class FastBoard:
             if not self.in_bounds(nx, ny):
                 continue
             if self.board[nx][ny] == opp:
+                if self._uncapturable[opp]:
+                    continue  # 敌人不可被吃，不能据此判定为合法提子
                 if self._get_group_liberties(nx, ny) == 1:
                     can_capture = True
                     break
@@ -172,6 +205,8 @@ class FastBoard:
             if self.board[nx][ny] == opp:
                 group, libs = self._get_group_and_liberties(nx, ny)
                 if libs == 0:
+                    if self._uncapturable[opp]:
+                        continue  # 气尽但不可被吃，保留该组
                     if len(group) == 1:
                         captured_single_point = group[0]
                     captured_total += len(group)
@@ -213,7 +248,7 @@ class FastBoard:
                 continue
             if self.board[nx][ny] == opp:
                 group, libs = self._get_group_and_liberties(nx, ny)
-                if libs == 0:
+                if libs == 0 and not self._uncapturable[opp]:
                     captured.extend(group)
         return captured
 
@@ -247,6 +282,44 @@ class RuleEngine:
             "white": pieces_red.get("pieces", {}),
         }
         self._directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+    # ---------- 机制原语解析（关键词: 限气 liberty_cap / 不可吃 uncapturable） ----------
+    def _go_modifiers(self) -> Dict[str, Any]:
+        """读取围棋机制原语配置 rules.modifiers.go"""
+        mods = self.rules.get("modifiers", {}).get("go", {})
+        return mods if isinstance(mods, dict) else {}
+
+    def _resolve_mods(self, side: str, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """解析颜色级 +（可选的）棋子符号级机制原语，符号级覆盖颜色级"""
+        go = self._go_modifiers()
+        result: Dict[str, Any] = {}
+        color_entry = go.get(side)
+        if isinstance(color_entry, dict):
+            result.update(color_entry)
+        if symbol:
+            sym_entry = go.get(symbol)
+            if isinstance(sym_entry, dict):
+                result.update(sym_entry)
+        return result
+
+    def _liberty_cap(self, side: str, symbol: Optional[str] = None) -> Optional[int]:
+        """返回某颜色/符号的限气上限，未配置则返回 None"""
+        cap = self._resolve_mods(side, symbol).get("liberty_cap")
+        return cap if isinstance(cap, int) and cap > 0 else None
+
+    def _uncapturable(self, side: str, symbol: Optional[str] = None) -> bool:
+        """返回某颜色/符号是否不可被吃（不可断气）"""
+        return bool(self._resolve_mods(side, symbol).get("uncapturable", False))
+
+    def _effective_liberties(self, board_state: dict, group: List[dict]) -> int:
+        """按机制原语计算有效气数：无 liberty_cap 时等于实际气数"""
+        actual = self._count_liberties(board_state, group)
+        if not group:
+            return actual
+        cap = self._liberty_cap(group[0]["side"], symbol=group[0].get("name"))
+        if cap is not None:
+            return min(actual, cap)
+        return actual
 
     def get_valid_moves(self, board_state: dict, side: str) -> List[List[int]]:
         """获取所有合法落子位置"""
@@ -307,7 +380,9 @@ class RuleEngine:
                 piece = self._get_piece_at([nx, ny], new_state)
                 if piece and piece["side"] == other_side:
                     group = self._get_group(new_state, nx, ny)
-                    if self._count_liberties(new_state, group) == 0:
+                    if self._effective_liberties(new_state, group) == 0:
+                        if self._uncapturable(other_side, symbol=group[0].get("name") if group else None):
+                            continue  # 气尽但不可被吃，保留该组
                         captured_count += len(group)
                         captured_ids.extend(p["id"] for p in group)
                         for p in group:
@@ -334,7 +409,7 @@ class RuleEngine:
         if not piece:
             return 0
         group = self._get_group(board_state, x, y)
-        return self._count_liberties(board_state, group)
+        return self._effective_liberties(board_state, group)
 
     def remove_group(self, board_state: dict, x: int, y: int) -> int:
         """移除指定位置棋子所属的连通块，返回提子数"""
@@ -343,6 +418,8 @@ class RuleEngine:
             return 0
 
         group = self._get_group(board_state, x, y)
+        if self._uncapturable(group[0]["side"], symbol=group[0].get("name")):
+            return 0  # 不可被吃，禁止移除该组
         for p in group:
             p["is_alive"] = False
 
@@ -419,7 +496,13 @@ class RuleEngine:
                 if self._in_bounds(nx, ny) and (nx, ny) not in pos_idx:
                     liberties.add((nx, ny))
 
-        return len(liberties)
+        actual = len(liberties)
+        if not group:
+            return actual
+        cap = self._liberty_cap(group[0]["side"], symbol=group[0].get("name"))
+        if cap is not None:
+            return min(actual, cap)
+        return actual
 
     def _is_ko(self, board_state: dict, x: int, y: int, side: str) -> bool:
         """检查是否为打劫"""
@@ -449,6 +532,8 @@ class RuleEngine:
                 if piece and piece["side"] == other_side:
                     group = self._get_group(test_state, nx, ny)
                     if self._count_liberties(test_state, group) == 0:
+                        if self._uncapturable(other_side, symbol=group[0].get("name") if group else None):
+                            continue
                         for p in group:
                             p["is_alive"] = False
 
@@ -480,6 +565,8 @@ class RuleEngine:
                 if piece and piece["side"] == other_side:
                     group = self._get_group(test_state, nx, ny)
                     if self._count_liberties(test_state, group) == 0:
+                        if self._uncapturable(other_side, symbol=group[0].get("name") if group else None):
+                            continue  # 敌人不可被吃，不能据此判定可提子
                         can_capture = True
                         break
 

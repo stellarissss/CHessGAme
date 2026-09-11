@@ -1115,6 +1115,11 @@ OverworldGame._syncBadges = function (realmProgress) {
     b.text.textContent = b.done ? ('✓ 已通关') : (passed + ' / ' + total);
     b.text.style.color = b.done ? '#0a9396' : '#f4c542';
     b.el.classList.toggle('realm-done', !!b.done);
+    /* 叠加棋类定位标签（主推 / 不推荐的测试） */
+    var t = (window.OverworldUI && window.OverworldUI.realmTag) ? window.OverworldUI.realmTag(b.realm) : null;
+    if (!b.tagEl) { b.tagEl = document.createElement('span'); b.tagEl.className = 'rec-tag'; b.el.appendChild(b.tagEl); }
+    if (t) { b.tagEl.textContent = t.text; b.tagEl.className = 'rec-tag ' + t.cls; b.tagEl.style.display = ''; }
+    else { b.tagEl.textContent = ''; b.tagEl.style.display = 'none'; }
   }, this);
 };
 

@@ -172,6 +172,32 @@ $forward - 前进方向（红方[0,-1], 黑方[0,1]）
 """
 
 
+ATOMIC_CAPTURE_MODIFIERS = """## ⚡ 原子吃子修饰器（让某子「无法吃子」/「无法被吃」）
+
+数据驱动的吃子能力修饰器，可对**某类棋子**生效，默认（无此修饰器）行为与标准象棋一致：
+
+- `can_capture`（默认 true）：设为 `false` 后，该棋子的合法着法中**不再包含吃子着法**（仍可走到空格）。
+- `eatable`（默认 true）：设为 `false` 后，该棋子**无法被吃**（无敌），任何棋子都无法吃掉它。
+- `invulnerable`（默认 false）：`true` 等价于 `eatable: false`。
+
+### 设置位置（二选一，也可叠加）
+1. **按棋子类型**（pieces_*.json）：直接在类型条目下添加字段，或放入其 `modifiers` 对象。
+   ```json
+   "soldier": { "label": "兵", "can_capture": false, "eatable": false, "moves": [...] }
+   ```
+   custom_pieces 条目同样可添加。
+
+2. **按全局类型映射**（rules.json → `type_modifiers`，或 `modifiers.type_modifiers`）：
+   ```json
+   "type_modifiers": { "soldier": { "can_capture": false }, "chariot": { "eatable": false } }
+   ```
+   也可按阵营细分：`"type_modifiers": { "red": {"soldier": {...}}, "black": {...} }`。
+
+用户句式示例：
+- 「让红方的兵无法吃子」→ 在红方 pieces_red.json 中为 soldier 设置 `can_capture: false`
+- 「给我方的車加无敌 / 不能被吃」→ 为该类型设置 `eatable: false`（或 `invulnerable: true`）"""
+
+
 # ═══════════════════════════════════════════════════════════════
 # 第一级AI：意图解析器
 # ═══════════════════════════════════════════════════════════════
@@ -183,6 +209,7 @@ INTENT_PARSER_SYSTEM = """你是"无限制象棋"游戏的第一级AI——意�
 """ + PIECE_TYPE_MAP + """
 """ + PIECE_NAME_MAP + """
 """ + PIECE_PRIMITIVE_PRIMER + """
+""" + ATOMIC_CAPTURE_MODIFIERS + """
 ## 分类体系
 
 ### A类：机制修改（游戏机制/AI性格修改）
@@ -698,10 +725,16 @@ RULE_MODIFIER_SYSTEM = """你是"无限制象棋"的规则修改AI。
 """ + JSON_PATCH_PRIMER + """
 """ + PIECE_TYPE_MAP + """
 """ + PIECE_PRIMITIVE_PRIMER + """
+""" + ATOMIC_CAPTURE_MODIFIERS + """
 ## 关键路径速查
 - 棋子移动规则：/pieces/{type}/moves
 - 棋子标签：/pieces/{type}/label
 - 自定义棋子：/custom_pieces/-
+
+## 原子吃子修饰器写路径
+- 类型条目字段：/pieces/{type}/can_capture 或 /pieces/{type}/eatable
+- 类型条目修饰器组：/pieces/{type}/modifiers/{can_capture|eatable|invulnerable}
+- 自定义棋子修饰器：/custom_pieces/{index}/can_capture 等
 
 ## 修改原则
 1. 最小改动：只修改必要字段
@@ -1005,6 +1038,7 @@ PIECE_CREATOR_SYSTEM = """你是"无限制象棋"的自定义棋子创建AI。
 """ + JSON_PATCH_PRIMER + """
 """ + PIECE_TYPE_MAP + """
 """ + PIECE_PRIMITIVE_PRIMER + """
+""" + ATOMIC_CAPTURE_MODIFIERS + """
 ## 🌟 灵活编码原则（最高纲领）
 - 所有新棋子的移动规则必须基于 jump 和 ray 两种原语组合生成
 - **绝对禁止硬编码任何新的kind值**
@@ -1202,6 +1236,7 @@ MECHANISM_MODIFIER_SYSTEM = """你是"无限制象棋"的机制修改AI（A2类�
 你的职责是修改游戏机制相关的JSON配置，包括 board_state.json 的 mechanisms 字段 和 rules.json 的 ai_difficulty.personality 字段。
 
 """ + JSON_PATCH_PRIMER + """
+""" + ATOMIC_CAPTURE_MODIFIERS + """
 ## 🌟 灵活编码原则（最高纲领）
 - 机制原语由引擎硬编码实现，你通过组合原语来实现各种效果
 - **绝对不要修改核心引擎代码**，只能修改JSON配置

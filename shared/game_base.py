@@ -108,6 +108,11 @@ class BaseGameState:
             self.CONFIGS_DIR = Path(configs_dir)
 
         self.configs: Dict[str, dict] = {}
+
+        # 配置缓存标志：为 True 时 self.configs 即最新值，load_configs 不会再从磁盘读取；
+        # 仅在显式的“规则/配置已变更”事件后置为 False，下一次 load_configs 才重新读盘。
+        self._config_cache_valid: bool = False
+
         self.undo_stack: list = []  # 修改历史栈，撤回 AI 对配置的修改
 
         # 子类必须在自己 __init__ 中赋值后才能 load_configs
@@ -169,13 +174,27 @@ class BaseGameState:
     # ───────────────────────────────────────────────────────────
 
     def load_configs(self) -> None:
-        """从 configs/*.json 加载所有配置文件并（重新）构建引擎。"""
-        for name in self.CONFIG_FILES:
-            path = self.CONFIGS_DIR / f"{name}.json"
-            if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
-                    self.configs[name] = json.load(f)
+        """从 configs/*.json 加载所有配置文件并（重新）构建引擎。
+
+        仅当配置缓存失效时才会从磁盘读取；缓存有效时复用内存中的 self.configs，
+        大幅减少走棋 / valid_moves / AI 计算过程中的重复磁盘 IO。
+        """
+        if not self._config_cache_valid:
+            for name in self.CONFIG_FILES:
+                path = self.CONFIGS_DIR / f"{name}.json"
+                if path.exists():
+                    with open(path, "r", encoding="utf-8") as f:
+                        self.configs[name] = json.load(f)
+            self._config_cache_valid = True
         self._rebuild_engines()
+
+    def invalidate_config_cache(self) -> None:
+        """使配置缓存失效：下一次 load_configs 将从磁盘重新读取全部配置。"""
+        self._config_cache_valid = False
+
+    def mark_config_cache_fresh(self) -> None:
+        """标记当前内存中的配置为最新（缓存有效，后续 load_configs 复用内存）。"""
+        self._config_cache_valid = True
 
     def save_config(self, name: str) -> None:
         """保存单个配置到对应 JSON 文件。"""
@@ -204,6 +223,7 @@ class BaseGameState:
             self.configs[name] = data
             self.save_config(name)
 
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
 
     def undo_last_config_change(self) -> bool:
@@ -214,6 +234,7 @@ class BaseGameState:
         for name, data in snapshot.items():
             self.configs[name] = data
             self.save_config(name)
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
         return True
 
@@ -230,6 +251,7 @@ class BaseGameState:
                     self.configs[name] = json.load(f)
 
         self.undo_stack.clear()
+        self.mark_config_cache_fresh()
         self._rebuild_engines()
         self.save_all()
         self._after_reset_board()
@@ -389,6 +411,7 @@ def register_common_routes(
             return {"success": False, "message": "无效的难度"}
         state.configs["rules"]["ai_difficulty"]["current"] = req.difficulty
         state.save_config("rules")
+        state.mark_config_cache_fresh()
         if state.chess_ai is not None:
             state.chess_ai.set_difficulty(req.difficulty)
         return {"success": True, "message": f"难度已设置为{req.difficulty}"}
@@ -531,6 +554,7 @@ def register_common_routes(
             patched = _rpg_apply_patch(current, req.patch)
             state.configs[req.target] = patched
             state.save_config(req.target)
+            state.mark_config_cache_fresh()
             state._rebuild_engines()
             return {"success": True, "target": req.target, "configs": patched}
         except Exception as e:
@@ -654,6 +678,7 @@ def register_common_routes(
                 if state.chess_ai is not None:
                     state.chess_ai.set_difficulty(difficulty)
                 state.save_config("rules")
+                state.mark_config_cache_fresh()
 
                 async with httpx.AsyncClient(timeout=5.0) as client2:
                     await client2.post(f"{SAMSARA_API_URL}/api/turn/reset")

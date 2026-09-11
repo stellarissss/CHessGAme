@@ -1059,6 +1059,11 @@ class XiangqiBoard extends HTMLElement {
     z-index: 5;
 }
 
+.capture-move-indicator {
+    background: radial-gradient(circle, var(--neon-red, #ff3b3b) 0%, rgba(255, 59, 59, 0.55) 60%, transparent 100%);
+    box-shadow: 0 0 10px var(--neon-red, #ff3b3b), 0 0 20px rgba(255, 59, 59, 0.6);
+}
+
 /* Input section */
 .input-section {
     padding: 10px 24px;
@@ -3762,6 +3767,15 @@ class XiangqiBoard extends HTMLElement {
         if (el) el.classList.add('selected');
     }
 
+    // 目标格是否为吃子（目标上站着敌方棋子）
+    isCaptureTarget(x, y) {
+        const pieces = this.boardState?.pieces || [];
+        const movingSide = this.selectedPiece?.side;
+        return pieces.some(p => p.is_alive !== false &&
+            p.position[0] === x && p.position[1] === y &&
+            p.side !== movingSide);
+    }
+
     showValidMoves() {
         this.clearValidMoves();
         const container = this.shadowRoot.getElementById('board-container');
@@ -3769,8 +3783,9 @@ class XiangqiBoard extends HTMLElement {
         const width = geometry.width || 9;
         const height = geometry.height || 10;
         this.validMoves.forEach(([x, y]) => {
+            const isCapture = this.isCaptureTarget(x, y);
             const indicator = document.createElement('div');
-            indicator.className = 'valid-move-indicator';
+            indicator.className = isCapture ? 'valid-move-indicator capture-move-indicator' : 'valid-move-indicator';
             const leftPct = 5 + (x / (width - 1)) * 90;
             const topPct = 5 + (y / (height - 1)) * 90;
             indicator.style.left = `${leftPct}%`;
@@ -3780,8 +3795,11 @@ class XiangqiBoard extends HTMLElement {
             indicator.style.pointerEvents = 'auto';
 
             const highlight = this.uiConfig?.theme?.highlight;
-            if (highlight?.valid_move) {
+            if (highlight?.valid_move && !isCapture) {
                 indicator.style.background = highlight.valid_move;
+            }
+            if (isCapture && highlight?.capture) {
+                indicator.style.background = highlight.capture;
             }
 
             indicator.addEventListener('click', (e) => {
@@ -4048,6 +4066,9 @@ class XiangqiBoard extends HTMLElement {
 
             this.hideThinking();
 
+            // 主模式：把本次指令的「最终结果」写入 AI 面板
+            this._appendCommandResult(data);
+
             if (data.success) {
                 if (data.type === 'applied') {
                     // 显示实际消耗的业力（从后端返回）
@@ -4098,9 +4119,8 @@ class XiangqiBoard extends HTMLElement {
                         window.location.reload();
                         return;
                     }
-                    await this.loadConfigs();
-                    this.renderBoard();
-                    this.renderPieces();
+                    // 重新拉取最新配置并重绘棋盘棋子（含 codeAI 新增/改名后的棋子名称）
+                    await this.refreshPiecesFromLatest();
                     this.updateTurnIndicator();
                     this.updateActiveRules();
                     this.updateGameObjectives();
@@ -4500,6 +4520,30 @@ class XiangqiBoard extends HTMLElement {
         while (container.children.length > 50) {
             container.removeChild(container.firstChild);
         }
+    }
+
+    // 把指令返回的「最终结果」写入 AI 面板（含成功 / 拒绝 / 拦截 / 校验等多种状态）
+    _appendCommandResult(data) {
+        if (!data) return;
+        let text = '';
+        const fr = data.final_result;
+        if (typeof fr === 'string' && fr) {
+            text = fr;
+        } else if (fr && typeof fr === 'object') {
+            text = fr.message || fr.response || fr.reason || '';
+            if (!text) text = JSON.stringify(fr);
+        }
+        if (!text && data.message) text = data.message;
+        if (!text) return;
+        const type = (data.type === 'applied' || data.type === 'fun' || data.success) ? 'success' : 'error';
+        this.addMessage(`🔚 最终结果: ${text}`, type);
+    }
+
+    // 重新拉取最新配置并重绘棋盘与棋子，确保 codeAI 等命令最新写入的棋子 type/name 生效
+    async refreshPiecesFromLatest() {
+        await this.loadConfigs();
+        this.renderBoard();
+        this.renderPieces();
     }
 
     updateTurnIndicator() {

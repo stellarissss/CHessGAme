@@ -21,6 +21,17 @@
         hell: '☯', hungry: '👹', animal: '🐘', human: '♜', asura: '⚔️', heaven: '☸️'
     };
 
+    /* 六道 → 棋类定位标签（主推 / 不推荐的测试）。
+       人道(象棋)为主推金标，饿鬼道(跳棋)为不推荐测试的红标。 */
+    var REALM_TAGS = {
+        human:  { text: '★ 主推',        cls: 'recommended' },
+        hungry: { text: '⚠ 不推荐的测试', cls: 'notrec' }
+    };
+    function realmTag(realm) {
+        var t = REALM_TAGS[realm];
+        return t ? { text: t.text, cls: t.cls } : null;
+    }
+
     var $ = function (id) { return document.getElementById(id); };
 
     var game = null;        // overworld 场景引用
@@ -367,9 +378,11 @@
             var status = done ? '<span class="chip cleared">✓ 已通关</span>'
                               : (passed > 0 ? '<span class="chip">进行中</span>' : '<span class="chip locked">未开始</span>') +
                                 (sand ? '<span class="chip sandbox">🔒沙盒</span>' : '');
+            var tag = realmTag(realm);
             return '<button type="button" class="ov-row" data-realm="' + realm + '">' +
                 '<span class="ov-icon">' + REALM_EMOJI[realm] + '</span>' +
                 '<span class="ov-name">' + REALM_NAMES[realm] + '</span>' +
+                (tag ? '<span class="chip ' + tag.cls + '">' + tag.text + '</span>' : '') +
                 status +
                 '<span class="ov-progress">' + passed + ' / ' + total + '</span>' +
                 '</button>';
@@ -406,7 +419,9 @@
                 setRealmBadge(realm, { levels_passed: passed, total_levels: total, completed: done, sandbox_unlocked: sandUnlocked });
                 if (game) game.syncSamsara(game.getSamsara ? game.getSamsara() : {});
 
-                dom.realmLevels.innerHTML = levels.map(function (lv, i) {
+                var tag = realmTag(realm);
+                var tagBanner = tag ? '<div class="realm-select-tag ' + tag.cls + '">' + tag.text + '</div>' : '';
+                dom.realmLevels.innerHTML = tagBanner + levels.map(function (lv, i) {
                     var status = (lv && lv.status) || (i < passed ? 'completed' : (i === passed ? 'current' : 'locked'));
                     var clickable = status !== 'locked';
                     var boss = lv && lv.type === 'boss';
@@ -714,6 +729,7 @@
         hideError: hideError,
         isModalOpen: isModalOpen,
         REALM_NAMES: REALM_NAMES,
+        realmTag: realmTag,
         realmLevelsMeta: realmLevelsMeta
     };
 })();

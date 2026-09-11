@@ -7,6 +7,12 @@
 // 防泄漏：模块级定时器ID，render() 中复用
 let _statusIntervalId = null;
 
+// 棋类定位标签：象棋=主推金标，跳棋=不推荐的测试红标
+const GAME_TAGS = {
+    xiangqi: { text: "★ 主推", cls: "recommended" },
+    tiaoqi:  { text: "⚠ 不推荐的测试", cls: "notrec" },
+};
+
 const DEFAULT_SANDBOX_GAMES = [
     {
         id: "xiangqi", name: "纯净象棋", icon: "♜",
@@ -57,8 +63,12 @@ function render(games) {
         card.setAttribute("tabindex", "0");
         card.setAttribute("aria-label", `进入${game.name}`);
 
+        const tag = GAME_TAGS[game.id];
+        const tagHtml = tag ? `<span class="card-tag ${tag.cls}">${tag.text}</span>` : "";
+
         card.innerHTML = `
             <div class="realm-label">纯净对弈</div>
+            ${tagHtml}
             <div class="icon">${game.icon}</div>
             <h2 class="card-title">${game.name}</h2>
             <div class="card-sub">${game.sub}</div>

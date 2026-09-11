@@ -60,6 +60,9 @@ class RuleEngine:
                 moves = self._execute_move_def(exp_def, piece, board_state)
                 all_moves.extend(moves)
 
+        # 依据 can_capture / eatable 修饰器过滤吃子着法
+        all_moves = self._restrict_captures(piece, board_state, all_moves)
+
         return list({tuple(m): m for m in all_moves}.values())
 
     def _get_move_definitions(self, piece_type: str, side: str) -> List[dict]:
@@ -75,6 +78,105 @@ class RuleEngine:
             return []
 
         return base_config.get("moves", [])
+
+    def _get_piece_config(self, piece_type: str, side: str) -> Optional[dict]:
+        """获取某类型棋子的配置对象（阵营类型表或自定义棋子表中的条目）"""
+        side_pieces = self._pieces_by_side.get(side, {})
+        base_config = side_pieces.get(piece_type)
+        if base_config is None:
+            for cp in self._custom_pieces_by_side.get(side, []):
+                if cp.get("type") == piece_type:
+                    base_config = cp
+                    break
+        return base_config
+
+    def _get_rules_type_modifiers(self) -> dict:
+        """读取 rules.json 中的按类型修饰器映射（支持 type_modifiers 或 modifiers.type_modifiers）"""
+        rules = self.rules or {}
+        tm = rules.get("type_modifiers")
+        if not isinstance(tm, dict):
+            tm = (rules.get("modifiers") or {}).get("type_modifiers")
+        return tm if isinstance(tm, dict) else {}
+
+    def resolve_modifiers(self, piece: dict) -> Dict[str, Any]:
+        """合并某棋子的有效修饰器
+
+        优先级（低→高）：rules 全局类型映射 → rules 按阵营类型映射 →
+        阵营类型配置(pieces_*.json / custom_pieces) → 棋子实例字段
+        """
+        out: Dict[str, Any] = {}
+        ptype = piece.get("type")
+        side = piece.get("side")
+
+        # 1. rules 级 type_modifiers（先全局后按阵营细分）
+        tm = self._get_rules_type_modifiers()
+        type_map_global = tm.get(ptype)
+        if isinstance(type_map_global, dict):
+            out.update(type_map_global)
+        side_map = tm.get(side)
+        if isinstance(side_map, dict):
+            type_map_side = side_map.get(ptype)
+            if isinstance(type_map_side, dict):
+                out.update(type_map_side)
+
+        # 2. 阵营类型配置：类型条目（pieces）或自定义棋子条目
+        base_config = self._get_piece_config(ptype, side)
+        if base_config:
+            cfg_mods = base_config.get("modifiers")
+            if isinstance(cfg_mods, dict):
+                out.update(cfg_mods)
+            for attr in ("can_capture", "eatable", "invulnerable"):
+                if attr in base_config:
+                    out[attr] = base_config[attr]
+
+        # 3. 棋子实例字段（对象自身或 custom_properties）优先级最高
+        inst_mods = piece.get("custom_properties") or {}
+        for attr in ("can_capture", "eatable", "invulnerable"):
+            if attr in piece and piece[attr] is not None:
+                out[attr] = piece[attr]
+            elif attr in inst_mods:
+                out[attr] = inst_mods[attr]
+
+        return out
+
+    def get_effective_modifier(self, piece: dict, attr: str, default: Any = None) -> Any:
+        """获取某棋子在指定修饰字段上的有效值"""
+        return self.resolve_modifiers(piece).get(attr, default)
+
+    def is_target_eatable(self, target: dict) -> bool:
+        """目标棋子是否可被吃掉（eatable=false 或 invulnerable=true 则该棋子无敌）"""
+        if self.get_effective_modifier(target, "eatable", True) is False:
+            return False
+        if self.get_effective_modifier(target, "invulnerable", False) is True:
+            return False
+        return True
+
+    def is_invulnerable(self, target: dict) -> bool:
+        """目标棋子是否无敌 / 无法被吃"""
+        return not self.is_target_eatable(target)
+
+    def can_capture_piece(self, attacker: dict, target: dict) -> bool:
+        """进攻方是否允许吃掉目标（同时受进攻方 can_capture 与目标可吃性约束）"""
+        if self.get_effective_modifier(attacker, "can_capture", True) is False:
+            return False
+        return self.is_target_eatable(target)
+
+    def _restrict_captures(
+        self, piece: dict, board_state: dict, moves: List[List[int]]
+    ) -> List[List[int]]:
+        """按 can_capture / eatable 修饰器过滤吃子着法，非吃子（空格）着法不受影响"""
+        attacker_can_capture = self.get_effective_modifier(piece, "can_capture", True)
+        result = []
+        for m in moves:
+            target = self._get_piece_at(m, board_state)
+            if target is not None and target["side"] != piece["side"]:
+                # 落点为敌方棋子（吃子）：需同时满足进攻方可吃 与 目标可被吃
+                if not attacker_can_capture:
+                    continue
+                if not self.is_target_eatable(target):
+                    continue
+            result.append(m)
+        return result
 
     def _expand_symmetry(self, move_def: dict) -> List[dict]:
         """展开对称定义"""
@@ -484,7 +586,9 @@ class RuleEngine:
                     for q in board_state.get("pieces", []):
                         if q is not p and q.get("is_alive", True) and q["position"][0] == move[0] and q["position"][1] == move[1]:
                             captured_piece = q
-                            captured_piece["is_alive"] = False
+                            # 防御：无敌棋子永远不会被吃子模拟移除
+                            if not self.is_invulnerable(captured_piece):
+                                captured_piece["is_alive"] = False
                             break
                     still_check = self.is_in_check(side, board_state)
                     p["position"] = old_pos

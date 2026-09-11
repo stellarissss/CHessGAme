@@ -131,7 +131,7 @@ class GoAI:
             if move:
                 return move
 
-        fast_board = FastBoard.from_state(board_state, self._width, self._height)
+        fast_board = FastBoard.from_state(board_state, self._width, self._height).configure_modifiers(self.rules)
         candidates = self._get_candidate_moves_fast(fast_board, color)
 
         if not candidates:
@@ -518,7 +518,7 @@ class GoAI:
         return self._filter_valid_moves(board, top, color)[:max_candidates]
 
     def _get_random_move(self, board_state: dict, side: str) -> Optional[dict]:
-        fast_board = FastBoard.from_state(board_state, self._width, self._height)
+        fast_board = FastBoard.from_state(board_state, self._width, self._height).configure_modifiers(self.rules)
         color = FastBoard.BLACK if side == "black" else FastBoard.WHITE
         candidates = self._get_candidate_moves_fast(fast_board, color)
         if not candidates:

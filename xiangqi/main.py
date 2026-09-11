@@ -310,7 +310,7 @@ async def make_move(req: MoveRequest):
     target_piece = state.rule_engine._get_piece_at(req.to, board)
 
     piece["position"] = req.to
-    if target_piece:
+    if target_piece and not state.rule_engine.is_invulnerable(target_piece):
         target_piece["is_alive"] = False
         # 吃子恢复业力
         await _trigger_karma_recover(piece, target_piece)
@@ -455,7 +455,7 @@ async def ai_move():
                 break
 
     piece["position"] = move["to"]
-    if target_piece:
+    if target_piece and not state.rule_engine.is_invulnerable(target_piece):
         target_piece["is_alive"] = False
         # 吃子恢复业力
         await _trigger_karma_recover(piece, target_piece)

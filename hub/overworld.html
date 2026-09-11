@@ -79,6 +79,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
     color: var(--gold); letter-spacing: 0.02em;
     text-shadow: 0 1px 3px rgba(0,0,0,0.85);
     z-index: 21; pointer-events: none;
+    flex-direction: column;
 }
 .realm-badge.realm-done { color: var(--jade); }
 
@@ -225,6 +226,24 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
 .chip.cleared { color: var(--jade); border-color: var(--jade); }
 .chip.sandbox { color: var(--violet); border-color: var(--violet); }
 .chip.locked { color: var(--text-muted); }
+.chip.recommended { color: #ffd700; border-color: rgba(255,215,0,.6); background: rgba(255,215,0,.12); }
+.chip.notrec { color: #d08a8a; border-color: rgba(208,138,138,.5); background: rgba(208,138,138,.10); }
+
+/* 选关列表：主推 / 不推荐的测试 提示横幅 */
+.realm-select-tag {
+    display: inline-block; padding: 4px 12px; border-radius: 999px;
+    font-size: 12px; margin-bottom: 12px; letter-spacing: .04em;
+}
+.realm-select-tag.recommended { color: #ffd700; border: 1px solid rgba(255,215,0,.6); background: rgba(255,215,0,.12); }
+.realm-select-tag.notrec { color: #d08a8a; border: 1px solid rgba(208,138,138,.5); background: rgba(208,138,138,.10); }
+
+/* 大陆入口浮标：进度下方叠加的棋类定位标签 */
+.realm-badge .rec-tag {
+    display: block; margin-top: 3px; padding: 0 6px; border-radius: 4px;
+    font-size: 11px; line-height: 1.5; letter-spacing: .02em;
+}
+.realm-badge .rec-tag.recommended { color: #ffd700; border: 1px solid rgba(255,215,0,.6); background: rgba(255,215,0,.14); }
+.realm-badge .rec-tag.notrec { color: #d08a8a; border: 1px solid rgba(208,138,138,.5); background: rgba(208,138,138,.12); }
 
 /* ── 选关列表 ── */
 .level-item {

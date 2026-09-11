@@ -34,6 +34,14 @@
         .card .enter-btn { border-color: var(--jade); color: var(--jade); }
         .card .enter-btn:hover { background: var(--jade); color: var(--paper); }
         .card .realm-label { color: var(--jade); border-color: var(--jade); }
+        /* 卡片棋类定位标签（主推 / 不推荐的测试） */
+        .card-tag {
+            position: absolute; top: 14px; right: 16px; z-index: 2;
+            padding: 3px 10px; border-radius: 999px;
+            font-family: var(--font-body); font-size: 12px; letter-spacing: .03em;
+        }
+        .card-tag.recommended { color: #ffd700; border: 1px solid rgba(255,215,0,.6); background: rgba(255,215,0,.14); }
+        .card-tag.notrec { color: #d08a8a; border: 1px solid rgba(208,138,138,.5); background: rgba(208,138,138,.12); }
     </style>
 </head>
 <body>

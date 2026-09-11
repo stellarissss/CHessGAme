@@ -3796,6 +3796,9 @@ export class GoBoard extends HTMLElement {
 
             this.hideThinking();
 
+            // 主模式：把本次指令的「最终结果」写入 AI 面板
+            this._appendCommandResult(data);
+
             if (data.success) {
                 if (data.type === 'applied') {
                     // 显示实际消耗的业力（从后端返回）
@@ -3883,6 +3886,22 @@ export class GoBoard extends HTMLElement {
             this.addMessage(`网络错误: ${error.message}`, 'error');
             this._dispatchError('发送指令失败', error);
         }
+    }
+
+    _appendCommandResult(data) {
+        if (!data) return;
+        let text = '';
+        const fr = data.final_result;
+        if (typeof fr === 'string' && fr) {
+            text = fr;
+        } else if (fr && typeof fr === 'object') {
+            text = fr.message || fr.response || fr.reason || '';
+            if (!text) text = JSON.stringify(fr);
+        }
+        if (!text && data.message) text = data.message;
+        if (!text) return;
+        const type = (data.type === 'applied' || data.type === 'fun' || data.success) ? 'success' : 'error';
+        this.addMessage(`🔚 最终结果: ${text}`, type);
     }
 
     addMessage(text, type = 'info') {

@@ -156,7 +156,9 @@ class ChessAI:
         if move.get("captured"):
             for p in new_state["pieces"]:
                 if p["id"] == move["captured"]:
-                    p["is_alive"] = False
+                    # 防御：无敌棋子永远不会被吃子模拟移除
+                    if not self.rule_engine.is_invulnerable(p):
+                        p["is_alive"] = False
                     break
 
         new_state["current_turn"] = "red" if new_state["current_turn"] == "black" else "black"
