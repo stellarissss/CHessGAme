@@ -19,6 +19,7 @@ class HeibaiqiBoard extends HTMLElement {
         this.thinkingPollInterval = null;
         this._regionRectEl = null;
         this._keydownHandler = null;
+        this._karmaPollingTimer = null;  // 轮询定时器（事件驱动替代，保留字段防旧代码崩溃）
 
         this._personalityInfo = {
             normal:     { icon: '🧠', name: '标准型', subtitle: 'Normal',    desc: '攻守平衡的标准AI',          agg: 0.5, def: 0.5 },
@@ -643,6 +644,7 @@ class HeibaiqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
+                    this.addMessage(`✅ ${data.message}`, 'success');
                     if (data.refresh_page) {
                         await this.sleep(500);
                         window.location.reload();
@@ -676,7 +678,14 @@ class HeibaiqiBoard extends HTMLElement {
                         this.aiThinking = false;
                     }
                 } else if (data.type === 'fun') {
+                    this.addMessage(data.message, 'fun');
                     this.loadTokenStats();
+                }
+            } else {
+                if (data.type === 'rejected') {
+                    this.addMessage(`❌ ${data.message}`, 'error');
+                } else {
+                    this.addMessage(`⚠️ ${data.message}`, 'error');
                 }
             }
         } catch (e) {
@@ -881,6 +890,22 @@ class HeibaiqiBoard extends HTMLElement {
 
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
+
+    startKarmaPolling() {
+        // 已迁移到事件驱动刷新（BroadcastChannel + visibility/focus 兜底）。
+        // 此方法保留为空 no-op，以免旧代码 / 外部调用崩溃。
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
+        }
+    }
+
+    stopKarmaPolling() {
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
+        }
     }
 
     async loadSamsaraState() {
@@ -1380,29 +1405,8 @@ class HeibaiqiBoard extends HTMLElement {
         }
         if (!text && data.message) text = data.message;
         if (!text) return;
-
-        let icon = '⚠️';
-        let type = 'error';
-        if (data.type === 'applied') {
-            icon = '✅';
-            type = 'success';
-            if (data.karma_consumed) {
-                const overdraft = data.is_overdraft ? ' (透支!)' : '';
-                text += ` - 业力消耗: ${data.karma_consumed}${overdraft}`;
-            } else if (data.estimated_karma_cost) {
-                text += ` (估算业力: ${data.estimated_karma_cost})`;
-            }
-        } else if (data.type === 'fun') {
-            icon = '✨';
-            type = 'fun';
-        } else if (data.type === 'rejected') {
-            icon = '❌';
-            type = 'error';
-        } else if (data.success) {
-            icon = '✅';
-            type = 'success';
-        }
-        this.addMessage(`${icon} 最终结果: ${text}`, type);
+        const type = (data.type === 'applied' || data.type === 'fun' || data.success) ? 'success' : 'error';
+        this.addMessage(`🔚 最终结果: ${text}`, type);
     }
 
     addMessage(text, type = 'info') {

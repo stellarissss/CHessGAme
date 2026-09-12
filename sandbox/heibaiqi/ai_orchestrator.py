@@ -16,10 +16,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 
 # 自动注入 shared/ 到 sys.path（兼容直接执行与被 main.py 导入两种场景）
-_SHARED = Path(__file__).resolve().parent.parent / "shared"
+_SHARED = Path(__file__).resolve().parent.parent.parent / "shared"  # sandbox 比顶层深一层
 if _SHARED.exists() and str(_SHARED) not in sys.path:
     sys.path.insert(0, str(_SHARED))
 
+from shared.ai_orchestrator_base import AIOrchestratorBase
 from prompts import (
     INTENT_PARSER_SYSTEM,
     RULE_MODIFIER_SYSTEM,
@@ -38,113 +39,14 @@ STATIC_DIR = Path(__file__).parent / "static"
 BASE_DIR = Path(__file__).parent
 
 
-class ConversationLog:
-    """对话日志记录器"""
-
-    def __init__(self):
-        self.logs: List[Dict[str, Any]] = []
-        self.max_logs = 50
-
-    def add_log(self, log_entry: Dict[str, Any]):
-        """添加日志条目"""
-        log_entry["timestamp"] = datetime.now().isoformat()
-        self.logs.append(log_entry)
-        if len(self.logs) > self.max_logs:
-            self.logs.pop(0)
-
-    def get_logs(self, count: int = 10) -> List[Dict[str, Any]]:
-        """获取最近N条日志"""
-        return self.logs[-count:]
-
-    def get_last_log(self) -> Optional[Dict[str, Any]]:
-        """获取最后一条日志"""
-        return self.logs[-1] if self.logs else None
-
-    def clear(self):
-        """清空日志"""
-        self.logs = []
-
-
-def resize_board_state(board_state, new_w, new_h, configs=None, old_w=None, old_h=None):
-    """按比例缩放棋盘：将每个棋子坐标映射到新棋盘范围内。
-
-    优先从 board_state 自带的 board 尺寸读取旧棋盘尺寸，否则回退到
-    configs["board"]["geometry"]，最后回退到 9x10。若 board_state 自带 board
-    则同步更新其 width/height。返回更新后的 board_state，所有坐标钳制在
-    [0, new_w-1] x [0, new_h-1]，保证坐标始终合法且不抛错。
-    """
-    result = copy.deepcopy(board_state) if isinstance(board_state, dict) else {}
-    new_w = max(1, int(new_w))
-    new_h = max(1, int(new_h))
-
-    if old_w is None or old_h is None:
-        b = result.get("board")
-        if isinstance(b, dict):
-            old_w = b.get("width")
-            old_h = b.get("height")
-    if old_w is None or old_h is None:
-        geometry = {}
-        if isinstance(configs, dict):
-            geometry = (configs.get("board") or {}).get("geometry") or {}
-        old_w = old_w if old_w is not None else geometry.get("width")
-        old_h = old_h if old_h is not None else geometry.get("height")
-    if old_w is None or old_h is None:
-        old_w, old_h = 9, 10
-    old_w = int(old_w)
-    old_h = int(old_h)
-
-    if isinstance(result.get("board"), dict):
-        result["board"]["width"] = new_w
-        result["board"]["height"] = new_h
-
-    for piece in result.get("pieces", []):
-        pos = piece.get("position")
-        if not isinstance(pos, (list, tuple)) or len(pos) < 2:
-            continue
-        try:
-            ox, oy = int(pos[0]), int(pos[1])
-        except (TypeError, ValueError):
-            continue
-        nx = int(round(ox * (new_w - 1) / (old_w - 1))) if old_w > 1 else 0
-        ny = int(round(oy * (new_h - 1) / (old_h - 1))) if old_h > 1 else 0
-        nx = max(0, min(nx, new_w - 1))
-        ny = max(0, min(ny, new_h - 1))
-        piece["position"] = [nx, ny]
-
-    return result
-
-
-class AIOrchestrator:
+class AIOrchestrator(AIOrchestratorBase):
+    # sandbox 使用 deepseek-chat（顶层用 deepseek-v4-flash）
+    DEFAULT_MODEL = "deepseek-chat"
     """AI编排器，协调第一级和第二级AI"""
 
     def __init__(self, api_key: str = ""):
-        self.api_key = api_key
-        self.base_url = "https://api.deepseek.com/v1"
-        self.configs_dir = "configs"
-        self.logger = ConversationLog()
-        self.current_thinking = False
-        self.thinking_stage = ""  # "intent" | "code" | ""
-        # 规则引擎引用（由 main.py 注入，用于计算合法落子点；不可用时使用内置 fallback）
-        self.rule_engine = None
-
-        self.token_stats = {
-            "total_prompt_tokens": 0,
-            "total_completion_tokens": 0,
-            "total_calls": 0,
-            "daily_stats": {},
-            "token_price_per_1k": 0.0015,
-        }
-
-        token_stats_path = BASE_DIR / "configs" / "token_stats.json"
-        if token_stats_path.exists():
-            with open(token_stats_path, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-                # 浅合并顶层字段，但对 daily_stats 做深合并以避免丢失当日统计
-                if "daily_stats" in saved and isinstance(saved["daily_stats"], dict):
-                    merged_daily = dict(self.token_stats.get("daily_stats", {}))
-                    merged_daily.update(saved["daily_stats"])
-                    saved["daily_stats"] = merged_daily
-                self.token_stats.update(saved)
+        # 公共基础设施（logger/token_stats/base_url 等）由基类初始化
+        super().__init__(base_dir=BASE_DIR, api_key=api_key)
 
     def set_api_key(self, api_key: str):
         self.api_key = api_key
@@ -152,186 +54,6 @@ class AIOrchestrator:
     def set_rule_engine(self, rule_engine):
         """注入规则引擎（用于 _get_board_summary 计算合法落子点）"""
         self.rule_engine = rule_engine
-
-    def _record_token_usage(self, usage: dict):
-        """记录一次API调用的token消耗（供外部模块如 ChessAI 回调使用）
-
-        从 _call_deepseek 的统计逻辑中抽取，避免重复代码。
-        """
-        prompt_tokens = usage.get('prompt_tokens', 0)
-        completion_tokens = usage.get('completion_tokens', 0)
-        today = datetime.now().strftime('%Y-%m-%d')
-
-        self.token_stats["total_prompt_tokens"] += prompt_tokens
-        self.token_stats["total_completion_tokens"] += completion_tokens
-        self.token_stats["total_calls"] += 1
-
-        if today not in self.token_stats["daily_stats"]:
-            self.token_stats["daily_stats"][today] = {
-                "prompt_tokens": 0,
-                "completion_tokens": 0,
-                "calls": 0,
-            }
-        self.token_stats["daily_stats"][today]["prompt_tokens"] += prompt_tokens
-        self.token_stats["daily_stats"][today]["completion_tokens"] += completion_tokens
-        self.token_stats["daily_stats"][today]["calls"] += 1
-
-        token_stats_path = BASE_DIR / "configs" / "token_stats.json"
-        try:
-            with open(token_stats_path, "w", encoding="utf-8") as f:
-                json.dump(self.token_stats, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass  # 统计写入失败不影响主流程
-
-    def _get_headers(self) -> dict:
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-
-    async def _call_deepseek(
-        self, system_prompt: str, user_prompt: str, temperature: float = 0.3, model: str = "deepseek-chat"
-    ) -> Tuple[str, float]:
-        """调用DeepSeek API，返回(响应内容, 耗时秒数)"""
-        headers = self._get_headers()
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": 8192,  # 增大token限制，确保完整JSON输出
-        }
-
-        start_time = time.time()
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{self.base_url}/chat/completions", headers=headers, json=payload
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            elapsed = time.time() - start_time
-            
-            if 'usage' in data:
-                self._record_token_usage(data['usage'])
-
-            content = data["choices"][0]["message"]["content"]
-            if content is None:
-                content = ""
-            return content, elapsed
-
-    def _extract_json(self, text: str) -> Optional[dict]:
-        """从文本中提取JSON"""
-        if not text or not isinstance(text, str):
-            return None
-        # 尝试直接解析
-        try:
-            return json.loads(text.strip())
-        except json.JSONDecodeError:
-            pass
-
-        # 尝试提取 ```json 代码块
-        pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
-        matches = re.findall(pattern, text)
-        for m in matches:
-            try:
-                return json.loads(m.strip())
-            except json.JSONDecodeError:
-                continue
-
-        # 尝试找到第一个 { 到最后一个 }
-        first = text.find("{")
-        last = text.rfind("}")
-        if first != -1 and last != -1:
-            try:
-                return json.loads(text[first : last + 1])
-            except json.JSONDecodeError:
-                pass
-
-        return None
-
-    def _extract_json_patch(self, text: str) -> Optional[list]:
-        """从文本中提取JSON Patch列表"""
-        if not text or not isinstance(text, str):
-            return None
-        try:
-            parsed = json.loads(text.strip())
-            if isinstance(parsed, list):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-
-        pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
-        matches = re.findall(pattern, text)
-        for m in matches:
-            try:
-                parsed = json.loads(m.strip())
-                if isinstance(parsed, list):
-                    return parsed
-            except json.JSONDecodeError:
-                continue
-
-        first = text.find("[")
-        last = text.rfind("]")
-        if first != -1 and last != -1:
-            try:
-                parsed = json.loads(text[first : last + 1])
-                if isinstance(parsed, list):
-                    return parsed
-            except json.JSONDecodeError:
-                pass
-
-        return None
-
-    def _apply_patch_or_diff(
-        self,
-        original_config: dict,
-        ai_response: str,
-        config_name: str,
-        log_entry: dict,
-    ) -> Tuple[Optional[dict], Optional[str]]:
-        """
-        尝试用JSON Patch模式或diff模式应用修改
-
-        Args:
-            original_config: 原始配置字典
-            ai_response: AI响应文本
-            config_name: 配置名称（用于日志和验证）
-            log_entry: 日志条目（用于记录patch_mode）
-
-        Returns:
-            (修改后的配置或None, 错误信息或None)
-        """
-        code_gen_log = log_entry.get("code_generation", {})
-
-        patch = self._extract_json_patch(ai_response)
-        if patch is not None:
-            valid, err = is_valid_patch(patch)
-            if valid:
-                try:
-                    new_config = apply_patch(original_config, patch)
-                    code_gen_log["patch_mode"] = "patch"
-                    code_gen_log["patch_operations"] = len(patch)
-                    code_gen_log["patch_operations_detail"] = patch
-                    return new_config, None
-                except Exception as e:
-                    code_gen_log["patch_apply_error"] = str(e)
-
-        full_json = self._extract_json(ai_response)
-        if full_json is not None:
-            try:
-                diff_patch = generate_diff(original_config, full_json)
-                new_config = apply_patch(original_config, diff_patch)
-                code_gen_log["patch_mode"] = "diff"
-                code_gen_log["diff_operations"] = len(diff_patch)
-                code_gen_log["diff_operations_detail"] = diff_patch
-                return new_config, None
-            except Exception as e:
-                code_gen_log["diff_apply_error"] = str(e)
-                return None, f"应用diff失败: {e}"
-
-        return None, "无法解析为JSON Patch或全量JSON"
 
     async def process_command(
         self, command: str, context: Dict[str, Any]
@@ -575,75 +297,6 @@ class AIOrchestrator:
                 "type": "error",
                 "message": f"未知action类型: {action_type}",
             }
-
-    def _merge_action_results(
-        self, results: List[Dict[str, Any]], intent: dict
-    ) -> Dict[str, Any]:
-        """合并多个action的执行结果"""
-        success_count = sum(1 for r in results if r.get("success"))
-        rejected_count = sum(1 for r in results if r.get("type") == "rejected")
-        error_count = sum(1 for r in results if not r.get("success") and r.get("type") != "rejected")
-        
-        # 收集所有修改的配置
-        modified_configs = {}
-        all_messages = []
-        
-        for r in results:
-            if r.get("modified_configs"):
-                for key, value in r["modified_configs"].items():
-                    if key == "board_state" and key in modified_configs:
-                        # 深度合并board_state（特别是custom_rules_active数组）
-                        self._deep_merge_board_state(modified_configs[key], value)
-                    else:
-                        modified_configs[key] = value
-            if r.get("message"):
-                all_messages.append(r["message"])
-        
-        if success_count > 0 and error_count == 0:
-            result_type = "applied" if modified_configs else "success"
-            return {
-                "success": True,
-                "type": result_type,
-                "message": intent.get("response_to_player", "操作成功"),
-                "modified_configs": modified_configs,
-                "action_results": results,
-            }
-        elif success_count > 0 and error_count > 0:
-            return {
-                "success": True,
-                "type": "partial",
-                "message": intent.get("response_to_player", "部分操作成功"),
-                "modified_configs": modified_configs,
-                "action_results": results,
-            }
-        elif rejected_count == len(results):
-            return {
-                "success": False,
-                "type": "rejected",
-                "message": "所有操作均被拒绝",
-                "action_results": results,
-            }
-        else:
-            return {
-                "success": False,
-                "type": "error",
-                "message": "\n".join(all_messages) if all_messages else "操作失败",
-                "action_results": results,
-            }
-
-    def _deep_merge_board_state(self, base: dict, override: dict):
-        """深度合并两个board_state配置（主要处理custom_rules_active数组合并）"""
-        if not isinstance(base, dict) or not isinstance(override, dict):
-            return
-        for key, value in override.items():
-            if key == "custom_rules_active" and isinstance(value, list):
-                if key not in base or not isinstance(base[key], list):
-                    base[key] = []
-                base[key].extend(value)
-            elif isinstance(value, dict) and key in base and isinstance(base[key], dict):
-                self._deep_merge_board_state(base[key], value)
-            else:
-                base[key] = value
 
     async def _parse_intent_with_log(
         self, command: str, context: Dict[str, Any]
@@ -1308,7 +961,7 @@ class AIOrchestrator:
         
         # 相关性检查：如果action与棋盘变换无关，拒绝处理
         b_actions = {"add", "remove", "move", "rotate", "transform", "modify", 
-                     "copy", "duplicate", "teleport", "swap", "flip", "create", "resize"}
+                     "copy", "duplicate", "teleport", "swap", "flip", "create"}
         if action_str and not any(act in action_str.lower() for act in b_actions):
             return {
                 "success": False,
@@ -1316,27 +969,6 @@ class AIOrchestrator:
                 "message": f"B类不处理此动作: {action_str}",
                 "classification": "B",
             }
-
-        # 棋盘尺寸缩放：按比例换算全部棋子坐标
-        resize_params = instruction.get("parameters", {})
-        is_resize = (action_str and "resize" in action_str.lower()) or \
-                    instruction.get("action") in {"resize", "resize_board"}
-        if is_resize:
-            new_w = resize_params.get("new_width") or resize_params.get("width")
-            new_h = resize_params.get("new_height") or resize_params.get("height")
-            if new_w is None or new_h is None:
-                geometry = (configs.get("board") or {}).get("geometry") or {}
-                new_w = new_w if new_w is not None else geometry.get("width")
-                new_h = new_h if new_h is not None else geometry.get("height")
-            if new_w is not None and new_h is not None:
-                resized = resize_board_state(board_state, new_w, new_h, configs=configs)
-                return {
-                    "success": True,
-                    "type": "applied",
-                    "message": f"棋盘已缩放至 {int(new_w)} × {int(new_h)}",
-                    "modified_configs": {"board_state": resized},
-                    "classification": "B",
-                }
 
         action_type = self._detect_action_type(action_str)
         log_entry.setdefault("validation", {})["action_type"] = action_type
@@ -2137,74 +1769,6 @@ class AIOrchestrator:
             "refresh_page": True,
         }
 
-    def _find_piece(self, board: dict, piece_id: str) -> Optional[dict]:
-        """在棋盘中查找棋子"""
-        for p in board.get("pieces", []):
-            if p["id"] == piece_id:
-                return p
-        return None
-
-    def _detect_action_type(self, action_str: str) -> str:
-        if not action_str:
-            return "unknown"
-        action_lower = action_str.lower()
-
-        transform_keywords_zh = ["变换", "变成", "变为", "变炮", "变车", "变马", "变种"]
-        transform_keywords_en = ["transform", "mutate", "evolve", "change_type", "piece_type"]
-        for kw in transform_keywords_zh:
-            if kw in action_str:
-                return "transform"
-        for kw in transform_keywords_en:
-            if kw in action_lower:
-                return "transform"
-
-        add_keywords_zh = ["添加", "新增", "增加", "放置", "填满", "补充"]
-        add_keywords_en = ["add", "create", "spawn", "generate"]
-        for kw in add_keywords_zh:
-            if kw in action_str:
-                return "add"
-        for kw in add_keywords_en:
-            if kw in action_lower:
-                return "add"
-
-        remove_keywords_zh = ["删除", "移除", "去掉", "消灭", "吃掉"]
-        remove_keywords_en = ["remove", "delete", "destroy", "kill"]
-        for kw in remove_keywords_zh:
-            if kw in action_str:
-                return "remove"
-        for kw in remove_keywords_en:
-            if kw in action_lower:
-                return "remove"
-
-        move_keywords_zh = ["移动", "移到", "挪到"]
-        move_keywords_en = ["move", "shift", "relocate", "reposition"]
-        for kw in move_keywords_zh:
-            if kw in action_str:
-                return "move"
-        for kw in move_keywords_en:
-            if kw in action_lower:
-                return "move"
-
-        rotate_keywords_zh = ["旋转", "翻转"]
-        rotate_keywords_en = ["rotate", "flip", "turn"]
-        for kw in rotate_keywords_zh:
-            if kw in action_str:
-                return "rotate"
-        for kw in rotate_keywords_en:
-            if kw in action_lower:
-                return "rotate"
-
-        modify_keywords_zh = ["修改", "改"]
-        modify_keywords_en = ["modify", "change", "update", "edit"]
-        for kw in modify_keywords_zh:
-            if kw in action_str:
-                return "modify"
-        for kw in modify_keywords_en:
-            if kw in action_lower:
-                return "modify"
-
-        return "unknown"
-
     def _validate_board(
         self, new_board: dict, old_board: dict, action_type: str = "unknown"
     ) -> Tuple[bool, str]:
@@ -2405,56 +1969,6 @@ class AIOrchestrator:
 
             return False, "规则未发生实质性变化"
 
-    def get_logs(self, count: int = 10) -> List[Dict[str, Any]]:
-        """获取日志"""
-        return self.logger.get_logs(count)
-
-    def _generate_retry_prompt(
-        self, original_prompt: str, errors: List[str]
-    ) -> str:
-        """
-        生成重试提示词，将错误信息附加到原始提示词中
-
-        Args:
-            original_prompt: 原始用户提示词
-            errors: 错误列表
-
-        Returns:
-            重试提示词
-        """
-        error_text = "\n".join([f"- {e}" for e in errors])
-        return f"""{original_prompt}
-
-## ⚠️ 重要：之前的输出存在以下错误，请修正后重新输出
-
-错误列表：
-{error_text}
-
-请仔细检查并修正上述错误，确保输出符合所有要求。"""
-
-    def _hard_validate_config(self, config_name: str, config_data: dict) -> Tuple[bool, str]:
-        """
-        对AI生成的配置执行硬编码Schema校验
-
-        Args:
-            config_name: 配置名称（board_state/pieces/rules/ui_config/board）
-            config_data: 配置数据字典
-
-        Returns:
-            (是否通过, 错误信息)
-        """
-        if config_name == "board_state":
-            return validate_board_state(config_data)
-        elif config_name == "pieces":
-            return validate_pieces(config_data)
-        elif config_name == "rules":
-            return validate_rules(config_data)
-        elif config_name == "ui_config":
-            return validate_ui_config(config_data)
-        elif config_name == "board":
-            return validate_board(config_data)
-        return True, ""  # 未知类型跳过
-
     async def _call_code_ai_with_validation(
         self,
         system_prompt: str,
@@ -2603,67 +2117,3 @@ class AIOrchestrator:
             return new_config, None
 
         return None, "未知错误"
-
-    def _log_code_diff_for_display(self, resp: str, code_gen_log: dict, attempt: int):
-        """无论校验是否通过，都尝试提取 CodeAI 输出中的 patch/diff 操作并记录到日志，供前端显示"""
-        # 第一次尝试记录到主字段；重试记录到独立字段（retry_{attempt}_*），便于前端展示修正后的操作
-        log_key_prefix = "" if attempt == 0 else f"retry_{attempt}_"
-
-        patch = self._extract_json_patch(resp)
-        if patch is not None:
-            mode_key = f"{log_key_prefix}patch_mode"
-            count_key = f"{log_key_prefix}patch_operations"
-            detail_key = f"{log_key_prefix}patch_operations_detail"
-            if mode_key not in code_gen_log:
-                code_gen_log[mode_key] = "patch"
-            if count_key not in code_gen_log:
-                code_gen_log[count_key] = len(patch)
-            if detail_key not in code_gen_log:
-                code_gen_log[detail_key] = patch
-            return
-
-        full_json = self._extract_json(resp)
-        if full_json is not None:
-            mode_key = f"{log_key_prefix}patch_mode"
-            detail_key = f"{log_key_prefix}diff_operations_detail"
-            if mode_key not in code_gen_log:
-                code_gen_log[mode_key] = "diff"
-            # 对于全量JSON，记录前5个顶层键的变化摘要
-            if detail_key not in code_gen_log:
-                summary_keys = list(full_json.keys())[:5] if isinstance(full_json, dict) else []
-                code_gen_log[detail_key] = [
-                    {"op": "replace", "path": f"/{k}", "value": "..."} for k in summary_keys
-                ]
-
-    def get_thinking_status(self) -> Dict[str, Any]:
-        """获取当前思考状态"""
-        return {
-            "thinking": self.current_thinking,
-            "stage": self.thinking_stage,
-        }
-
-    def get_token_stats(self):
-        """获取token消耗统计"""
-        today = datetime.now().strftime('%Y-%m-%d')
-        today_stats = self.token_stats.get("daily_stats", {}).get(today, {})
-        
-        total_tokens = self.token_stats["total_prompt_tokens"] + self.token_stats["total_completion_tokens"]
-        today_tokens = today_stats.get("prompt_tokens", 0) + today_stats.get("completion_tokens", 0)
-        
-        price_per_1k = self.token_stats.get("token_price_per_1k", 0.0015)
-        estimated_cost = total_tokens * price_per_1k / 1000
-        today_cost = today_tokens * price_per_1k / 1000
-        
-        return {
-            "total_prompt_tokens": self.token_stats["total_prompt_tokens"],
-            "total_completion_tokens": self.token_stats["total_completion_tokens"],
-            "total_tokens": total_tokens,
-            "total_calls": self.token_stats["total_calls"],
-            "today_prompt_tokens": today_stats.get("prompt_tokens", 0),
-            "today_completion_tokens": today_stats.get("completion_tokens", 0),
-            "today_tokens": today_tokens,
-            "today_calls": today_stats.get("calls", 0),
-            "estimated_cost_usd": round(estimated_cost, 4),
-            "today_cost_usd": round(today_cost, 4),
-            "token_price_per_1k_usd": price_per_1k,
-        }

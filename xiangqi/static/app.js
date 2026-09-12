@@ -4071,6 +4071,16 @@ class XiangqiBoard extends HTMLElement {
 
             if (data.success) {
                 if (data.type === 'applied') {
+                    // 显示实际消耗的业力（从后端返回）
+                    if (data.karma_consumed) {
+                        const overdraftMsg = data.is_overdraft ? ' (透支!)' : '';
+                        this.addMessage(`✅ ${data.message} - 业力消耗: ${data.karma_consumed}${overdraftMsg}`, 'success');
+                    } else if (data.estimated_karma_cost) {
+                        this.addMessage(`✅ ${data.message} (估算业力: ${data.estimated_karma_cost})`, 'success');
+                    } else {
+                        this.addMessage(`✅ ${data.message}`, 'success');
+                    }
+
                     // 使用后端返回的状态更新 UI
                     if (data.karma_detection_state) {
                         const kd = data.karma_detection_state;
@@ -4134,10 +4144,17 @@ class XiangqiBoard extends HTMLElement {
                         this.aiThinking = false;
                     }
                 } else if (data.type === 'fun') {
+                    this.addMessage(data.message, 'fun');
                     this.loadTokenStats();
                 }
                 if (window.AchievementChecker) {
                     AchievementChecker.checkAfterCommand(data, command, this.configs, this.boardState, 'xiangqi');
+                }
+            } else {
+                if (data.type === 'rejected') {
+                    this.addMessage(`❌ ${data.message}`, 'error');
+                } else {
+                    this.addMessage(`⚠️ ${data.message}`, 'error');
                 }
             }
         } catch (e) {
@@ -4518,29 +4535,8 @@ class XiangqiBoard extends HTMLElement {
         }
         if (!text && data.message) text = data.message;
         if (!text) return;
-
-        let icon = '⚠️';
-        let type = 'error';
-        if (data.type === 'applied') {
-            icon = '✅';
-            type = 'success';
-            if (data.karma_consumed) {
-                const overdraft = data.is_overdraft ? ' (透支!)' : '';
-                text += ` - 业力消耗: ${data.karma_consumed}${overdraft}`;
-            } else if (data.estimated_karma_cost) {
-                text += ` (估算业力: ${data.estimated_karma_cost})`;
-            }
-        } else if (data.type === 'fun') {
-            icon = '✨';
-            type = 'fun';
-        } else if (data.type === 'rejected') {
-            icon = '❌';
-            type = 'error';
-        } else if (data.success) {
-            icon = '✅';
-            type = 'success';
-        }
-        this.addMessage(`${icon} 最终结果: ${text}`, type);
+        const type = (data.type === 'applied' || data.type === 'fun' || data.success) ? 'success' : 'error';
+        this.addMessage(`🔚 最终结果: ${text}`, type);
     }
 
     // 重新拉取最新配置并重绘棋盘与棋子，确保 codeAI 等命令最新写入的棋子 type/name 生效

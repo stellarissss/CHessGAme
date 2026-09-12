@@ -338,7 +338,7 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
             detection_result = None
             if increase_result.get("is_overdraft"):
                 detection_result = karma_assessor.handle_overdraft(
-                    overdraft_amount=increase_result.get("overdraft_amount", 0),
+                    overshoot_amount=increase_result.get("overdraft_amount", 0),
                     skill_modifiers=skill_modifiers,
                 )
 

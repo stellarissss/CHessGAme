@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 BASE_DIR = Path(__file__).resolve().parent
-WORKSPACE_ROOT = BASE_DIR.parent
+WORKSPACE_ROOT = BASE_DIR.parent.parent  # sandbox 比顶层深一层，需再上一级到仓库根
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 if str(SHARED_DIR) not in sys.path:
     sys.path.insert(0, str(SHARED_DIR))
