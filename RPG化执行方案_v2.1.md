@@ -1,9 +1,9 @@
-# 棋圣·六道轮回 —— RPG化技术执行方案 v2.1
+# 棋圣·六道轮回 —— RPG化技术执行方案 v2.2
 
 > 本方案为「棋圣·六道轮回」项目的 RPG 化技术落地文档，描述在现有棋类作弊游戏基础上叠加轻 RPG 叙事层的完整实现路径。
 > **核心原则**：剧情模式入口统一为 2.5D 大地图「六道大陆」；取消节点路径制，恢复道内线性关卡推进；大地图像素化、非规则大陆形状、九大景观区域、六道入口 + 技能 NPC 自由寻路交互。
 > **资产与前端升级**：rembg ML 抠图 + alpha 二值化修复半透明、对话界面对标柚子社重制（挂名牌/工具栏/履历/自动/隐藏）、立绘 AI 连续帧动画（24FPS×48 帧，v1.6 起替代旧 CSS transform/CSS 动画）、CG 改为 Seedance 文生视频、BGM 8 首、像素画 UI 资源 jpg、陈默形象统一。剧情数据源统一到 `configs/story.json`。
-> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退、大陆渲染固定使用 WebGPU，并回归浏览器作为默认启动方式：默认唤起系统浏览器访问 `http://localhost:HUB_PORT`（安全上下文，Chrome/Edge 桌面版直接可用 WebGPU，不受嵌入内核限制）；独立窗口（pywebview）降级为可选 `--window`（Chromium 内核注入 `--enable-unsafe-webgpu` 等标志，Linux WebKitGTK 无 WebGPU 时自动升级系统浏览器）。v1.8 起移除整页 `html{zoom:0.75}`（大地图与全部 12 个棋类界面改按自身尺寸居中留边渲染，消除压缩/裁切，并修复 WebGPU 大地图打开即黑屏）；WASD 改为严格世界轴向移动，消除俯视小地图上 45° 斜移；棋类进程回收改为仅在真正关闭界面/网页时触发（`pagehide`+`sendBeacon`，切标签/休眠/焦点不回收），兜底空闲阈值加大至 1800s。v1.9 起：AI 意图分类在入口统一规整（可识别集 `{A,B,C,C+,D,E,F}` 之外一律归 E 闲聊，`UNKNOWN`/空值不再被技能树误拦截）；v2.0 起：大地图渲染**整体迁移到 melonJS v20**（`hub/overworld-melonjs.js`）——读取 `configs/overworld.json` 后加载 `tiny-{town/farm/dungeon/battle}` 图集并把整张大陆预渲染到离屏画布（区域地面按哈希稳定取样、水体/山路/道路着色、区域植被按密度补种并逐颗先画椭圆投影），再依托 melonJS `Application`/`Stage`/`Renderable`：每帧**仅一次 `drawImage` 截取相机可视区**（零逐格绘制）、舞台 `ambientLight` 昼夜循环 + `Light2d` 暖阳/玩家火把/各道境辉光（动态光影、真实光照），WebGL 优先、Canvas2D 自动兜底（任何机器不再黑屏），`overworld-wgpu.js`/`wgpu/shaders.js` 整体废弃停用；同时全部棋类（含沙盒 12 款）棋盘与棋子缩至 75%（`#board-container` 尺寸包裹 `calc(...*0.75)`），右侧栏宽度提升至 150%（`shared/game_shared_rpg.js` 共享层 `.side-panel{width:277px}`）。v2.1 起：① 大地图与纯净标题页为「象棋·人道/纯净象棋」加 `★ 主推`、为「跳棋·饿鬼道/纯净跳棋」加 `⚠ 不推荐的测试`；② 象棋落子为可吃子目标格加与绿点同定位的红点（两模式）；③ 吃子逻辑原子化——象棋 `can_capture`（无法吃子）与 `eatable`/`invulnerable`（无法被吃）、围棋 `liberty_cap`（限气/只有 N 口气，气计算按封顶）与 `uncapturable`（不可被吃/不可断气），落子/围/吃/气全部以可被 AI 修改的结构化配置驱动（提示词同步，rpg+沙盒一致，默认不变）；④ AI 助手面板显示每次指令最终结果、codeAI 改 `type`/`name` 后前端即时按最新名重绘（全棋类统一）；⑤ 各棋类规则/棋局配置以内存缓存提速（首读一次，对局/合法移动/AI 下棋只读缓存，仅在玩家请求 AI 修改且成功应用时整体重载一次）。
+> **次世代渲染**：大地图强制走 WebGPU 渲染（`overworld-wgpu.js` + `wgpu/shaders.js`：高度场地形、实例化装饰、SSAO/体积光/Bloom/HDR/雾、Worker 构建、与 GPU 同矩阵的 DOM 覆盖层）；`overworld-load.js` 仅加载 WebGPU，禁用 iso-engine 回退，初始化失败时移除加载遮罩并提示错误。v1.5 起新增「计算着色器生成高频细节场 + 地形顶点着色器置换」精细化模型，并对渲染循环做不降质性能优化（附件 View 缓存、Bloom bind group 预创建、派发数预计算）。v1.6 追加「生物群系域扭曲有机边界 + 按区域装饰密度 + 边界过渡带」、左上角渲染器角标、棋类进程按端口心跳保活/主动回收、12 个棋类启动加载进度条，并修复动物棋"落子即消失"（兽穴/幻影陷阱误判）与对局中进程被杀的问题。v1.7 起移除 WebGPU→iso 自动回退、大陆渲染固定使用 WebGPU，并回归浏览器作为默认启动方式：默认唤起系统浏览器访问 `http://localhost:HUB_PORT`（安全上下文，Chrome/Edge 桌面版直接可用 WebGPU，不受嵌入内核限制）；独立窗口（pywebview）降级为可选 `--window`（Chromium 内核注入 `--enable-unsafe-webgpu` 等标志，Linux WebKitGTK 无 WebGPU 时自动升级系统浏览器）。v1.8 起移除整页 `html{zoom:0.75}`（大地图与全部 12 个棋类界面改按自身尺寸居中留边渲染，消除压缩/裁切，并修复 WebGPU 大地图打开即黑屏）；WASD 改为严格世界轴向移动，消除俯视小地图上 45° 斜移；棋类进程回收改为仅在真正关闭界面/网页时触发（`pagehide`+`sendBeacon`，切标签/休眠/焦点不回收），兜底空闲阈值加大至 1800s。v1.9 起：AI 意图分类在入口统一规整（可识别集 `{A,B,C,C+,D,E,F}` 之外一律归 E 闲聊，`UNKNOWN`/空值不再被技能树误拦截）；v2.0 起：大地图渲染**整体迁移到 melonJS v20**（`hub/overworld-melonjs.js`）——读取 `configs/overworld.json` 后加载 `tiny-{town/farm/dungeon/battle}` 图集并把整张大陆预渲染到离屏画布（区域地面按哈希稳定取样、水体/山路/道路着色、区域植被按密度补种并逐颗先画椭圆投影），再依托 melonJS `Application`/`Stage`/`Renderable`：每帧**仅一次 `drawImage` 截取相机可视区**（零逐格绘制）、舞台 `ambientLight` 昼夜循环 + `Light2d` 暖阳/玩家火把/各道境辉光（动态光影、真实光照），WebGL 优先、Canvas2D 自动兜底（任何机器不再黑屏），`overworld-wgpu.js`/`wgpu/shaders.js` 整体废弃停用；同时全部棋类（含沙盒 12 款）棋盘与棋子缩至 75%（`#board-container` 尺寸包裹 `calc(...*0.75)`），右侧栏宽度提升至 150%（`shared/game_shared_rpg.js` 共享层 `.side-panel{width:277px}`）。v2.1 起：① 大地图与纯净标题页为「象棋·人道/纯净象棋」加 `★ 主推`、为「跳棋·饿鬼道/纯净跳棋」加 `⚠ 不推荐的测试`；② 象棋落子为可吃子目标格加与绿点同定位的红点（两模式）；③ 吃子逻辑原子化——象棋 `can_capture`（无法吃子）与 `eatable`/`invulnerable`（无法被吃）、围棋 `liberty_cap`（限气/只有 N 口气，气计算按封顶）与 `uncapturable`（不可被吃/不可断气），落子/围/吃/气全部以可被 AI 修改的结构化配置驱动（提示词同步，rpg+沙盒一致，默认不变）；④ AI 助手面板显示每次指令最终结果、codeAI 改 `type`/`name` 后前端即时按最新名重绘（全棋类统一）；⑤ 各棋类规则/棋局配置以内存缓存提速（首读一次，对局/合法移动/AI 下棋只读缓存，仅在玩家请求 AI 修改且成功应用时整体重载一次）。v2.2 起：WebGPU 渲染器完成三大根因修复（初始化竞态 / 旧草案 ShaderStage 常量导致全部管线无效 / error scope 未配对）后**回归为主通道**，v2.0 的 melonJS 降为**兜底通道**——`overworld-load.js` 升级为智能分发器：加载时检测 WebGPU 适配器（fallback / SwiftShader / llvmpipe 软件渲染器识别）与硬件信号（核数 / 内存 / 移动端 UA），自动选择 `ultra / high / balanced / software` 四档画质（渲染缩放 × DPR 上限；SSAO / Bloom / 体积光按档位启停，画质位经帧 uniform `FrameUB.qualityFlags` 下传、compute/渲染 pass 与合成着色器三处零开销跳过；`?owq=` URL 参数或 `localStorage.chesssage_ow_quality` 可覆盖自动检测）；首帧呈现自检（探针采样亮度，防全黑/全白）失败或 WebGPU 不可用时销毁设备并无缝切回 melonJS——任何设备不再黑屏/白屏。
 
 ---
 
@@ -15,7 +15,7 @@
 ### 1.2 核心系统
 | 系统 | 职责 | 关键文件 |
 | --- | --- | --- |
-| **六道大陆（剧情模式入口）** | 2.5D 等距自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键）。渲染由 `overworld-load.js` 分发，强制 WebGPU（`overworld-wgpu.js`，高度场 + compute 细节场 + 顶点置换 + 实例化 + SSAO/体积光/Bloom/HDR），禁用 iso-engine 回退；初始化失败时移除加载遮罩并提示错误 | `hub/overworld.html` `hub/overworld-load.js` `hub/overworld-wgpu.js` `hub/overworld-ui.js` `configs/overworld.json` |
+| **六道大陆（剧情模式入口）** | 2.5D 等距自由探索大地图、四向玩家移动、碰撞、六道入口 / 技能 NPC 交互（E 键）。渲染由 `overworld-load.js` 智能分发（v2.2 双通道）：主通道 WebGPU（`overworld-wgpu.js`，高度场 + compute 细节场 + 顶点置换 + 实例化 + SSAO/体积光/Bloom/HDR，四档智能画质分级 + 呈现自检）；兜底通道 melonJS（`overworld-melonjs.js`，全图预渲染 + 单次 drawImage + 动态光）——WebGPU 不可用 / 管线失败 / 呈现异常时自动无缝切换，任何设备不黑屏白屏 | `hub/overworld.html` `hub/overworld-load.js` `hub/overworld-wgpu.js` `hub/overworld-melonjs.js` `hub/wgpu/shaders.js` `hub/overworld-ui.js` `configs/overworld.json` |
 | 剧情数据管理 | 集中存储角色、六道、关卡、结局、记忆碎片数据 | `configs/story.json` |
 | 关卡推进（线性） | 道内 5-6 个关卡，胜利推进 levels_passed；整道通关解锁沙盒（取消节点路径制） | `samsara/levels.py` `samsara/progression.py` `samsara/state.py` |
 | 选择系统 | 处理玩家在关卡中的分支选择，影响四维属性 | `samsara/choices.py` |
@@ -544,7 +544,7 @@ app.mount("/story", story_router)
 - [ ] 二周目功能正常：记忆碎片与结局记录保留，其余状态重置。
 
 ### 8.4 六道大陆（剧情模式入口）
-- [ ] `GET /overworld` 返回 200 并正确加载 melonJS 场景（`overworld-melonjs.js` 创建 canvas、`window.OverworldGame` 就绪）。
+- [ ] `GET /overworld` 返回 200：WebGPU 可用时主通道加载 `overworld-wgpu.js`（`window.OverworldGame` 就绪 + 画质自动分级 + 角标 WebGPU）；呈现自检失败 / WebGPU 不可用时自动降级 melonJS 场景（`overworld-melonjs.js` 创建 canvas、`window.OverworldGame` 就绪 + 角标 melonJS）。
 - [ ] `GET /api/overworld/config` 返回 overworld.json 权威内容，字段合法（world / tilesets / regions / roads / decor_plant / water_overlays / mountain_overlays / river_snow / river_ridge / pois / player）。
 - [ ] 大陆瓦片覆盖：所有 112×84 瓦片均归属至少一个区域；POI 瓦片在合法范围且非实体（solid=false）。
 - [ ] 六道入口 ×6、技能 NPC ×1、生灭台 ×1，总数正确；每个 POI 均能被交互命中（_updateInteraction 识别 closestPoi）。
@@ -554,9 +554,17 @@ app.mount("/story", story_router)
 
 ---
 
-## 九、六道大陆（melonJS）实现规范
+## 九、六道大陆实现规范（WebGPU 主通道 + melonJS 兜底）
 
-### 9.1 物理与渲染
+> **双通道架构（v2.2）**：渲染由 `overworld-load.js` 智能分发——**主通道 WebGPU**（`overworld-wgpu.js` + `wgpu/shaders.js`，见 9.0）；**兜底通道 melonJS**（`overworld-melonjs.js`，见 9.1-9.4）。WebGPU 检测通过且呈现自检成功走主通道；其余一切情况（不支持 / 管线失败 / 自检异常 / 加载超时）无缝降级 melonJS。
+
+### 9.0 WebGPU 主通道（v2.2 回归）
+- **渲染器**：`hub/overworld-wgpu.js` + `hub/wgpu/shaders.js`（WGSL）——高度场地形（compute 细节场 + 顶点置换）、实例化装饰、多光源前向着色、SSAO / Bloom / 体积光 / HDR / 雾 / 生物群系域扭曲有机边界，Worker 构建，DOM 覆盖层与 GPU 同矩阵投影，左上角渲染器角标。
+- **智能画质分级**：`QUALITY_PRESETS` 四档——`ultra`（渲染缩放 1.0 × DPR≤2.0，SSAO+Bloom+体积光全开）/ `high`（1.0 × 1.5，全开）/ `balanced`（0.75 × 1.25，仅 Bloom）/ `software`（0.6 × 1.0，全关）。`overworld-load.js` 加载时按适配器（`isFallbackAdapter` / SwiftShader / llvmpipe 等软件渲染器识别）与硬件信号（`hardwareConcurrency` / `deviceMemory` / 移动端 UA）自动选档；画质位编码经帧 uniform（`FrameUB.qualityFlags`：bit0=SSAO、bit1=Bloom、bit2=体积光）下传，compute/渲染 pass 与合成着色器三处**零开销跳过**。`?owq=` URL 参数或 `localStorage.chesssage_ow_quality` 覆盖自动检测。
+- **呈现自检与自动降级**：首帧后 `presentSelfCheck()`（探针 canvas 采样平均亮度，<2 或 >253 判异常）——管线成功但画面全黑/全白（驱动/合成器缺陷）时 `destroy()` 销毁设备、停帧循环并无缝切 melonJS；12s loading 遮罩兜底超时同样降级。
+- **稳定性修复（v2.2）**：① 相机初始化竞态（`setupCamera` 幂等 + `_initGPU` 前置兜底）；② 旧草案 `ShaderStage` 常量（vert=1/frag=4/compute=8 → 现行 `GPUShaderStage.*`，8 处，此前导致**全部管线无效**）；③ error scope 配对（safePop + try/catch，防 "No error scopes to pop"）。
+
+### 9.1 物理与渲染（melonJS 兜底通道）
 - **引擎**：melonJS v20（`hub/vendor/melonjs/index.js`，本地 ESM，离线可用）；`overworld-melonjs.js` 在 `#iso-viewport` 内创建 canvas 承接渲染，逻辑尺寸 `CELL = world.tile × world.scale`（config 默认 32px）。
 - **全图预渲染**：启动时加载 `tiny-{town/farm/dungeon/battle}` 四张图集（12 列 × 16px），把整张 112×84 大陆一次性绘制到离屏 canvas（3584×2688）：区域地面按哈希稳定取样图集块，水体/山路（北侧覆雪）/道路着色，装饰锚点 + 区域植被按密度补种、逐颗先画椭圆投影。
 - **逐帧渲染**：`MapLayer extends me.Renderable` 每帧 `update(dt)` 驱动玩家/碰撞/相机/光照/覆盖层；`draw(renderer)` 仅**一次 `drawImage`** 把相机可视区从预渲染画布拷到屏幕（外加暗色底）——零逐格绘制，性能最优。
@@ -577,10 +585,10 @@ app.mount("/story", story_router)
 - **8s 轮询**：`startPolling()` 每 8 秒刷新 Samsara 状态，更新徽章与 HUD。
 
 ### 9.5 加载与兼容
-- 渲染分发：`overworld-load.js` 加载 melonJS + `overworld-melonjs.js`，左上角角标显示 `渲染：melonJS · WebGL / 内置画布`；初始化异常时 `OverworldUI.showError` 给出可读错误。
+- 渲染分发：`overworld-load.js` 智能分发器（v2.2）——设备检测选档后主通道加载 `overworld-wgpu.js`（角标 `渲染：WebGPU · <画质档>`），呈现自检失败或 WebGPU 不可用时降级 melonJS + `overworld-melonjs.js`（角标 `渲染：melonJS · WebGL / 内置画布`）；初始化异常时 `OverworldUI.showError` 给出可读错误。
 - 权威配置：`configs/overworld.json` → 通过 `GET /api/overworld/config` 返回。
 - 测试：无头 Chromium 打开 `/overworld`，断言 0 个 console.error、canvas 出现非单色像素、移动与 E 交互正常；`tests/test_overworld.py` 校验 JSON 结构与覆盖，`tests/test_samsara_linear.py` 校验线性推进/沙盒解锁/API 回归。
 
 ---
 
-> 版本：v2.1 · 六道大陆 ｜ 项目：棋圣·六道轮回 ｜ 状态：已落地
+> 版本：v2.2 · 六道大陆 ｜ 项目：棋圣·六道轮回 ｜ 状态：已落地

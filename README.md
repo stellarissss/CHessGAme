@@ -1,15 +1,15 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v2.1 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v2.2 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
 以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
 
-**大陆渲染（melonJS v20 · 动态光影）**：大陆由自家 melonJS 渲染器 `overworld-melonjs.js` 承接（永久取代修复不尽的 WebGPU 版本 `overworld-wgpu.js`，黑屏问题根除）——
-- **全图预渲染一张离屏画布**：启动时读取 `configs/overworld.json`，把整张 112×84 大陆（区域地面以 `tiny-{town/farm/dungeon/battle}` 图集块、随机但哈希稳定）一次性绘制；水体 / 山路（北侧覆雪）/ 道路分别着色，装饰锚点 + 区域植被逐颗先画椭圆投影再叠图集精灵。
-- **逐帧一次 drawImage 切片**：每帧仅把「相机可视区」从预渲染画布 `drawImage` 一次拷到屏幕（外加暗色底），零逐格绘制开销——性能最优；渲染器为 WebGL 优先、Canvas2D 自动兜底（AUTO），任何机器都不会黑屏。
-- **动态光影（真实光照）**：舞台 `ambientLight` 昼夜循环（alpha 随正弦动画、夜晚偏蓝、白昼暖黄）；`Light2d` 大范围暖阳 + 玩家火把（逐帧 `pos` 跟随）+ 各道境辉光，光照充分用 GPU/CPU。
-- **复用 DOM 覆盖层胶水**：玩家标记 / 六道入口 / 告示牌 / 小地图 / HUD 与 `overworld-ui.js` 无缝对接（投影、交互 E、选关、技能树、成就、轮回修行、采样轮询）。
-- `overworld-load.js` 仅加载 melonJS + 渲染模块，左上角角标显示「渲染：melonJS · WebGL / 内置画布」。
+**大陆渲染（v2.2 · WebGPU 次世代优先 + 智能画质 + melonJS 兜底）**：`overworld-load.js` 作为智能分发器，按设备能力自动选择渲染通道与画质档位，任何设备都不会黑屏/白屏——
+- **主通道 · WebGPU 次世代管线（`overworld-wgpu.js` + `wgpu/shaders.js`）**：高度场地形（compute 生成高频细节场 + 顶点置换）、实例化装饰、SSAO（compute）、体积光 God Ray、Bloom mip 链、HDR + ACES 色调映射 + 暗角 + 抖动；DOM 覆盖层与 GPU 共用同一套 mvp 矩阵逐帧投影，严丝合缝。v2.2 修复了旧版三大缺陷：① 初始化竞态（配置接口变慢时相机未就绪 → `reading 'vw'` 黑屏，现在 `_initGPU` 前置相机兜底）；② WGSL 全部管线无效（旧草案 `visibility: 13/8/4` 常量 → 现行 `GPUShaderStage.*`）；③ error scope 未配对异常。
+- **智能画质分级（设备自适应）**：加载时检测 WebGPU 适配器（fallback/软件渲染器识别）+ 硬件信号（核数/内存/移动端），自动选择四档画质——`ultra`（renderScale 1.0、DPR≤2、SSAO+Bloom+体积光全开）、`high`（DPR≤1.5 全开）、`balanced`（0.75 倍渲染、无 SSAO/体积光）、`software`（0.6 倍渲染、纯几何）；画质开关以位编码写入帧 uniform，在 compute/渲染 pass 与合成着色器三处生效（跳过即零开销）。可用 URL `?owq=ultra|high|balanced|software|auto` 或 `localStorage.chesssage_ow_quality` 覆盖。
+- **呈现自检 + 自动降级**：WebGPU 初始化成功后 3.6 秒对画面中心采样，若管线成功但呈现全黑/全白（驱动/合成器兼容缺陷）→ 主动销毁 WebGPU 设备并无缝切换 melonJS，用户无感知。
+- **兜底通道 · melonJS v20（`overworld-melonjs.js`）**：图集整图预渲染 + 逐帧一次 `drawImage` 切片 + 昼夜/火把/道境动态光，WebGL 优先、Canvas2D 自动兜底；无 WebGPU、初始化失败、呈现异常三种情况均自动落到此通道。
+- 左上角角标实时显示当前通道与画质档位（如「渲染：WebGPU · high」/「渲染：melonJS · 内置画布」）。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
 
@@ -258,7 +258,8 @@
                     │  └ 六道大陆                     │
                     │    hub/overworld.html          │
                     │    hub/overworld-load.js(分发) │
-                    │      └ melonJS → overworld-melonjs │
+                    │      ├ WebGPU → overworld-wgpu │
+                    │      └ 兜底 → overworld-melonjs │
                     │    hub/overworld-ui.js (DOM)   │
                     └──────────────┬────────────────┘
                                    │ FastAPI
@@ -390,12 +391,12 @@ workspace/
 ├── hub/                         # 六道众生总坛（轮回之门）
 │   ├── index.html               # 首页（六道转轮 + RPG 入口 + 技能树）
 │   ├── overworld.html           # ★ 六道大陆页（渲染装载 + DOM HUD + 小地图）
-│   ├── overworld-load.js        # ★ 渲染器分发：加载 melonJS + overworld-melonjs.js（AUTO 兜底，无黑屏）
-│   ├── overworld-melonjs.js     # ★ 大陆渲染（melonJS v20）：图集预渲染 + 逐帧一次 drawImage 切片 + 昼夜/火把/道境动态光 + 相机/碰撞/POI/小地图
-│   ├── overworld-wgpu.js        # 大陆渲染（旧 WebGPU 版，已废弃，仅保留未启用）
+│   ├── overworld-load.js        # ★ 渲染器智能分发：设备能力检测 → 画质分级 → WebGPU 优先（呈现自检）→ melonJS 兜底（无黑屏）
+│   ├── overworld-melonjs.js     # ★ 大陆渲染·兜底通道（melonJS v20）：图集预渲染 + 逐帧一次 drawImage 切片 + 昼夜/火把/道境动态光 + 相机/碰撞/POI/小地图
+│   ├── overworld-wgpu.js        # ★ 大陆渲染·主通道（WebGPU）：高度场 + compute 细节场 + 顶点置换 + 实例化 + SSAO/体积光/Bloom/HDR + 智能画质档位 + 呈现自检
 │   ├── overworld-iso.js         # 大陆渲染（旧 iso-engine，仅保留作历史参考，默认不再启用）
 │   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
-│   ├── wgpu/                    # 旧 WebGPU 渲染器（shaders.js 等，已废弃）
+│   ├── wgpu/                    # WebGPU 渲染器着色器栈（shaders.js：WGSL 管线 + 智能画质 qualityFlags）
 │   ├── sandbox.html             # 纯净模式选棋类界面（由大陆沙盒训练场按 E 进入）
 │   ├── sandbox.js               # 纯净棋类卡片渲染 + 状态检测
 │   ├── vendor/melonjs/          # melonJS v20（ESM，本地内置，离线可用）
@@ -560,7 +561,8 @@ workspace/
 
 | 层 | 技术 |
 |:---|:-----|
-| **大地图前端** | iso-engine v0.1.1（CSS 3D Transform / Lit Web Components）· 等距色块地面 + iso-cube 景观物体 · DOM Overlay 标点 · 预计算碰撞网格 |
+| **大地图前端（主通道）** | **原生 WebGPU**（Dawn）：高度场地形 + compute 细节场 + 顶点置换 + 实例化装饰 + SSAO/Bloom/体积光/HDR(ACES)；设备能力检测 + 四档智能画质（`?owq=` 可覆盖）+ 呈现自检自动降级 |
+| **大地图前端（兜底）** | melonJS v20（AUTO：WebGL 优先 / Canvas2D 兜底）· 图集预渲染 + 单次 drawImage 切片 · Light2d 动态光影 |
 | **UI / HUD** | 原生 HTML + CSS (DOM Overlay) · 无障碍弹窗 · A11y 焦点圈陷阱 |
 | **对局前端** | 原生 Web Components + Shadow DOM |
 | **大地图像素资产** | Kenney Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon (CC0，atlas 留存、地图主体用等距色块) |
@@ -691,19 +693,21 @@ workspace/
 5. **陈默形象统一**：可爱 + 温和并存，固定 CANON——齐肩黑色短发左侧别小发夹、柔和杏眼、白衬衫深蓝校服外套红色领结、胸前小棋子胸针。重新生成并抠图 9 张图：7 张陈默立绘（portrait/smile/thinking/surprised/silent/awkward/playing）+ `flipper_as_chenmo.png`（Boss 化陈默，带裂痕幻象特效）+ `cg/covers/cg_memory_hungry.jpg`（记忆 CG）。
 6. **立绘 AI 连续帧动画**：v1.6 起立绘动画为 24FPS×48 帧（2 秒循环）连续帧——白色背景立绘经 Seedance 图生视频生成 2 秒微动视频，ffmpeg 抽帧 48 张（`{prefix}_{emotion}_f{1-48}.png`），rembg 抠图为透明 PNG；`dialogue.js` 的 `startPortraitAnimation` 探测 `_f1.png` 存在即预加载并循环已成功加载的帧，无动画帧回退静态抠图 PNG（含 v1.7 履历/自动/隐藏工具栏联动）。
 7. **11 个 CG 视频**：11 张 CG（5 结局 + 6 记忆碎片）用 Seedance `doubao-seedance-1-0-pro-250528` 文生视频，参数 5s/720p/16:9/`camera_fixed`/无水印，生成脚本 `shared/assets/cg/generate_cg_videos.py`，输出到 `shared/assets/cg/videos/{cg名}.mp4`。前端 `hub/ending.html` 新增 `<video class="ending-cg-video" autoplay muted loop playsinline>` 全屏背景层，`hub/ending.js` 从 `ending.cg` 映射到视频路径；`hub/memory_album.js` 在详情弹窗顶部插入 `<video>`；原 `.fade-in`/`@keyframes fadeIn` CSS 动画已移除。
-8. **大陆渲染迁移 melonJS（v2.0，永久取代 WebGPU）**：修复不尽的 WebGPU 渲染器（`overworld-wgpu.js` + `wgpu/shaders.js`，黑屏）已整体废弃；`overworld-melonjs.js` 现接管大陆——加载图集 `tiny-{town/farm/dungeon/battle}` 后整图预渲染，body 水体/山路/道路着色 + 区域植被按密度补种、逐颗先画椭圆投影，逐帧仅一次 `drawImage` 切片（**一次拷贝零逐格绘制**），舞台 `ambientLight` 昼夜循环 + `Light2d` 暖阳/玩家火把/道境辉光。渲染器 WebGL 优先、Canvas 自动兜底，黑屏根除。
+8. **大陆渲染迁移 melonJS（v2.0）→ WebGPU 智能双通道回归（v2.2）**：v2.0 曾因 WebGPU 版黑屏问题整体迁移 melonJS（图集预渲染 + 逐帧一次 `drawImage` 切片 + `ambientLight`/`Light2d` 动态光，WebGL 优先、Canvas 兜底，现作为**兜底通道**保留）。v2.2 起 WebGPU 渲染器完成三大根因修复（初始化竞态 / 旧草案 ShaderStage 常量导致全部管线无效 / error scope 未配对）后**回归为主通道**，并新增设备能力检测 + 四档智能画质分级 + 呈现自检自动降级——管线成功但画面全黑/全白（驱动/合成器缺陷）时主动销毁设备并无缝切到 melonJS，任何设备黑屏/白屏不可能。
 9. **棋盘/棋子缩放与侧边栏**：全部棋类（含沙盒）棋盘 + 棋子缩至 75%（`#board-container` 尺寸包裹 `calc(...*0.75)`，棋子为 `%` 随棋盘联动缩放），右侧栏宽度提升至 150%（`shared/game_shared_rpg.js` 共享层 `.side-panel{width:277px}`）。
 10. **棋类进程保活与主动回收**：仅靠兜底空闲超会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活；`play.js`、胜负页"返回地图/返回大陆"按钮与**页面 `pagehide`（真正关闭网页/浏览器退出）**时调用 `/api/lazy/stop?port=` 立即回收。**只在玩家主动关闭界面/关闭网页时回收**：切标签、休眠、焦点移开走 `visibilitychange`（不触发 pagehide），不会在后台误回收；后端 `LAZY_IDLE_SECONDS` 兜底阈值加大（默认 1800s），仅回收异常遗留（如浏览器崩溃、pagehide 未送达）的进程。
 11. **棋类启动加载进度条**：全部 12 个棋类 `static/index.html` 启动时先显示全屏"正在加载对局…"+进度条遮罩（`#boot-loader`），待棋盘组件发出 `ready` 事件后淡出（附 3s 走满 + 9s 兜底），不再白屏等待。
 12. **界面缩放与大地图黑屏修复**：移除 `overworld.html` 与全部 12 个棋类 `index.html` 的整页 `html{zoom:0.75}`——该全局缩放会压缩/裁切布局、破坏棋盘居中留边，并与 WebGPU 画布（自行管理后备缓冲尺寸 + swapchain）冲突导致**打开即黑屏**。改为让棋盘按自身尺寸（如 `min(85vmin,650px)`）自然渲染并在屏幕居中、四周留出内边距；大地图（含 DOM 覆盖层）以真实视口缩放，为避免 W/S 在小地图呈 45° 斜移，WASD 改为严格世界轴向移动。
 13. **动物棋"落子即消失"修复**：`dongwuqi/main.py` 移除与 `rules.json trap_neutralizes_rank` 冲突的"进敌陷阱即死"；`rule_engine.py` 删除 4 个**幻影陷阱**格并让 `_is_in_enemy_trap` 仅计真陷阱（排除兽穴），动物进入兽穴/幻影格不再被误杀，进入真陷阱改由吃子判定降级（防守方等级归零可被吃）。
+14. **WebGPU 智能画质分级（v2.2）**：`overworld-load.js` 加载时检测 WebGPU 适配器（fallback / SwiftShader / llvmpipe 软件渲染器识别）与硬件信号（核数 / 内存 / 移动端 UA），自动选择 `ultra / high / balanced / software` 四档画质（渲染缩放 1.0/1.0/0.75/0.6 × DPR 上限 2.0/1.5/1.25/1.0；SSAO、Bloom、体积光按档位启停）；画质位编码经帧 uniform（`FrameUB.qualityFlags`）下传，在 compute/渲染 pass 与合成着色器三处零开销跳过。用户可用 `?owq=` URL 参数或 `localStorage.chesssage_ow_quality` 覆盖自动检测。
 
 ---
 
 ## 十三、更多文档
 
 - [整体设计书 v3.1](六道轮回_整体设计书_v3.1.md) — 完整设计与机制详解（含 RPG 扩展 + 天道终战）
-- [RPG 化执行方案 v2.1](RPG化执行方案_v2.1.md) — RPG 开发规划
+- [RPG 化执行方案 v2.2](RPG化执行方案_v2.1.md) — RPG 开发规划（§9.0 WebGPU 主通道规范）
+- [大地图渲染架构 v2.2](WebGPU渲染架构.md) — WebGPU 主通道 + 智能画质分级 + 呈现自检降级 + 测试方法
 - [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
 - [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
 

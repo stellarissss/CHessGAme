@@ -1,14 +1,26 @@
 /* ═══════════════════════════════════════════════════════════════
-   大地图渲染器能力分发器
-   使用 melonJS v20（resolveRenderer 以 WebGL 优先，Canvas2D 自动兜底，黑屏不可能）。
-   提供：
-     - 渲染器角标（渲染：melonJS · WebGL / melonJS · Canvas2D）
-     - loading 遮罩兜底：melonJS 就绪若悬挂，最多 N 秒强制移除加载遮罩
-     - window.__owFallbackToIso：供渲染模块在异常时报错（melonJS 自身已自动降级 Canvas）
+   大地图渲染器智能分发器（v3 · WebGPU 优先 + 智能画质 + melonJS 兜底）
+
+   启动流程：
+     1. 设备能力检测（WebGPU 适配器 / 硬件信号 / 用户覆盖）
+     2. 智能选择画质档位：ultra / high / balanced / software
+     3. 有 WebGPU → 加载次世代 WebGPU 渲染器（SSAO+Bloom+体积光+ACES）
+        └ 启动后呈现自检：管线成功但画面不出（驱动/合成器缺陷）→ 自动降级
+     4. 无 WebGPU / 初始化失败 / 呈现异常 → melonJS 兜底（WebGL 优先 Canvas 兜底，
+        任何设备黑屏不可能）
+
+   画质档位覆盖方式（优先级从高到低）：
+     - URL 参数  ?owq=ultra|high|balanced|software|auto
+     - localStorage chesssage_ow_quality
+     - 自动检测（默认）
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
 
+  var QUALITY_KEY = 'chesssage_ow_quality';
+  var VALID_Q = ['ultra', 'high', 'balanced', 'software', 'auto'];
+
+  /* ── 角标 UI ── */
   function ensureBadge() {
     var b = document.getElementById('renderer-badge');
     if (b) return b;
@@ -24,25 +36,52 @@
     try { ensureBadge().textContent = text; } catch (e) {}
   }
 
-  /* 把初始化失败原因转成可读诊断（melonJS 通常不会走到这一步）。 */
+  /* ── 兜底路径：melonJS（保留 __owFallbackToIso 旧名兼容） ── */
   function describeIssue(reason) {
     var r = String(reason || '');
-    if (r.indexOf('WebGL') !== -1) return r;
-    return 'melonJS 初始化失败：' + (r || '未知原因') + '。';
+    if (r.indexOf('WebGPU') !== -1 || r.indexOf('webgpu') !== -1) return r;
+    return 'WebGPU 渲染不可用：' + (r || '未知原因') + '。已切换到兼容渲染器。';
   }
-
-  /* 供渲染模块在意外初始化失败时调用：移除 loading 并给出可读错误。 */
+  var melonLoading = false;
+  function loadMelon(reason) {
+    if (window.__owMelonBooted || melonLoading) return;
+    melonLoading = true;
+    console.warn('[dispatcher] 降级 melonJS 渲染器：', reason || '');
+    setBadge('渲染：melonJS · 加载中…');
+    Promise.resolve().then(function () {
+      return import('/static/vendor/melonjs/index.js');
+    }).then(function () {
+      return import('/static/overworld-melonjs.js'); // 模块自动 melonBoot()
+    }).then(function () {
+      setTimeout(function () {
+        try {
+          var g = window.OverworldGame;
+          var r = g && g.renderer;
+          var isGL = r && typeof r.isWebGL === 'function' ? r.isWebGL() : (r && r.constructor && /WebGL/i.test(r.constructor.name));
+          setBadge(isGL ? '渲染：melonJS · WebGL' : '渲染：melonJS · 内置画布');
+        } catch (e) { setBadge('渲染：melonJS'); }
+      }, 1200);
+    }).catch(function (err) {
+      console.error('[dispatcher] melonJS 加载失败：', err);
+      var UIw = window.OverworldUI;
+      if (UIw) {
+        if (typeof UIw.removeLoading === 'function') UIw.removeLoading();
+        if (typeof UIw.showError === 'function') UIw.showError('渲染器加载失败：' + (err && err.message ? err.message : err));
+      }
+    });
+  }
   window.__owFallbackToIso = function (reason) {
-    console.error('[melonjs] 大地图初始化失败：', reason || '');
+    console.error('[dispatcher] 渲染器初始化失败：', reason || '');
     var UIw = window.OverworldUI;
     if (UIw) {
       if (typeof UIw.removeLoading === 'function') UIw.removeLoading();
       if (typeof UIw.showError === 'function') UIw.showError(describeIssue(reason));
     }
+    loadMelon(reason);
     return Promise.resolve(null);
   };
 
-  // 加载遮罩兜底：若 melonJS 就绪 promise 悬挂导致 loading 未移除，最多 12s 强制移除
+  /* ── 加载遮罩兜底：渲染器就绪 promise 悬挂时最多 12s 强制移除 ── */
   setTimeout(function () {
     try {
       var ov = document.getElementById('loading-overlay');
@@ -54,24 +93,104 @@
     } catch (e) {}
   }, 12000);
 
-  // 先加载 melonJS，再加载并引导渲染模块（渲染模块自带幂等 boot）
-  Promise.resolve().then(function () {
-    return import('/static/vendor/melonjs/index.js');
-  }).then(function () {
-    setBadge('渲染：melonJS · 加载中…');
-    return import('/static/overworld-melonjs.js');
-  }).then(function () {
-    // 渲染模块加载后会自动 melonBoot()，这里在下一宏任务回填角标（此时 renderer 已确定）
-    setTimeout(function () {
-      try {
+  /* ══ 设备能力检测与智能画质分级 ═══════════════════════════════ */
+  function userOverride() {
+    try {
+      var m = location.search.match(/[?&]owq=(ultra|high|balanced|software|auto)\b/);
+      if (m) return m[1];
+      var v = localStorage.getItem(QUALITY_KEY);
+      if (v && VALID_Q.indexOf(v) !== -1) return v;
+    } catch (e) {}
+    return 'auto';
+  }
+
+  function detectDevice() {
+    // 返回 { supported, tier, adapterInfo } —— tier ∈ ultra/high/balanced/software
+    var result = { supported: false, tier: 'balanced', adapterInfo: '' };
+    if (!navigator.gpu) return Promise.resolve(result);
+    return navigator.gpu.requestAdapter().then(function (adapter) {
+      if (!adapter) return result;
+      result.supported = true;
+      var info = {};
+      try { info = adapter.info || {}; } catch (e) {}
+      var desc = [info.vendor, info.architecture, info.device, info.description]
+        .filter(Boolean).join(' ').toLowerCase();
+      result.adapterInfo = desc || 'webgpu';
+      var isFallback = false;
+      try { isFallback = !!adapter.isFallbackAdapter; } catch (e) {}
+      var soft = isFallback || /swiftshader|llvmpipe|lavapipe|software|angle \(google/.test(desc);
+      // 硬件信号：移动设备 / 核显少核 / 低内存 → balanced；多核大内存桌面 → ultra
+      var cores = navigator.hardwareConcurrency || 4;
+      var mem = navigator.deviceMemory || 8;
+      var mobile = /android|iphone|ipad|mobile/i.test(navigator.userAgent);
+      if (soft) {
+        result.tier = 'software';
+      } else if (mobile || cores <= 4 || mem <= 4) {
+        result.tier = 'balanced';
+      } else if (cores >= 12 && mem >= 16) {
+        result.tier = 'ultra';
+      } else {
+        result.tier = 'high';
+      }
+      return result;
+    }).catch(function () {
+      return result;
+    });
+  }
+
+  /* ══ 主流程 ═══════════════════════════════════════════════════ */
+  function boot() {
+    setBadge('渲染：检测设备能力…');
+    var wantOverride = userOverride();
+    var detectP = detectDevice();
+
+    // 并行预热 melonJS vendor（若需要兜底可省一次网络往返；WebGPU 成功则无副作用）
+    var vendorP = import('/static/vendor/melonjs/index.js').catch(function () { return null; });
+
+    detectP.then(function (dev) {
+      var tier = dev.tier;
+      var quality = wantOverride !== 'auto' ? wantOverride : tier;
+      if (!dev.supported) {
+        console.info('[dispatcher] WebGPU 不可用，走 melonJS 兜底');
+        setBadge('渲染：melonJS（无 WebGPU）');
+        return Promise.resolve(vendorP).then(function () { loadMelon('no webgpu'); return null; });
+      }
+      console.info('[dispatcher] WebGPU 适配器: ' + dev.adapterInfo + ' → 画质档位 ' + quality +
+        (wantOverride !== 'auto' ? '（用户指定）' : '（自动检测）'));
+      setBadge('渲染：WebGPU · ' + quality);
+      return import('/static/overworld-wgpu.js').then(function () {
         var g = window.OverworldGame;
-        var r = g && g.renderer;
-        var isGL = r && typeof r.isWebGL === 'function' ? r.isWebGL() : (r && r.constructor && /WebGL/i.test(r.constructor.name));
-        setBadge(isGL ? '渲染：melonJS · WebGL' : '渲染：melonJS · 内置画布');
-      } catch (e) { setBadge('渲染：melonJS'); }
-    }, 1200);
-  }).catch(function (err) {
-    console.error('[melonjs] 模块加载失败：', err);
-    window.__owFallbackToIso(err);
-  });
+        if (!g || typeof g.setQuality !== 'function') throw new Error('WebGPU 渲染器异常');
+        g.setQuality(quality);
+        // 呈现自检：等待渲染器就绪 + 数帧输出后，采样画面亮度。
+        // 管线成功但画面全黑/全白（驱动/合成器缺陷）→ 自动降级 melonJS。
+        return (g._ready || Promise.resolve()).then(function () {
+          return new Promise(function (res) { setTimeout(res, 3600); });
+        }).then(function () {
+          if (!g.presentSelfCheck || window.__owMelonBooted) return null;
+          return g.presentSelfCheck().then(function (ok) {
+            if (ok === false) {
+              try { sessionStorage.setItem('chesssage_ow_present_fail', '1'); } catch (e) {}
+              try { if (g.destroy) g.destroy(); } catch (e) {}
+              window.__owWgpuBooted = false;
+              loadMelon('WebGPU 呈现异常（自检全黑/全白）');
+              setBadge('渲染：melonJS（WebGPU 呈现异常已降级）');
+            } else if (ok === true) {
+              setBadge('渲染：WebGPU · ' + quality);
+            }
+            return null;
+          });
+        });
+      }).catch(function (err) {
+        console.error('[dispatcher] WebGPU 渲染器加载/初始化失败：', err);
+        window.__owFallbackToIso(err);
+      });
+    }).catch(function (err) {
+      console.error('[dispatcher] 设备检测异常：', err);
+      loadMelon('检测异常: ' + err);
+    });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else boot();
 })();

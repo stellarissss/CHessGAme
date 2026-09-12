@@ -561,8 +561,8 @@ function makeCube() {
 
 /* ── 相机 ── */
 OverworldGame.setupCamera = function () {
-  var c = this.cam = { zoom: 1.6, vw: window.innerWidth, vh: window.innerHeight };
-  var vp = document.getElementById('iso-viewport');
+  if (this.cam) return; // 幂等：start() 可能重复调用，避免重置相机与重复挂 resize 监听
+  var c = this.cam = { zoom: 1.6, vw: window.innerWidth, vh: window.innerHeight };  var vp = document.getElementById('iso-viewport');
   if (vp) { c.vw = vp.clientWidth; c.vh = vp.clientHeight; }
   var self = this;
   this._onResize = (function () {
@@ -619,6 +619,11 @@ OverworldGame._initGPU = function () {
   }
   if (!navigator.gpu) return Promise.reject(new Error('no WebGPU'));
   diag('navigator.gpu 可用，开始 requestAdapter');
+  // 相机是 _ensureSize / _updateFrame 的前置依赖。正常时序由 start() 调用 setupCamera()，
+  // 但 start() 在 /api/overworld/config 返回后才执行，而 _initGPU 由 _prepare() 在 bootstrapGeometry()
+  // 里立即触发。配置接口一旦变慢，_initGPU 就会先于 setupCamera 完成 → cam 为 undefined →
+  // _ensureSize 抛 TypeError → WebGPU 初始化失败（黑屏/白屏的根因之一）。此处补上兜底。
+  if (!this.cam) this.setupCamera();
   return navigator.gpu.requestAdapter().then(function (adapter) {
     if (!adapter) throw new Error('no adapter');
     try {
@@ -705,17 +710,57 @@ OverworldGame._checkScope = function (tag, diag) {
   if (!this.device) return;
   try {
     var dev = this.device;
-    var promise = dev.popErrorScope('out-of-memory');
-    if (promise && typeof promise.then === 'function') {
-      promise.then(function (err) {
-        if (err) { try { (diag || console.log).call(null, '[WebGPU][' + tag + '] out-of-memory scope error: ' + JSON.stringify(err) + ' — ' + (err.message || '')); } catch (e) {} }
-        return dev.popErrorScope('validation');
-      }).then(function (err) {
-        if (err) { try { (diag || console.log).call(null, '[WebGPU][' + tag + '] ❗ VALIDATION scope error: ' + JSON.stringify(err) + ' — ' + (err.message || '')); } catch (e) {} }
-      });
-    }
+    var safePop = function (type) {
+      try {
+        var p = dev.popErrorScope(type);
+        if (p && typeof p.then === 'function') {
+          return p.then(function (err) {
+            if (err) { try { (diag || console.log).call(null, '[WebGPU][' + tag + '] ' + type + ' scope error: ' + (err.message || '')); } catch (e) {} }
+            return null;
+          }).catch(function () { return null; /* scope 未配对时静默（如驱动重置吞掉 scope） */ });
+        }
+      } catch (e) { /* 同上 */ }
+      return null;
+    };
+    safePop('out-of-memory').then(function () { return safePop('validation'); });
   } catch (e) {}
 };
+/* ── 智能画质档位（由 overworld-load.js 设备能力检测后调用） ──
+   profile: { renderScale, dprCap, ssao, bloom, volumetric }
+   - renderScale: 渲染分辨率缩放（0.6~1.0），低配设备降低 RT 尺寸换帧率
+   - dprCap:      devicePixelRatio 上限（高分屏低配设备避免 4x 像素负担）
+   - ssao/bloom/volumetric: 后处理开关，关闭时跳过对应 pass 并在合成端归零 */
+OverworldGame.QUALITY_PRESETS = {
+  ultra:    { renderScale: 1.0,  dprCap: 2.0,  ssao: true,  bloom: true,  volumetric: true  },
+  high:     { renderScale: 1.0,  dprCap: 1.5,  ssao: true,  bloom: true,  volumetric: true  },
+  balanced: { renderScale: 0.75, dprCap: 1.25, ssao: false, bloom: true,  volumetric: false },
+  software: { renderScale: 0.6,  dprCap: 1.0,  ssao: false, bloom: false, volumetric: false }
+};
+OverworldGame.setQuality = function (name) {
+  var p = typeof name === 'string' ? this.QUALITY_PRESETS[name] : name;
+  if (!p) p = this.QUALITY_PRESETS.high;
+  this._quality = p;
+  this._qualityName = typeof name === 'string' ? name : 'custom';
+  // 位编码写入帧 uniform：bit0=SSAO bit1=Bloom bit2=体积光（与 shaders.js FrameUB 对应）
+  this._qualityFlags =
+    (p.ssao ? 1 : 0) | (p.bloom ? 2 : 0) | (p.volumetric ? 4 : 0);
+  // renderScale 在 start() 设置 _dpr 时生效；若已启动则立即重算 RT
+  if (this._ctx && typeof this._dprBase !== 'undefined') {
+    this._applyRenderScale();
+    this._rtsW = 0; // 强制 _ensureSize 重建 RT
+    this._ensureSize();
+  }
+  try { console.log('[WebGPU] 画质档位 = ' + (this._qualityName || 'custom') +
+    ' (renderScale=' + p.renderScale + ' dprCap=' + p.dprCap +
+    ' ssao=' + p.ssao + ' bloom=' + p.bloom + ' volumetric=' + p.volumetric + ')'); } catch (e) {}
+  return p;
+};
+OverworldGame._applyRenderScale = function () {
+  var p = this._quality || this.QUALITY_PRESETS.high;
+  var dpr = Math.min(p.dprCap, window.devicePixelRatio || 1);
+  this._dpr = Math.max(0.5, dpr * p.renderScale);
+};
+
 OverworldGame._updateFrame = function () {
   var f = this._frameBuf; if (!f) return;
   f.fill(0);
@@ -736,6 +781,7 @@ OverworldGame._updateFrame = function () {
   f[46] = 1.0;                                      // sunIntensity
   f[47] = 3.0;                                      // aoRadius
   f[48] = 0.55;                                     // aoIntensity
+  f[49] = this._qualityFlags != null ? this._qualityFlags : 7; // 画质开关位（默认全开）
   this.device.queue.writeBuffer(this._frameBuffer, 0, f);
 };
 
@@ -805,12 +851,12 @@ OverworldGame._buildPipelines = function () {
     return m;
   }
   var posFmt = this._posFormat || 'rgba32float';
-  this._frameLayout = d.createBindGroupLayout({ entries: [{ binding: 0, visibility: 13, buffer: { type: 'uniform' } }] }); // vert(1)|frag(4)|compute(8)
+  this._frameLayout = d.createBindGroupLayout({ entries: [{ binding: 0, visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE, buffer: { type: 'uniform' } }] }); // vert(1)|frag(4)|compute(8)
   // 地形细节场布局：group(1) = 计算生成的细节纹理 + 采样器（顶点置换 + 法线锐化）
   this._detailLayout = d.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: 1, texture: {} }, { binding: 1, visibility: 1, sampler: {} }] }); // vertex 采样
+    { binding: 0, visibility: GPUShaderStage.VERTEX, texture: {} }, { binding: 1, visibility: GPUShaderStage.VERTEX, sampler: {} }] }); // vertex 采样
   this._detailWriteLayout = d.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: 8, storageTexture: { format: 'rgba16float', access: 'write-only' } }] });
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, storageTexture: { format: 'rgba16float', access: 'write-only' } }] });
   // terrain（group(0)=frame，group(1)=细节场）
   this._pipeTerrain = d.createRenderPipeline({
     layout: d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._detailLayout] }),
@@ -864,13 +910,13 @@ OverworldGame._fmt = function (format, blend) {
 // 全屏单一纹理 pass 的 bind group layout（src + sampler）
 OverworldGame._mkFsLayout = function () {
   this._postLayout = this.device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: 4, texture: {} }, { binding: 1, visibility: 4, sampler: {} }] });
+    { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} }] });
   this._compLayout = this.device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: 4, texture: {} }, { binding: 1, visibility: 4, texture: {} }, { binding: 2, visibility: 4, texture: {} },
-    { binding: 3, visibility: 4, texture: {} }, { binding: 4, visibility: 4, texture: {} }, { binding: 5, visibility: 4, texture: {} },
-    { binding: 6, visibility: 4, texture: {} }, { binding: 7, visibility: 4, sampler: {} }] });
+    { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+    { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+    { binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: {} }] });
   this._ssaLayout = this.device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: 8, texture: {} }, { binding: 1, visibility: 8, texture: {} }, { binding: 2, visibility: 8, storageTexture: { format: 'rgba8unorm', access: 'write-only' } }] });
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: {} }, { binding: 1, visibility: GPUShaderStage.COMPUTE, texture: {} }, { binding: 2, visibility: GPUShaderStage.COMPUTE, storageTexture: { format: 'rgba8unorm', access: 'write-only' } }] });
   return this._postLayout;
 };
 OverworldGame._mkCompLayout = function () { return this._compLayout; };
@@ -983,8 +1029,8 @@ OverworldGame._render = function () {
     rp.drawIndexed(this._cubeIdxCount, dc[j * 4 + 3], 0, 0, dc[j * 4 + 2]);
   }
   rp.end();
-  // 2) SSAO compute
-  {
+  // 2) SSAO compute（智能画质：低档设备跳过，合成端 ao 贡献归零）
+  if (this._qualityFlags == null || (this._qualityFlags & 1)) {
     var cp = enc.beginComputePass();
     cp.setPipeline(this._pipeSsa);
     cp.setBindGroup(0, this._frameBG);
@@ -992,14 +1038,14 @@ OverworldGame._render = function () {
     cp.dispatchWorkgroups(this._ssaoDispatchW || Math.ceil(c.vw / 8), this._ssaoDispatchH || Math.ceil(c.vh / 8));
     cp.end();
   }
-  // 3) 体积光
+  // 3) 体积光（智能画质：低档设备跳过）
   var vr = this._views.vol;
-  {
+  if (this._qualityFlags == null || (this._qualityFlags & 4)) {
     var vpass = enc.beginRenderPass({ colorAttachments: [{ view: vr, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }] });
     vpass.setPipeline(this._pipeVol); vpass.setBindGroup(0, this._frameBG); vpass.setBindGroup(1, this._volBG); vpass.draw(3); vpass.end();
   }
-  // 4) Bloom: bright → m0；m0→m1→m2→m3 下采样
-  {
+  // 4) Bloom: bright → m0；m0→m1→m2→m3 下采样（智能画质：低档设备跳过）
+  if (this._qualityFlags == null || (this._qualityFlags & 2)) {
     var b0 = this._bloomRTs[0].createView();
     var bp = enc.beginRenderPass({ colorAttachments: [{ view: b0, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }] });
     bp.setPipeline(this._pipeBright); bp.setBindGroup(0, this._frameBG); bp.setBindGroup(1, this._brightBG); bp.draw(3); bp.end();
@@ -1371,15 +1417,17 @@ OverworldGame.start = function () {
   this.setupCamera();
   this.bindInput();
   // 设备丢失恢复守卫：页面真正卸载时标记，避免在关闭/跳转时触发自动重载。
+  // （unload 事件在新版 Chrome 被 Permissions Policy 禁用，pagehide/beforeunload 足够）
   this._unloading = false;
   this._recoveryScheduled = false;
   try {
     var mark = function () { self._unloading = true; };
     window.addEventListener('pagehide', mark);
     window.addEventListener('beforeunload', mark);
-    window.addEventListener('unload', mark);
   } catch (e) {}
-  this._dpr = Math.min(2, window.devicePixelRatio || 1);
+  // 智能画质：dprCap + renderScale（未设置档位时默认 high）
+  if (!this._quality) this.setQuality('high');
+  this._applyRenderScale();
   this._time = 0;
   var last = performance.now(), lastOverlay = 0;
   this._ready.then(function () {
@@ -1388,10 +1436,11 @@ OverworldGame.start = function () {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       self._time += dt;
       self.step(dt);
-      if (self.device && self._ctx) {
+      if (self.device && self._ctx && !self._destroyed) {
         self._updateView(); self._frameCB++;
+        // 前 3 帧做严格 push/pop 配对的 validation 检查（SwiftShader/新驱动首帧易暴露问题）
         var scoped = self._frameCB <= 3;
-        if (scoped) self.device.pushErrorScope('validation');
+        if (scoped) { try { self.device.pushErrorScope('validation'); } catch (e) { scoped = false; } }
         try { self._render(); } catch (e) { try { console.error('[WebGPU] render error:', e); } catch (e2) {} }
         self._updateOverlay();
         if (scoped) self._checkScope('frame' + self._frameCB, null);
@@ -1404,6 +1453,8 @@ OverworldGame.start = function () {
 
 /* ── 引导 ── */
 function wgpuBoot() {
+  if (window.__owWgpuBooted) return; // 幂等：模块可能被分发器与 DOMContentLoaded 双通道触发
+  window.__owWgpuBooted = true;
   var game = window.OverworldGame = OverworldGame;
   try {
     if (window.OverworldUI) { window.OverworldUI.init(game); UI = window.OverworldUI; }
@@ -1469,5 +1520,40 @@ function injectStyles() {
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wgpuBoot);
 else wgpuBoot();
+
+/* ── 主动销毁（呈现自检失败降级时调用）：停帧循环 + 释放设备 ── */
+OverworldGame.destroy = function () {
+  this._destroyed = true;
+  try { this.stopPolling(); } catch (e) {}
+  try { if (this._onResize) window.removeEventListener('resize', this._onResize); } catch (e) {}
+  try { if (this.device) this.device.destroy(); } catch (e) {}
+  this.device = null; this._ctx = null;
+  try { console.log('[WebGPU] 渲染器已销毁（降级）'); } catch (e) {}
+};
+
+/* ── 呈现自检（供 overworld-load.js 调用）─────────────────────────
+   管线可能全部创建成功、帧也在稳定提交，但 canvas 呈现仍可能异常
+   （驱动缺陷 / 合成器兼容问题 → 用户看到的黑屏或白屏）。
+   做法：把 WebGPU 画布 drawImage 到 2D 画布采样中心区域平均亮度，
+   全黑(<2)或全白(>253)视为呈现异常，返回 false → 分发器降级 melonJS。 */
+OverworldGame.presentSelfCheck = function () {
+  try {
+    if (!this._canvas || !this._canvas.width) return Promise.resolve(true);
+    var probe = document.createElement('canvas');
+    probe.width = 64; probe.height = 64;
+    var ctx = probe.getContext('2d');
+    if (!ctx) return Promise.resolve(true);
+    ctx.drawImage(this._canvas, 0, 0, 64, 64);
+    var d = ctx.getImageData(8, 8, 48, 48).data;
+    var sum = 0, n = 0;
+    for (var i = 0; i < d.length; i += 4) { sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
+    var avg = sum / n;
+    try { console.log('[WebGPU] 呈现自检: 中心平均亮度=' + avg.toFixed(1) + (avg < 2 || avg > 253 ? ' → 异常，需降级' : ' → 正常')); } catch (e) {}
+    return Promise.resolve(avg >= 2 && avg <= 253);
+  } catch (e) {
+    try { console.warn('[WebGPU] 呈现自检失败:', e); } catch (e2) {}
+    return Promise.resolve(true); // 自检本身失败时不误杀（保守：认为正常）
+  }
+};
 
 window.OverworldGame = OverworldGame;
