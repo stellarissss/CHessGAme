@@ -66,6 +66,55 @@ class ConversationLog:
         self.logs = []
 
 
+def resize_board_state(board_state, new_w, new_h, configs=None, old_w=None, old_h=None):
+    """按比例缩放棋盘：将每个棋子坐标映射到新棋盘范围内。
+
+    优先从 board_state 自带的 board 尺寸读取旧棋盘尺寸，否则回退到
+    configs["board"]["geometry"]，最后回退到 9x10。若 board_state 自带 board
+    则同步更新其 width/height。返回更新后的 board_state，所有坐标钳制在
+    [0, new_w-1] x [0, new_h-1]，保证坐标始终合法且不抛错。
+    """
+    result = copy.deepcopy(board_state) if isinstance(board_state, dict) else {}
+    new_w = max(1, int(new_w))
+    new_h = max(1, int(new_h))
+
+    if old_w is None or old_h is None:
+        b = result.get("board")
+        if isinstance(b, dict):
+            old_w = b.get("width")
+            old_h = b.get("height")
+    if old_w is None or old_h is None:
+        geometry = {}
+        if isinstance(configs, dict):
+            geometry = (configs.get("board") or {}).get("geometry") or {}
+        old_w = old_w if old_w is not None else geometry.get("width")
+        old_h = old_h if old_h is not None else geometry.get("height")
+    if old_w is None or old_h is None:
+        old_w, old_h = 9, 10
+    old_w = int(old_w)
+    old_h = int(old_h)
+
+    if isinstance(result.get("board"), dict):
+        result["board"]["width"] = new_w
+        result["board"]["height"] = new_h
+
+    for piece in result.get("pieces", []):
+        pos = piece.get("position")
+        if not isinstance(pos, (list, tuple)) or len(pos) < 2:
+            continue
+        try:
+            ox, oy = int(pos[0]), int(pos[1])
+        except (TypeError, ValueError):
+            continue
+        nx = int(round(ox * (new_w - 1) / (old_w - 1))) if old_w > 1 else 0
+        ny = int(round(oy * (new_h - 1) / (old_h - 1))) if old_h > 1 else 0
+        nx = max(0, min(nx, new_w - 1))
+        ny = max(0, min(ny, new_h - 1))
+        piece["position"] = [nx, ny]
+
+    return result
+
+
 class AIOrchestrator:
     """AI编排器，协调第一级和第二级AI"""
 
@@ -1369,7 +1418,7 @@ class AIOrchestrator:
         
         # 相关性检查：如果action与棋盘变换无关，拒绝处理
         b_actions = {"add", "remove", "move", "rotate", "transform", "modify", 
-                     "copy", "duplicate", "teleport", "swap", "flip", "create"}
+                     "copy", "duplicate", "teleport", "swap", "flip", "create", "resize"}
         if action_str and not any(act in action_str.lower() for act in b_actions):
             return {
                 "success": False,
@@ -1377,6 +1426,27 @@ class AIOrchestrator:
                 "message": f"B类不处理此动作: {action_str}",
                 "classification": "B",
             }
+
+        # 棋盘尺寸缩放：按比例换算全部棋子坐标
+        resize_params = instruction.get("parameters", {})
+        is_resize = (action_str and "resize" in action_str.lower()) or \
+                    instruction.get("action") in {"resize", "resize_board"}
+        if is_resize:
+            new_w = resize_params.get("new_width") or resize_params.get("width")
+            new_h = resize_params.get("new_height") or resize_params.get("height")
+            if new_w is None or new_h is None:
+                geometry = (configs.get("board") or {}).get("geometry") or {}
+                new_w = new_w if new_w is not None else geometry.get("width")
+                new_h = new_h if new_h is not None else geometry.get("height")
+            if new_w is not None and new_h is not None:
+                resized = resize_board_state(board_state, new_w, new_h, configs=configs)
+                return {
+                    "success": True,
+                    "type": "applied",
+                    "message": f"棋盘已缩放至 {int(new_w)} × {int(new_h)}",
+                    "modified_configs": {"board_state": resized},
+                    "classification": "B",
+                }
 
         action_type = self._detect_action_type(action_str)
         log_entry.setdefault("validation", {})["action_type"] = action_type

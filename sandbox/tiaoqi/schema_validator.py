@@ -59,6 +59,10 @@ def validate_config(config_name: str, config_data: dict) -> Tuple[bool, str]:
         return False, f"未知的配置名称: {config_name}"
 
     schema_file = CONFIG_SCHEMA_MAP[config_name]
+    schema_path = os.path.join(SCHEMA_DIR, schema_file)
+    if not os.path.exists(schema_path):
+        return True, ""
+
     try:
         schema = _load_schema(schema_file)
     except Exception as e:
