@@ -3,7 +3,8 @@
    永久替换损坏的 WebGPU 渲染器：melonJS v20 以默认 Canvas2D（黑屏不可能）
    或 WebGL 渲染整张大陆，内置动态光（ambientLight 暗色叠加被各 Light2d 挖空）。
    · 静态地图整屏预渲染到离屏 canvas，逐帧仅用一次 drawImage 截取可视区（高性能）
-   · 动态光影：舞台 ambientLight 昼夜循环 + 太阳光/玩家火把/各道境辉光 Light2d
+   · 动态光影：舞台 ambientLight 昼夜循环 + 玩家火把/各道境辉光 Light2d
+     （注意：Light2d 第 3/4 参为半径；全局明暗由 ambientLight 承担，勿再加巨型加色 glow）
    · 玩家/POI/小地图/HUD 复用 overworld-wgpu.js 的 DOM 覆盖层胶水
    与 overworld-ui.js 兼容：保留 getSamsara / syncSamsara / refreshFromUI 等接口。
    ═══════════════════════════════════════════════════════════════ */
@@ -280,10 +281,15 @@ var OverworldGame = {
     var cam = app.viewport;
     cam.setBounds(0, 0, this.W * CELL, this.H * CELL);
 
-    // 动态光：太阳（大范围暖光，覆盖玩家区）+ 玩家火把（跟随）
-    this._sunLight = new me.Light2d(this.W * CELL * 0.5, this.H * CELL * 0.5, 900, 600, '#ffce8a', 0.5);
-    app.world.addChild(this._sunLight);
-    this._torchLight = new me.Light2d(this.playerPos.x, this.playerPos.y, 420, 320, '#ffb347', 0.85);
+    // 动态光：玩家火把（跟随）+ 各道境辉光。
+    // 修复「大面积橙色光晕、看不到场景」：
+    // 1) me.Light2d 第 3/4 参是 radiusX/radiusY（半径，直径=参数×2），旧值 420/320
+    //    实际渲染 840×640 直径；2) 旧版还在地图中心叠了一盏 900/600 半径的
+    //    「太阳光」（直径 1800×1200），而出生点恰在地图中心附近，双光加色
+    //    （Light2d glow 默认 additive）叠加把整屏冲成橙金；3) 全局照明本应
+    //    由 ambientLight 承担（见 _frame 昼夜曲线），巨型加色 glow 只会淹没
+    //    地表细节，故移除 _sunLight，并将火把/道境半径与强度回调到合理值。
+    this._torchLight = new me.Light2d(this.playerPos.x, this.playerPos.y, 210, 160, '#ffb347', 0.6);
     app.world.addChild(this._torchLight);
     // 各道境辉光
     var self = this;
@@ -291,7 +297,7 @@ var OverworldGame = {
     (this.ow.pois || []).forEach(function (p) {
       if (p.type !== 'realm') return;
       var cx = (p.x + 0.5) * CELL, cy = (p.y + 0.5) * CELL;
-      var light = new me.Light2d(cx, cy, 260, 260, '#9b7bff', 0.55);
+      var light = new me.Light2d(cx, cy, 130, 130, '#9b7bff', 0.4);
       app.world.addChild(light);
       self._realmLights.push(light);
     });
@@ -329,10 +335,13 @@ var OverworldGame = {
     if (cam) {
       cam.moveTo(this.playerPos.x - cam.width / 2, this.playerPos.y - cam.height / 2);
       // 昼夜循环：ambientLight 的 alpha 决定暗面深浅（1=全暗）
+      // 修复：旧曲线 0.30~0.72 的深蓝黑遮罩在夜间把光圈外地表压暗 72%，
+      // 近乎全黑（玩家看到「只有光晕没有场景」的第二主因）。
+      // 收窄到 0.10~0.38：白昼地表清晰，夜晚有氛围但仍可读图。
       var day = 0.5 + 0.5 * Math.sin(this._timeGlobal * 0.25);
       var stage = me.state.current();
       if (stage && stage.ambientLight) {
-        var a = 0.30 + 0.42 * (1 - day);
+        var a = 0.10 + 0.28 * (1 - day);
         stage.ambientLight.alpha = a;
         // 夜晚偏蓝，白昼暖黄
         if (day > 0.5) stage.ambientLight.setColor(8, 12, 20, a);
@@ -653,6 +662,12 @@ var OverworldGame = {
 class MapLayer extends me.Renderable {
   constructor(x, y, w, h) {
     super(x, y, w, h);
+    /* 修复「地图不渲染、仅剩光晕」的第二个根因：
+       me.Renderable 默认 anchorPoint=(0.5,0.5)，preDraw 会按本层尺寸
+       translate(-(W*CELL/2), -(H*CELL/2))，叠加相机 translate 后本层的
+       世界坐标绘制整体被拉出画布外（探针实测 translate(-2944,-2382)）。
+       本层 draw() 按世界坐标切片绘制，必须把锚点重置为左上 (0,0)。 */
+    this.anchorPoint.set(0, 0);
     this.alpha = 1;
   }
   update(dt) {
