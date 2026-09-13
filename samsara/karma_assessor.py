@@ -34,7 +34,7 @@ KARMA_ASSESS_PROMPT = """
 - A 类（机制修改）：30-60 点
 - B 类（棋盘变换/棋子位置）：23-53 点
 - C 类（规则修改/棋子走法）：45-90 点
-- C+ 类（创建新棋子）：75-150 点
+- C+ 类（创建新棋子）：75-120 点
 
 ### 强度倍数（乘以基础价）
 - 改 1 个棋子/1 条规则：×1.0
@@ -53,7 +53,7 @@ KARMA_ASSESS_PROMPT = """
 
 ### 边界约束（绝对不可违反）
 - 最低 1 点（即使评估为 0 或负数，也必须输出 1）
-- 最高 150 点（即使评估超过 150，也必须输出 150）
+- 最高 120 点（即单次上限；即使评估超过 120，也必须输出 120）
 
 输出一个整数，不要任何解释。
 """
@@ -124,7 +124,7 @@ class KarmaAssessor:
     def _build_prompt(self, game_type, instruction, intent_class, board_summary):
         karma_state = self.state.get_karma()
         max_karma = self.state.get("karma_max", 120)
-        max_single = self.state.get("karma_single_max", 150)
+        max_single = self.state.get("karma_single_max", 120)
         modifiers = self.state.get_skill_modifiers()
         max_karma += modifiers["karma_max_bonus"]
         max_single += modifiers["karma_single_max_bonus"]
@@ -176,7 +176,7 @@ class KarmaAssessor:
                     amount = int(amount * 0.75)
                 if current_realm in ("heaven", "asura") and modifiers["heaven_asura_discount"]:
                     amount = int(amount * 0.75)
-                amount = max(1, min(amount, 150))
+                amount = max(1, min(amount, 120))
                 self._cache[cache_key] = amount
                 return amount
         except Exception:

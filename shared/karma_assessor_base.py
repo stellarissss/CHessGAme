@@ -79,7 +79,7 @@ _PROMPT_HEAD = """
 - A 类（机制修改）：30-60 点
 - B 类（棋盘变换/棋子位置）：23-53 点
 - C 类（规则修改/棋子走法）：45-90 点
-- C+ 类（创建新棋子）：75-150 点
+- C+ 类（创建新棋子）：75-120 点
 
 ### 强度倍数（乘以基础价）
 - 改 1 个棋子/1 条规则：×1.0
@@ -98,7 +98,7 @@ _PROMPT_ADJUST = """
 _PROMPT_TAIL = """
 ### 边界约束（绝对不可违反）
 - 最低 1 点（即使评估为 0 或负数，也必须输出 1）
-- 最高 150 点（即使评估超过 150，也必须输出 150）
+- 最高 120 点（即单次上限；即使评估超过 120，也必须输出 120）
 
 输出一个整数，不要任何解释。
 """
@@ -131,10 +131,15 @@ class KarmaAssessorBase:
         self._cache = {}
         self._local_karma = 50
         self._local_karma_max = 120
-        self._local_karma_single_max = 150
+        self._local_karma_single_max = 120
         self._initial_karma = 50
         self._realm_detection = 0.0
         self._current_realm = "human"
+        # 一次性技能（stealth_t2a 首次透支免判 / stealth_t3a 金蝉脱壳）本关已消耗记录。
+        # Samsara 服务端为权威消耗源（one_time_skill_usage，随关卡重置）；此处为棋类侧
+        # 进程内的镜像记录：即使与 Samsara 的同步（/api/karma/consume）失败，也保证
+        # "每关一次"语义不被重复触发。
+        self._used_one_time_skills: set = set()
 
     def set_api_key(self, api_key: str):
         self.api_key = api_key
@@ -240,7 +245,7 @@ class KarmaAssessorBase:
         # 棋类专属钩子：动物棋在此追加「畜生道加价」逻辑
         amount = self._post_assess_hook(amount, intent_class, skill_modifiers)
 
-        amount = max(1, min(amount, 150))
+        amount = max(1, min(amount, 120))
         self._cache[cache_key] = amount
         return amount
 
@@ -356,7 +361,10 @@ class KarmaAssessorBase:
                 "current": self._realm_detection,
             }
 
-        if skill_modifiers.get("first_overdraft_skip"):
+        # 一次性技能（每关一次）：本关已消耗则不再生效
+        if (skill_modifiers.get("first_overdraft_skip")
+                and "stealth_t2a" not in self._used_one_time_skills):
+            self._used_one_time_skills.add("stealth_t2a")
             return {
                 "detected": False,
                 "delta": 0.0,
@@ -379,7 +387,9 @@ class KarmaAssessorBase:
         detected = roll < current
 
         if detected:
-            if skill_modifiers.get("golden_escape"):
+            if (skill_modifiers.get("golden_escape")
+                    and "stealth_t3a" not in self._used_one_time_skills):
+                self._used_one_time_skills.add("stealth_t3a")
                 self._realm_detection = current * 0.5
                 return {
                     "detected": False,
@@ -412,6 +422,8 @@ class KarmaAssessorBase:
         base = max(0, self._initial_karma - reduction)
         self._local_karma = base + max(0, carryover)
         self._cache.clear()
+        # 新关卡开始：一次性技能（首次透支免判/金蝉脱壳）恢复可用
+        self._used_one_time_skills.clear()
 
     def get_state(self, skill_modifiers: dict = None) -> dict:
         """获取当前业力和识破状态"""

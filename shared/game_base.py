@@ -23,7 +23,10 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -72,6 +75,150 @@ class RpgApplyPatchReq(BaseModel):
     """RPG 服务器调用 JSON Patch/规则覆盖请求。"""
     patch: list
     target: str  # board_state / rules / pieces_red / pieces_black 等
+
+
+class KarmaRecoverRequest(BaseModel):
+    """业力消减（消业）请求。
+
+    各棋类原实现直接用 body.get()，缺字段/类型错误会 500 或静默出错；
+    这里统一建模：event_type 必填，amount 必填（非负），其余字段原样透传给 samsara。
+    """
+    event_type: str = ""
+    amount: float = 0
+
+    model_config = {"extra": "allow"}
+
+
+# ═══════════════════════════════════════════════════════════════
+# Samsara 调用层：共享 httpx 连接池 + 统一降级与日志
+# ═══════════════════════════════════════════════════════════════
+#
+# 背景（审查报告 4.3）：原先每处调用都 `async with httpx.AsyncClient(timeout=...)`，
+# 每次新建 TCP 连接（无连接池、无 keep-alive 复用），50 余处调用重复建连；
+# 且大量 `except Exception: pass` 静默吞错，前端拿到 200 却数据不完整。
+#
+# 方案：
+#   1. 进程级共享 AsyncClient（连接池复用），随 FastAPI 生命周期关闭；
+#   2. samsara_client(timeout) 作为上下文管理器，返回带默认超时的轻量代理，
+#      调用点只需把 `httpx.AsyncClient(timeout=X)` 换成 `samsara_client(X)`，
+#      缩进与后续代码完全不变，同时保留各调用点原有的超时语义；
+#   3. samsara_warn() 统一记录降级原因（替代静默 pass），便于排障。
+# ═══════════════════════════════════════════════════════════════
+
+_samsara_logger = logging.getLogger("samsara_client")
+
+_SHARED_CLIENT: Optional[httpx.AsyncClient] = None
+_CLIENT_LOCK = threading.Lock()
+
+# 连接池：总连接 100 / 单主机 20，足够 Hub + 6 RPG + 6 sandbox 并发
+_HTTP_LIMITS = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+
+
+def get_samsara_client() -> httpx.AsyncClient:
+    """获取（必要时创建）进程级共享的 httpx 异步客户端。"""
+    global _SHARED_CLIENT
+    if _SHARED_CLIENT is None or _SHARED_CLIENT.is_closed:
+        with _CLIENT_LOCK:
+            if _SHARED_CLIENT is None or _SHARED_CLIENT.is_closed:
+                _SHARED_CLIENT = httpx.AsyncClient(
+                    limits=_HTTP_LIMITS,
+                    timeout=httpx.Timeout(10.0),
+                    headers={"connection": "keep-alive"},
+                )
+    return _SHARED_CLIENT
+
+
+async def close_samsara_client() -> None:
+    """关闭共享客户端（FastAPI shutdown 钩子调用）。"""
+    global _SHARED_CLIENT
+    client, _SHARED_CLIENT = _SHARED_CLIENT, None
+    if client is not None and not client.is_closed:
+        await client.aclose()
+
+
+class _TimeoutClientProxy:
+    """为共享客户端注入默认超时的轻量代理（保持 client.get/post 签名兼容）。"""
+
+    __slots__ = ("_client", "_timeout")
+
+    def __init__(self, client: httpx.AsyncClient, timeout: float):
+        self._client = client
+        self._timeout = timeout
+
+    def _with_timeout(self, kwargs: dict) -> dict:
+        kwargs.setdefault("timeout", self._timeout)
+        return kwargs
+
+    async def get(self, url, **kwargs):
+        return await self._client.get(url, **self._with_timeout(kwargs))
+
+    async def post(self, url, **kwargs):
+        return await self._client.post(url, **self._with_timeout(kwargs))
+
+    async def put(self, url, **kwargs):
+        return await self._client.put(url, **self._with_timeout(kwargs))
+
+    async def patch(self, url, **kwargs):
+        return await self._client.patch(url, **self._with_timeout(kwargs))
+
+    async def delete(self, url, **kwargs):
+        return await self._client.delete(url, **self._with_timeout(kwargs))
+
+    async def request(self, method, url, **kwargs):
+        return await self._client.request(method, url, **self._with_timeout(kwargs))
+
+    # 透传属性（如 .headers），避免调用点 AttributeError
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
+@asynccontextmanager
+async def samsara_client(timeout: float = 10.0):
+    """共享客户端上下文：`async with samsara_client(5.0) as client:`。
+
+    与 `httpx.AsyncClient(timeout=5.0)` 用法一致，但不新建连接、退出时不关闭连接。
+    """
+    yield _TimeoutClientProxy(get_samsara_client(), timeout)
+
+
+def samsara_warn(context: str, exc: BaseException) -> None:
+    """统一记录 samsara 调用失败（替代原先的 `except Exception: pass`）。"""
+    _samsara_logger.warning("samsara 调用失败（已降级）[%s]: %s: %s", context, type(exc).__name__, exc)
+
+
+async def samsara_get_json(path_or_url: str, default: Any = None, timeout: float = 5.0,
+                           base: Optional[str] = None) -> Any:
+    """GET 一个 samsara 接口并解析 JSON；失败返回 default（并记录日志）。"""
+    url = path_or_url if path_or_url.startswith("http") else f"{base}{path_or_url}"
+    try:
+        async with samsara_client(timeout) as client:
+            resp = await client.get(url)
+        if resp.status_code != 200:
+            _samsara_logger.warning("samsara GET %s 返回 %s", url, resp.status_code)
+            return default
+        return resp.json()
+    except Exception as e:
+        samsara_warn(f"GET {url}", e)
+        return default
+
+
+async def samsara_post_json(path_or_url: str, payload: Optional[dict] = None, timeout: float = 5.0,
+                            base: Optional[str] = None) -> Any:
+    """POST 到 samsara；失败返回 None（并记录日志）。"""
+    url = path_or_url if path_or_url.startswith("http") else f"{base}{path_or_url}"
+    try:
+        async with samsara_client(timeout) as client:
+            resp = await client.post(url, json=payload or {})
+        if resp.status_code >= 400:
+            _samsara_logger.warning("samsara POST %s 返回 %s", url, resp.status_code)
+            return None
+        try:
+            return resp.json()
+        except ValueError:
+            return None
+    except Exception as e:
+        samsara_warn(f"POST {url}", e)
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -165,8 +312,8 @@ class BaseGameState:
             if ka is not None and hasattr(ka, "set_realm_detection"):
                 try:
                     ka.set_realm_detection(0.0)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    samsara_warn("samsara 调用", _e)
         return None
 
     # ───────────────────────────────────────────────────────────
@@ -290,6 +437,11 @@ def register_common_routes(
     static_dir = Path(static_dir)
     SAMSARA_API_URL = samsara_api_url  # noqa: N806 (local alias for readability vs original)
 
+    # 共享 httpx 连接池随应用生命周期关闭（每个 app 注册一次，幂等无害）
+    @app.on_event("shutdown")
+    async def _close_shared_http_client():
+        await close_samsara_client()
+
     # ───────────────────────────────────────────────────────────
     # 根路由
     # ───────────────────────────────────────────────────────────
@@ -313,7 +465,7 @@ def register_common_routes(
         body = await request.body()
         headers = {k: v for k, v in request.headers.items() if k.lower() not in ("host", "content-length")}
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with samsara_client(10.0) as client:
                 resp = await client.request(
                     request.method, target_url,
                     headers=headers, content=body, params=request.query_params,
@@ -449,35 +601,39 @@ def register_common_routes(
         }
 
     @app.post("/api/karma/recover")
-    async def recover_karma(request: Request):
-        """业力减少（消业）事件入口。game_type 参数化（对应六道棋名）。"""
-        body = await request.json()
-        event_type = body.get("event_type", "")
-        amount = body.get("amount", 0)
+    async def recover_karma(req: KarmaRecoverRequest):
+        """业力减少（消业）事件入口。game_type 参数化（对应六道棋名）。
+
+        改用 Pydantic 模型校验（审查报告 4.3）：缺字段不再 500，类型错误由
+        FastAPI 统一返回 422；event_data 仍原样透传给 samsara。
+        """
+        event_type = req.event_type
+        amount = req.amount
+        body = req.model_dump()
         karma_assessor = state.ai_orchestrator.karma_assessor
 
         # 从 samsara 获取技能修饰符
         skill_modifiers: Dict[str, Any] = {}
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with samsara_client(5.0) as client:
                 skill_resp = await client.get(f"{SAMSARA_API_URL}/api/skills")
                 if skill_resp.status_code == 200:
                     skill_data = skill_resp.json()
                     skill_modifiers = skill_data.get("modifiers", {})
-        except Exception:
-            pass
+        except Exception as _e:
+            samsara_warn("samsara 调用", _e)
 
         actual = karma_assessor.decrease_karma(amount, skill_modifiers)
 
-        # 同步到 samsara
+        # 同步到 samsara（失败仅记录，不阻断本地消业结果）
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with samsara_client(5.0) as client:
                 await client.post(
                     f"{SAMSARA_API_URL}/api/karma/recover",
                     json={"game_type": game_type, "event_type": event_type, "event_data": body}
                 )
-        except Exception:
-            pass
+        except Exception as _e:
+            samsara_warn("samsara 调用", _e)
 
         return {
             "success": True,
@@ -605,8 +761,8 @@ def register_common_routes(
             )
             if resp_raw.status_code == 200:
                 return resp_raw.json()
-        except Exception:
-            pass
+        except Exception as _e:
+            samsara_warn("samsara 调用", _e)
         return {
             "karma": _build_karma_detection_payload(state)["karma"]["current"],
             "karma_max": _build_karma_detection_payload(state)["karma"]["max"],
@@ -638,7 +794,7 @@ def register_common_routes(
     async def get_level_info():
         """获取当前关卡信息（代理到 Samsara）。"""
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with samsara_client(5.0) as client:
                 resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
                 data = resp.json()
                 return data
@@ -654,7 +810,7 @@ def register_common_routes(
         """
         try:
             samsara_level = None
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with samsara_client(5.0) as client:
                 resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
                 data = resp.json()
                 level = data.get("current_level")
@@ -680,7 +836,7 @@ def register_common_routes(
                 state.save_config("rules")
                 state.mark_config_cache_fresh()
 
-                async with httpx.AsyncClient(timeout=5.0) as client2:
+                async with samsara_client(5.0) as client2:
                     await client2.post(f"{SAMSARA_API_URL}/api/turn/reset")
                     await client2.post(
                         f"{SAMSARA_API_URL}/api/turn/increment",
@@ -707,7 +863,7 @@ def register_common_routes(
     async def complete_level(won: bool = True, no_cheat: bool = False, boss_defeated: bool = False):
         """通关/失败时调用 samsara progression 解析进度，并在胜利时推进关卡。"""
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with samsara_client(10.0) as client:
                 resp = await client.post(
                     f"{SAMSARA_API_URL}/api/progression/resolve",
                     json={"won": won, "no_cheat": no_cheat, "boss_defeated": boss_defeated}

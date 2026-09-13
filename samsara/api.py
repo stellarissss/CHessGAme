@@ -1,5 +1,8 @@
+from typing import Any, Dict
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from .state import SamsaraState, REALM_NAMES
 from .karma import KarmaSystem
 from .karma_assessor import KarmaAssessor
@@ -34,6 +37,44 @@ NO_CACHE_HEADERS = {
 }
 
 
+# ─────────────────────────────────────────────────────────────
+# 请求模型（审查报告 4.3）：原先直接 `body.get()`，字段类型错误会在
+# 业务运算中抛异常 → 500。改为 Pydantic 校验后，类型错误统一 422。
+# 所有字段均带默认值且允许额外字段，保证对现有调用方完全兼容。
+# ─────────────────────────────────────────────────────────────
+
+class _LooseModel(BaseModel):
+    model_config = {"extra": "allow"}
+
+
+class KarmaRecoverReq(_LooseModel):
+    game_type: str = ""
+    event_type: str = ""
+    event_data: Dict[str, Any] = {}
+
+
+class KarmaAssessReq(_LooseModel):
+    game_type: str = ""
+    instruction: str = ""
+    intent_class: str = "C"
+    board_summary: str = ""
+
+
+class KarmaConsumeReq(_LooseModel):
+    amount: float = 0
+    allow_overdraft: bool = True
+
+
+class KarmaEventReq(_LooseModel):
+    game_type: str = ""
+    event_type: str = ""
+    details: Dict[str, Any] = {}
+
+
+class KarmaRefundReq(_LooseModel):
+    amount: float = 0
+
+
 def _frontend_state() -> dict:
     """统一使用 SamsaraState.get_frontend_state() 避免双副本错位。"""
     return state.get_frontend_state()
@@ -55,32 +96,29 @@ async def get_karma():
 
 
 @app.post("/api/karma/recover")
-async def recover_karma(request: Request):
-    body = await request.json()
-    game_type = body.get("game_type", "")
-    event_type = body.get("event_type", "")
-    event_data = body.get("event_data", {})
+async def recover_karma(req: KarmaRecoverReq):
+    game_type = req.game_type
+    event_type = req.event_type
+    event_data = req.event_data
     amount = karma.recover(game_type, event_type, event_data)
     return _nc({"success": True, "amount": amount, "karma": karma.get_state(), "state": _frontend_state()})
 
 
 @app.post("/api/karma/assess")
-async def assess_karma(request: Request):
-    body = await request.json()
-    game_type = body.get("game_type", "")
-    instruction = body.get("instruction", "")
-    intent_class = body.get("intent_class", "C")
-    board_summary = body.get("board_summary", "")
+async def assess_karma(req: KarmaAssessReq):
+    game_type = req.game_type
+    instruction = req.instruction
+    intent_class = req.intent_class
+    board_summary = req.board_summary
     amount = await karma_assessor.assess(game_type, instruction, intent_class, board_summary)
     return _nc({"success": True, "estimated_cost": amount})
 
 
 @app.post("/api/karma/consume")
-async def consume_karma(request: Request):
+async def consume_karma(req: KarmaConsumeReq):
     """作弊增加业力。返回 overshoot 信息用于识破判定。"""
-    body = await request.json()
-    amount = body.get("amount", 0)
-    allow_overdraft = body.get("allow_overdraft", True)
+    amount = req.amount
+    allow_overdraft = req.allow_overdraft
     actual, is_overdraft, overdraft_amount = karma.consume(amount, allow_overdraft)
     if actual == 0:
         return _nc({"success": False, "message": "超出单次上限，拦截", "state": _frontend_state()})
@@ -99,19 +137,17 @@ async def consume_karma(request: Request):
 
 
 @app.post("/api/karma/event")
-async def karma_event(request: Request):
-    body = await request.json()
-    game_type = body.get("game_type", "")
-    event_type = body.get("event_type", "")
-    details = body.get("details", {})
+async def karma_event(req: KarmaEventReq):
+    game_type = req.game_type
+    event_type = req.event_type
+    details = req.details
     amount = karma.recover(game_type, event_type, details)
     return _nc({"success": True, "amount": amount, "state": _frontend_state()})
 
 
 @app.post("/api/karma/refund")
-async def refund_karma(request: Request):
-    body = await request.json()
-    amount = body.get("amount", 0)
+async def refund_karma(req: KarmaRefundReq):
+    amount = req.amount
     karma.refund(amount)
     return _nc({"success": True, "karma": karma.get_state(), "state": _frontend_state()})
 

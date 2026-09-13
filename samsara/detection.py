@@ -139,9 +139,9 @@ class DetectionSystem:
 
         modifiers = self.state.get_skill_modifiers()
 
-        # 首次溢出豁免
+        # 首次溢出豁免（一次性技能 stealth_t2a：每关一次，消耗持久化到 SamsaraState）
         if modifiers["first_overdraft_skip"]:
-            modifiers["first_overdraft_skip"] = False
+            self.state.consume_one_time_skill("stealth_t2a", context="overdraft_skip")
             return {
                 "detected": False,
                 "delta": 0.0,
@@ -162,9 +162,9 @@ class DetectionSystem:
         detected = self.check(current)
 
         if detected:
-            # 金蝉脱壳技能：首次被识破可减半概率逃过
+            # 金蝉脱壳技能：首次被识破可减半概率逃过（一次性技能 stealth_t3a，消耗持久化）
             if modifiers["golden_escape"]:
-                modifiers["golden_escape"] = False
+                self.state.consume_one_time_skill("stealth_t3a", context="golden_escape")
                 self.state.set_detection(current * 0.5)
                 return {
                     "detected": False,

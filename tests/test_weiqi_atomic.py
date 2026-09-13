@@ -8,9 +8,13 @@
 """
 import importlib.util
 import sys
+from pathlib import Path
 
-RPG_PATH = "/workspace/CHessGAme/weiqi/rule_engine.py"
-SND_PATH = "/workspace/CHessGAme/sandbox/weiqi/rule_engine.py"
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+RPG_PATH = str(ROOT / "weiqi" / "rule_engine.py")
+SND_PATH = str(ROOT / "sandbox" / "weiqi" / "rule_engine.py")
 
 
 def _load(path, name):
@@ -59,6 +63,7 @@ def _new_engine(mod, rules):
     return mod.RuleEngine(GEOM, {"pieces": {}}, {"pieces": {}}, rules)
 
 
+@pytest.mark.parametrize("mod, tag", [(RPG, "rpg"), (SND, "sandbox")])
 def test_fastboard_liberty_cap(mod, tag):
     print(f"[FastBoard·{tag}] 限气 liberty_cap=3")
     fb = mod.FastBoard(9, 9).configure_modifiers(CAP3)
@@ -90,6 +95,7 @@ def test_fastboard_liberty_cap(mod, tag):
     check(f"{tag} 白提子数+1", fb1.captures[mod.FastBoard.WHITE] == c_before + 1)
 
 
+@pytest.mark.parametrize("mod, tag", [(RPG, "rpg"), (SND, "sandbox")])
 def test_engine_liberty_cap(mod, tag):
     print(f"[RuleEngine·{tag}] 限气 liberty_cap=3")
     eng = _new_engine(mod, CAP3)
@@ -108,6 +114,7 @@ def test_engine_liberty_cap(mod, tag):
     check(f"{tag} 白提子数=1", new["captures"]["white"] == 1)
 
 
+@pytest.mark.parametrize("mod, tag", [(RPG, "rpg"), (SND, "sandbox")])
 def test_fastboard_uncapturable(mod, tag):
     print(f"[FastBoard·{tag}] 不可吃 uncapturable=true")
     fb = mod.FastBoard(9, 9).configure_modifiers(UNCAP_BLACK)
@@ -124,6 +131,7 @@ def test_fastboard_uncapturable(mod, tag):
     check(f"{tag} get_captured_stones 不含黑", fb.get_captured_stones(4, 5, mod.FastBoard.WHITE) == [])
 
 
+@pytest.mark.parametrize("mod, tag", [(RPG, "rpg"), (SND, "sandbox")])
 def test_engine_uncapturable(mod, tag):
     print(f"[RuleEngine·{tag}] 不可吃 uncapturable=true")
     eng = _new_engine(mod, UNCAP_BLACK)
@@ -136,6 +144,7 @@ def test_engine_uncapturable(mod, tag):
     check(f"{tag} remove_group 不可移除（返回0）", eng.remove_group(st, 4, 4) == 0)
 
 
+@pytest.mark.parametrize("mod, tag", [(RPG, "rpg"), (SND, "sandbox")])
 def test_default_unchanged(mod, tag):
     print(f"[默认·{tag}] 不配置机制原语时行为不变")
     fb = mod.FastBoard(9, 9)

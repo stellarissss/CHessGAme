@@ -262,6 +262,10 @@ class SkillSystem:
         branch = self.skill_tree["branches"].get(branch_id)
         if not branch:
             return False
+        # 幂等短路：已解锁的技能直接拒绝，避免重复扣点
+        # （下方 spend 成功后 unlock_skill 会因技能已存在返回 False）
+        if self.state.is_skill_unlocked(skill_id):
+            return False
         tier_key = str(tier)
         if tier > 1:
             prev_tier_key = str(tier - 1)
@@ -285,13 +289,19 @@ class SkillSystem:
                     if opt["id"] == skill_id:
                         cost = opt["cost"]
                         if self.state.spend_skill_point(cost):
-                            return self.state.unlock_skill(skill_id, tier)
+                            if self.state.unlock_skill(skill_id, tier):
+                                return True
+                            # 防御性回滚：扣点成功但解锁未生效时退还
+                            self.state.refund_skill_point(cost)
                         return False
             else:
                 if tier_data["id"] == skill_id:
                     cost = tier_data["cost"]
                     if self.state.spend_skill_point(cost):
-                        return self.state.unlock_skill(skill_id, tier)
+                        if self.state.unlock_skill(skill_id, tier):
+                            return True
+                        # 防御性回滚：扣点成功但解锁未生效时退还
+                        self.state.refund_skill_point(cost)
         return False
 
     def get_available_skills(self):

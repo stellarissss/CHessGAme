@@ -39,6 +39,9 @@ from shared.game_base import (
     SetApiKey,      # noqa: F401（re-export，保持原 import 语义对外可见）
     DifficultyRequest,
     PlayerCommand,
+    close_samsara_client,
+    samsara_client,
+    samsara_warn,
 )
 
 from ai_orchestrator import AIOrchestrator
@@ -157,7 +160,7 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
         allowed_classifications = None
         samsara_data = {}
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with samsara_client(5.0) as client:
                 state_resp = await client.get(f"{SAMSARA_API_URL}/api/state")
                 if state_resp.status_code == 200:
                     samsara_data = state_resp.json()
@@ -165,25 +168,17 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
                     state.ai_orchestrator.karma_assessor.set_local_karma_state(
                         karma=samsara_data.get("karma", 50),
                         karma_max=samsara_data.get("karma_max", 120),
-                        single_max=samsara_data.get("karma_single_max", 150),
+                        single_max=samsara_data.get("karma_single_max", 120),
                     )
                     state.ai_orchestrator.karma_assessor.set_realm_detection(
                         detection=samsara_data.get("detection", 0.0),
                         realm=samsara_data.get("current_realm", "human"),
                     )
                     allowed_classifications = samsara_data.get("allowed_classifications")
-                    # 获取技能修饰符
+                    # 获取技能修饰符（同一 /api/state 响应已含该字段，无需二次请求）
                     skill_modifiers = samsara_data.get("skill_modifiers", {})
-                    if not skill_modifiers:
-                        try:
-                            async with httpx.AsyncClient(timeout=5.0) as client2:
-                                mod_resp = await client2.get(f"{SAMSARA_API_URL}/api/state")
-                                if mod_resp.status_code == 200:
-                                    skill_modifiers = mod_resp.json().get("skill_modifiers", {})
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+        except Exception as _e:
+            samsara_warn("samsara 调用", _e)
 
         result = await state.ai_orchestrator.process_command(
             req.command, {
@@ -234,7 +229,7 @@ async def process_command(req: PlayerCommand, dry_run: str = Query(None)):
 
             # 同步到 samsara（业障模型：consume 接口现在表示增加业力）
             try:
-                async with httpx.AsyncClient(timeout=10.0) as client:
+                async with samsara_client(10.0) as client:
                     await client.post(
                         f"{SAMSARA_API_URL}/api/karma/consume",
                         json={"amount": estimated_karma_cost, "allow_overdraft": True}
@@ -576,12 +571,12 @@ async def _trigger_karma_recover(board: dict, position: list, side: str):
         # 获取技能修饰符
         skill_modifiers = {}
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with samsara_client(3.0) as client:
                 skill_resp = await client.get(f"{SAMSARA_API_URL}/api/skills")
                 if skill_resp.status_code == 200:
                     skill_modifiers = skill_resp.json().get("modifiers", {})
-        except Exception:
-            pass
+        except Exception as _e:
+            samsara_warn("samsara 调用", _e)
 
         # 检测当前方连子数（三/四/五）
         counts = _count_consecutive(board, position, side)
@@ -620,7 +615,7 @@ async def _trigger_karma_recover(board: dict, position: list, side: str):
             karma_assessor.decrease_karma(amount, skill_modifiers)
             # 同步到 samsara
             try:
-                async with httpx.AsyncClient(timeout=3.0) as client:
+                async with samsara_client(3.0) as client:
                     await client.post(
                         f"{SAMSARA_API_URL}/api/karma/event",
                         json={
@@ -629,10 +624,10 @@ async def _trigger_karma_recover(board: dict, position: list, side: str):
                             "details": {"position": position, "side": side}
                         }
                     )
-            except Exception:
-                pass
-    except Exception:
-        pass
+            except Exception as _e:
+                samsara_warn("samsara 调用", _e)
+    except Exception as _e:
+        samsara_warn("samsara 调用", _e)
 
 
 def _count_consecutive(board: dict, position: list, side: str) -> list:

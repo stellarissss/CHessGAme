@@ -1,4 +1,5 @@
 import json
+import re
 import copy
 from pathlib import Path
 from datetime import datetime
@@ -6,8 +7,50 @@ from datetime import datetime
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIGS_DIR = BASE_DIR / "configs"
 STATE_FILE = CONFIGS_DIR / "samsara_state.json"
+SKILL_TREE_FILE = CONFIGS_DIR / "skill_tree.json"
 
 REALMS = ["hell", "hungry", "animal", "human", "asura", "heaven"]
+
+# 一次性技能（每局/每关一次，关卡开始时重置）：
+#   stealth_t2a 首次透支免判、stealth_t3a 金蝉脱壳
+ONE_TIME_SKILL_IDS = ("stealth_t2a", "stealth_t3a")
+
+
+def _load_skill_ids() -> set:
+    """从 configs/skill_tree.json 加载全部权威技能 id（单一事实来源）。"""
+    try:
+        tree = json.loads(SKILL_TREE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+    ids: set = set()
+    for branch in tree.get("branches", {}).values():
+        for tier_data in branch.get("tiers", {}).values():
+            if "options" in tier_data:
+                for opt in tier_data["options"]:
+                    if opt.get("id"):
+                        ids.add(opt["id"])
+            elif tier_data.get("id"):
+                ids.add(tier_data["id"])
+    return ids
+
+
+_SKILL_IDS = _load_skill_ids()
+
+
+def normalize_skill_key(skill_id: str) -> str:
+    """把任意历史格式的技能键规范化为技能树权威 id。
+
+    权威格式：configs/skill_tree.json 中的 id（如 karma_capacity_t1 / stealth_t2a）。
+    历史格式：权威 id + "_t{tier}" 冗余后缀（如 karma_capacity_t1_t1，由旧版
+    unlock_skill 写入）→ 剥离后缀还原权威 id；无法识别时原样返回。
+    """
+    sid = str(skill_id).strip()
+    if sid in _SKILL_IDS:
+        return sid
+    m = re.fullmatch(r"(.+?)_t\d+", sid)
+    if m and m.group(1) in _SKILL_IDS:
+        return m.group(1)
+    return sid
 REALM_NAMES = {
     "hell": "地狱道",
     "hungry": "饿鬼道",
@@ -38,11 +81,12 @@ class SamsaraState:
             "current_level": 0,
             "skill_points": 0,
             "karma_max": 120,
-            "karma_single_max": 150,
+            "karma_single_max": 120,
             "initial_karma": 50,
             "realm_overshoot_carryover": 0,
             "realm_detections": {r: 0.0 for r in REALMS},
             "skills": {},
+            "one_time_skill_usage": {},   # 一次性技能消耗记录 {skill_id: {used_at, context}}
             "current_turn": 0,
             "turn_limit": 20,
             "cheat_count": 0,
@@ -95,11 +139,32 @@ class SamsaraState:
             if k not in self._data:
                 self._data[k] = v
 
+        # 技能键规范化：把旧格式 "{id}_t{tier}" 统一为权威 id（就地迁移，见 normalize_skill_key）。
+        # 必须先于 v3→v4 迁移执行，保证 pop("karma_capacity_t1") 能匹配到旧格式键。
+        normalized_skills: dict = {}
+        skills_changed = False
+        for key, meta in self._data.get("skills", {}).items():
+            norm = normalize_skill_key(key)
+            if norm != key:
+                skills_changed = True
+            if norm in normalized_skills:
+                # 同一技能出现两种格式：保留更早的 unlocked_at
+                old = normalized_skills[norm].get("unlocked_at", "")
+                new = meta.get("unlocked_at", "")
+                if new and (not old or new < old):
+                    normalized_skills[norm] = meta
+            else:
+                normalized_skills[norm] = meta
+        if skills_changed or len(normalized_skills) != len(self._data.get("skills", {})):
+            self._data["skills"] = normalized_skills
+            self._save()
+
         # 迁移：v1→v2 业障模型
         if self._data.get("karma_max") == 150:
             self._data["karma_max"] = 120
-        if self._data.get("karma_single_max", 120) in (80, 120):
-            self._data["karma_single_max"] = 150
+        # 单次上限统一为 120：历史存档（80 / 旧版 150）一并归一化
+        if self._data.get("karma_single_max", 120) != 120:
+            self._data["karma_single_max"] = 120
         if "initial_karma" not in self._data:
             self._data["initial_karma"] = 50
         if "realm_overshoot_carryover" not in self._data:
@@ -117,7 +182,7 @@ class SamsaraState:
             self._data["version"] = 4
             if "karma_capacity_t1" in self._data.get("skills", {}):
                 self._data["skills"].pop("karma_capacity_t1", None)
-            # 保留单次上限为 150（与业力评估口径一致），仅回退安全阈值相关加成
+            # 单次上限同样为 120（与总上限、业力评估口径一致），初始上限恒为 120
         # 补齐 realm_progress 子字段（向后兼容）
         for r in REALMS:
             rp = self._data["realm_progress"].get(r, {})
@@ -163,6 +228,9 @@ class SamsaraState:
         self._data["cheat_count"] = 0
         self._data["overdraft_count"] = 0
         self._data["no_cheat_this_level"] = True
+        # 一次性技能（首次透支免判/金蝉脱壳）为"每关一次"，关卡开始时重置
+        if self._data.get("one_time_skill_usage"):
+            self._data["one_time_skill_usage"] = {}
         self._save()
 
     def record_level_end(self):
@@ -205,8 +273,19 @@ class SamsaraState:
             return True
         return False
 
+    def refund_skill_point(self, count=1):
+        """退还技能点（扣点成功但解锁未生效时的回滚路径）。"""
+        self._data["skill_points"] += count
+        self._save()
+
     def unlock_skill(self, skill_id, tier):
-        skill_key = f"{skill_id}_t{tier}"
+        """解锁技能：以技能树权威 id（如 stealth_t2a）作为存储键。
+
+        旧版曾存储 "{id}_t{tier}"（如 stealth_t2a_t2），导致 get_skill_modifiers /
+        is_skill_unlocked 按裸 id 匹配永远落空、整棵技能树失效；现统一存权威 id，
+        旧格式存档由 _init_defaults 的 normalize_skill_key 迁移。
+        """
+        skill_key = normalize_skill_key(skill_id)
         if self._data["skills"].get(skill_key):
             return False
         self._data["skills"][skill_key] = {
@@ -216,12 +295,27 @@ class SamsaraState:
         self._save()
         return True
 
-    def is_skill_unlocked(self, skill_id, tier):
-        # skill_id 可能是 "karma_capacity" 或 "karma_capacity_t1" 格式
-        # 如果是完整格式，直接检查；否则构建完整键
-        if f"_t{tier}" in skill_id:
-            return skill_id in self._data["skills"]
-        return f"{skill_id}_t{tier}" in self._data["skills"]
+    def is_skill_unlocked(self, skill_id, tier=None):
+        """判断技能是否已解锁（skill_id 为技能树权威 id，tier 仅保留兼容签名）。"""
+        return normalize_skill_key(skill_id) in self._data["skills"]
+
+    # ── 一次性技能（每关一次，关卡开始时随 reset_level_state 重置） ──
+
+    def consume_one_time_skill(self, skill_id: str, context: str = "") -> bool:
+        """消耗一次性技能。首次消耗返回 True；已消耗过返回 False（幂等）。"""
+        skill_key = normalize_skill_key(skill_id)
+        usage = self._data.setdefault("one_time_skill_usage", {})
+        if skill_key in usage:
+            return False
+        usage[skill_key] = {
+            "used_at": datetime.now().isoformat(),
+            "context": context,
+        }
+        self._save()
+        return True
+
+    def is_one_time_skill_used(self, skill_id: str) -> bool:
+        return normalize_skill_key(skill_id) in self._data.get("one_time_skill_usage", {})
 
     def record_cheat(self):
         self._data["cheat_count"] += 1
@@ -342,7 +436,13 @@ class SamsaraState:
             "transcendence_bonus": 0,
             "free_cheat_on_realm_change": False,
         }
-        skills = self._data.get("skills", {})
+        # 规范化存档键（兼容旧格式 "{id}_t{tier}"），再做技能→modifier 映射
+        skills = {
+            normalize_skill_key(k): v
+            for k, v in self._data.get("skills", {}).items()
+        }
+        # 一次性技能：已在本关消耗过则视为失效
+        used_one_time = self._data.get("one_time_skill_usage", {})
         if "karma_capacity_t1" in skills:
             modifiers["karma_max_bonus"] += 20
         if "karma_capacity_t2a" in skills:
@@ -355,11 +455,11 @@ class SamsaraState:
             modifiers["initial_karma_reduction"] = 25
         if "stealth_t1" in skills:
             modifiers["detection_coefficient"] = 0.07
-        if "stealth_t2a" in skills:
+        if "stealth_t2a" in skills and "stealth_t2a" not in used_one_time:
             modifiers["first_overdraft_skip"] = True
         if "stealth_t2b" in skills:
             modifiers["consecutive_avoid"] = True
-        if "stealth_t3a" in skills:
+        if "stealth_t3a" in skills and "stealth_t3a" not in used_one_time:
             modifiers["golden_escape"] = True
         if "stealth_t3b" in skills:
             modifiers["mist_fog"] = True
@@ -617,7 +717,7 @@ class SamsaraState:
             "skills": copy.deepcopy(self._data.get("skills", {})),
             "skill_points": self._data.get("skill_points", 0),
             "karma_max": self._data.get("karma_max", 120),
-            "karma_single_max": self._data.get("karma_single_max", 150),
+            "karma_single_max": self._data.get("karma_single_max", 120),
             "initial_karma": self._data.get("initial_karma", 50),
             "endings_unlocked": copy.deepcopy(
                 self._data.get("endings_unlocked", {
