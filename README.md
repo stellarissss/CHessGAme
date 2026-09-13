@@ -713,6 +713,7 @@ workspace/
 - [大地图渲染架构 v2.2](WebGPU渲染架构.md) — WebGPU 主通道 + 智能画质分级 + 呈现自检降级 + 测试方法
 - [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
 - [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
+- [大地图景观设计书](docs/overworld/overworld_landscape_design.md) — 六道大陆景观与结构设计（生成器：`scripts/gen_overworld.py`，预览图：[`preview.png`](docs/overworld/preview.png)）
 
 ---
 

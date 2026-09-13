@@ -3,7 +3,8 @@
    永久替换损坏的 WebGPU 渲染器：melonJS v20 以默认 Canvas2D（黑屏不可能）
    或 WebGL 渲染整张大陆，内置动态光（ambientLight 暗色叠加被各 Light2d 挖空）。
    · 静态地图整屏预渲染到离屏 canvas，逐帧仅用一次 drawImage 截取可视区（高性能）
-   · 动态光影：舞台 ambientLight 昼夜循环 + 太阳光/玩家火把/各道境辉光 Light2d
+   · 动态光影：舞台 ambientLight 昼夜循环 + 玩家火把/各道境辉光 Light2d
+     （注意：Light2d 第 3/4 参为半径；全局明暗由 ambientLight 承担，勿再加巨型加色 glow）
    · 玩家/POI/小地图/HUD 复用 overworld-wgpu.js 的 DOM 覆盖层胶水
    与 overworld-ui.js 兼容：保留 getSamsara / syncSamsara / refreshFromUI 等接口。
    ═══════════════════════════════════════════════════════════════ */
@@ -112,11 +113,160 @@ var OverworldGame = {
 
     // 加载 4 张图集图（等待 onload）
     return this._loadAtlases().then(function () {
-      self._prerender();
-      return self._prepDrawImage();
-    }).then(function () {
-      if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(45);
-    });
+      self.  _prerender: function () {
+    var W = this.W, H = this.H, cell = CELL;
+    var map = this.mapCanvas = document.createElement('canvas');
+    var mapW = map.width = W * cell, mapH = map.height = H * cell;
+    var ctx = map.getContext('2d');
+    var self = this;
+    var baked = (this.ow && this.ow.baked) || {};
+    var terrainStr = baked.terrain || "";
+    var heightStr  = baked.height  || "";
+    var hasBaked = terrainStr.length === W * H;
+
+    function tileRect(index) {
+      return { sx: (index % 12) * 16, sy: Math.floor(index / 12) * 16 };
+    }
+    function drawTile(theme, index, x, y) {
+      var img = self.atlases[theme];
+      if (!img || !img.width) return;
+      var s = tileRect(index);
+      ctx.drawImage(img, s.sx, s.sy, 16, 16, x, y, cell, cell);
+    }
+    function shadow(x, y, r) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.beginPath();
+      ctx.ellipse(x + cell * 0.5, y + cell * 0.78, r * cell, r * cell * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 1) 中性暗色底
+    ctx.fillStyle = '#1d231b';
+    ctx.fillRect(0, 0, mapW, mapH);
+
+    // 2) 地面（按 baked 主题选砖）
+    var palette = {};
+    var REGION_THEME = {};
+    if (this.ow.ground_palette) this.ow.ground_palette.forEach(function (gp) { palette[gp.theme] = gp.tiles; });
+    if (this.ow.regions) this.ow.regions.forEach(function (r) { REGION_THEME[r.id] = r.theme; });
+
+    if (hasBaked && Object.keys(palette).length) {
+      var regionStr = baked.region || "";
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var idx = x + y * W;
+        var t = terrainStr.charCodeAt(idx) - 48;
+        // 仅画陆地（GRASS=3, HILL=4, SALT=10, DRY=11）
+        if (t !== 3 && t !== 4 && t !== 10 && t !== 11) continue;
+        var theme = 'town';
+        var c = regionStr.charAt(idx);
+        if (c >= '0' && c <= '8') {
+          var rid = REGION_ORDER[parseInt(c, 10)];
+          if (REGION_THEME[rid]) theme = REGION_THEME[rid];
+        }
+        var pool = palette[theme] || palette.town || [0];
+        var tile_idx = pool[Math.floor(self._hash(x, y, 1) * pool.length)];
+        drawTile(theme, tile_idx, x * cell, y * cell);
+      }
+    } else {
+      // 旧字段：按 region.rect
+      (this.ow.regions || []).forEach(function (rg) {
+        var r = rg.rect, x0 = r[0], y0 = r[1], x1 = r[2], y1 = r[3];
+        var ground = rg.ground && rg.ground.length ? rg.ground : [0];
+        var theme = rg.theme || 'town';
+        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+          if (x < 0 || x >= self.W || y < 0 || y >= self.H) continue;
+          var t = ground[Math.floor(self._hash(x, y, 1) * ground.length) % ground.length];
+          drawTile(theme, t, x * cell, y * cell);
+        }
+      });
+    }
+
+    // 3) 水 / 海 / 河（按 terrain 类型染色）
+    var waterColor = { 0:'#1c567e', 1:'#4fa8c8', 2:'#dcceaa', 7:'#b43c1e', 9:'#e8f0f6' };
+    if (hasBaked) {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var t = terrainStr.charCodeAt(x + y * W) - 48;
+        if (waterColor[t] !== undefined) {
+          ctx.fillStyle = waterColor[t];
+          ctx.fillRect(x * cell, y * cell, cell, cell);
+        }
+      }
+    } else {
+      ctx.fillStyle = '#1E6A96';
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++)
+        if (this.flags[y * W + x] & F.WATER) ctx.fillRect(x * cell, y * cell, cell, cell);
+    }
+
+    // 4) 山（按高度 + 纬度渐变）
+    function rgbMt(yy, h8) {
+      var snowT = Math.max(0, Math.min(1, (140 - h8) / 100 + (1 - yy / 30)));
+      return 'rgb(' + Math.round(127 * (1 - snowT) + 232 * snowT) + ',' +
+        Math.round(122 * (1 - snowT) + 240 * snowT) + ',' +
+        Math.round(115 * (1 - snowT) + 246 * snowT) + ')';
+    }
+    if (hasBaked) {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var t = terrainStr.charCodeAt(x + y * W) - 48;
+        if (t !== 5 && t !== 6) continue;  // MOUNT, ALPINE
+        var h8 = heightStr.length === W * H ? heightStr.charCodeAt(x + y * W) : 128;
+        ctx.fillStyle = rgbMt(y, h8);
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    } else {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        if (!(this.flags[y * W + x] & F.MOUNT)) continue;
+        ctx.fillStyle = rgbMt(y, 128);
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+
+    // 5) 道路
+    ctx.fillStyle = '#C9B37E';
+    if (this.ow.roads && this.ow.roads.length && this.ow.roads[0].cells) {
+      // 新 roads：每条 {id, level, cells, shoulder}
+      (this.ow.roads || []).forEach(function (r) {
+        (r.cells || []).forEach(function (c) {
+          ctx.fillRect(c[0] * cell, c[1] * cell, cell, cell);
+        });
+      });
+    } else {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++)
+        if (this.flags[y * W + x] & F.ROAD) ctx.fillRect(x * cell, y * cell, cell, cell);
+    }
+
+    // 6) 装饰（烘焙 decor 数组，按 y 排序；旧 decor_anchors + decor_plant 兜底）
+    if (this.decor && this.decor.length) {
+      var decorSorted = this.decor.slice().sort(function (a, b) { return a[1] - b[1]; });
+      decorSorted.forEach(function (d) {
+        var x = d[0], y = d[1], theme = d[2], idx = d[3], solid = d[4];
+        if (x < 0 || x >= W || y < 0 || y >= H) return;
+        shadow(x, y, solid ? 0.42 : 0.32);
+        drawTile(theme, idx, x * cell, y * cell);
+      });
+    } else {
+      // 旧字段 fallback
+      (this.ow.decor_anchors || []).forEach(function (a) {
+        shadow(a.x, a.y, 0.42);
+        drawTile(a.tile[0], a.tile[1], a.x * cell, a.y * cell);
+      });
+      (this.ow.regions || []).forEach(function (rg) {
+        var plant = self.ow.decor_plant && self.ow.decor_plant[rg.id];
+        if (!plant || !plant.tiles || !plant.tiles.length) return;
+        var density = plant.density != null ? plant.density : 0.05;
+        var r = rg.rect, x0 = r[0], y0 = r[1], x1 = r[2], y1 = r[3];
+        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++) {
+          if (x < 0 || x >= self.W || y < 0 || y >= self.H) continue;
+          if (self.flags[y * self.W + x] & (F.WATER | F.ROAD)) continue;
+          if (self._hash(x, y, 7) > density) continue;
+          var pick = plant.tiles[Math.floor(self._hash(x, y, 8) * plant.tiles.length)];
+          shadow(x, y, 0.35);
+          drawTile(pick[0], pick[1], x * cell, y * cell);
+        }
+      });
+    }
+  });
   },
 
   /* —— 把预渲染地图转成 melonJS 可上传的 ImageBitmap ——
@@ -280,10 +430,15 @@ var OverworldGame = {
     var cam = app.viewport;
     cam.setBounds(0, 0, this.W * CELL, this.H * CELL);
 
-    // 动态光：太阳（大范围暖光，覆盖玩家区）+ 玩家火把（跟随）
-    this._sunLight = new me.Light2d(this.W * CELL * 0.5, this.H * CELL * 0.5, 900, 600, '#ffce8a', 0.5);
-    app.world.addChild(this._sunLight);
-    this._torchLight = new me.Light2d(this.playerPos.x, this.playerPos.y, 420, 320, '#ffb347', 0.85);
+    // 动态光：玩家火把（跟随）+ 各道境辉光。
+    // 修复「大面积橙色光晕、看不到场景」：
+    // 1) me.Light2d 第 3/4 参是 radiusX/radiusY（半径，直径=参数×2），旧值 420/320
+    //    实际渲染 840×640 直径；2) 旧版还在地图中心叠了一盏 900/600 半径的
+    //    「太阳光」（直径 1800×1200），而出生点恰在地图中心附近，双光加色
+    //    （Light2d glow 默认 additive）叠加把整屏冲成橙金；3) 全局照明本应
+    //    由 ambientLight 承担（见 _frame 昼夜曲线），巨型加色 glow 只会淹没
+    //    地表细节，故移除 _sunLight，并将火把/道境半径与强度回调到合理值。
+    this._torchLight = new me.Light2d(this.playerPos.x, this.playerPos.y, 210, 160, '#ffb347', 0.6);
     app.world.addChild(this._torchLight);
     // 各道境辉光
     var self = this;
@@ -291,7 +446,7 @@ var OverworldGame = {
     (this.ow.pois || []).forEach(function (p) {
       if (p.type !== 'realm') return;
       var cx = (p.x + 0.5) * CELL, cy = (p.y + 0.5) * CELL;
-      var light = new me.Light2d(cx, cy, 260, 260, '#9b7bff', 0.55);
+      var light = new me.Light2d(cx, cy, 130, 130, '#9b7bff', 0.4);
       app.world.addChild(light);
       self._realmLights.push(light);
     });
@@ -320,6 +475,9 @@ var OverworldGame = {
       this._moveAxis((sx / inv) * spd, (sy / inv) * spd);
     } else this.moving = false;
     if (this.moving) this.walkPhase = (this.walkPhase || 0) + 0.6;
+    // 水平速度平滑（指数趋近）：让「运动时微微倾斜」拥有柔和的加减速过渡，
+    // 而非按键瞬间的生硬倾角跳变；松手后速度归零，身体缓缓回正。
+    this._velX = (this._velX || 0) + (sx - (this._velX || 0)) * Math.min(1, dtSec * 10);
 
     // 火把跟随玩家
     if (this._torchLight) this._torchLight.pos.set(this.playerPos.x, this.playerPos.y);
@@ -329,10 +487,13 @@ var OverworldGame = {
     if (cam) {
       cam.moveTo(this.playerPos.x - cam.width / 2, this.playerPos.y - cam.height / 2);
       // 昼夜循环：ambientLight 的 alpha 决定暗面深浅（1=全暗）
+      // 修复：旧曲线 0.30~0.72 的深蓝黑遮罩在夜间把光圈外地表压暗 72%，
+      // 近乎全黑（玩家看到「只有光晕没有场景」的第二主因）。
+      // 收窄到 0.10~0.38：白昼地表清晰，夜晚有氛围但仍可读图。
       var day = 0.5 + 0.5 * Math.sin(this._timeGlobal * 0.25);
       var stage = me.state.current();
       if (stage && stage.ambientLight) {
-        var a = 0.30 + 0.42 * (1 - day);
+        var a = 0.10 + 0.28 * (1 - day);
         stage.ambientLight.alpha = a;
         // 夜晚偏蓝，白昼暖黄
         if (day > 0.5) stage.ambientLight.setColor(8, 12, 20, a);
@@ -382,6 +543,8 @@ var OverworldGame = {
     this.overlayEl.appendChild(pd);
     this.playerEl = pd;
     this.facing = 1; this.moving = false; this.walkPhase = 0;
+    // ☯️ 标记动画的平滑状态：浮动高度 / 倾斜角 / 水平速度（驱动移动倾斜）
+    this._bobY = 0; this._lean = 0; this._velX = 0;
   },
   _buildPoisOverlay: function () {
     var self = this;
@@ -472,8 +635,27 @@ var OverworldGame = {
     var pe = this.playerEl, av = pe.querySelector('.player-avatar');
     av.style.left = (pp.x - 23).toFixed(1) + 'px';
     av.style.top = (pp.y - 44).toFixed(1) + 'px';
-    av.style.transform = (this.facing < 0 ? 'scaleX(-1) ' : '') +
-      (this.moving ? 'translateY(' + (Math.abs(Math.sin(this.walkPhase)) * -6).toFixed(1) + 'px)' : '');
+    // ☯️ 标记动画：静止时轻微上下浮动（呼吸感），移动时随步伐跳动并朝移动方向微微倾斜。
+    // 浮动：移动时跟随步伐相位（峰值 -6px），静止时以 2px 幅度缓慢呼吸（~3s 周期）。
+    var targetBob = this.moving
+      ? -Math.abs(Math.sin(this.walkPhase)) * 6
+      : Math.sin((this._timeGlobal || 0) * 2.0) * 2.5;
+    this._bobY = (this._bobY || 0) + (targetBob - (this._bobY || 0)) * 0.18;
+    // 倾斜：与水平速度平滑值成正比（峰值约 ±5.5°），旋转置于 scaleX(-1) 之外，
+    // 保证镜像翻转只作用于图形本身，而倾角始终遵循屏幕坐标的移动方向。
+    var targetLean = (this._velX || 0) * 5.5;
+    this._lean = (this._lean || 0) + (targetLean - (this._lean || 0)) * 0.15;
+    av.style.transform = 'rotate(' + this._lean.toFixed(2) + 'deg) ' +
+      (this.facing < 0 ? 'scaleX(-1) ' : '') +
+      'translateY(' + this._bobY.toFixed(2) + 'px)';
+    // 阴影联动：浮起越高影子越小越淡——让浮动有真实的离地感，而非贴图上下平移。
+    var shade = pe.querySelector('.player-shade');
+    if (shade) {
+      var lift = Math.max(0, -this._bobY);
+      var shrink = (1 - lift * 0.035).toFixed(3);
+      shade.style.transform = 'scale(' + shrink + ',' + shrink + ')';
+      shade.style.opacity = (1 - lift * 0.09).toFixed(3);
+    }
     var cam = this.viewport;
     var dprX = this._domScale ? this._domScale.x : 1;
     this.pois.forEach(function (m) {
@@ -653,6 +835,12 @@ var OverworldGame = {
 class MapLayer extends me.Renderable {
   constructor(x, y, w, h) {
     super(x, y, w, h);
+    /* 修复「地图不渲染、仅剩光晕」的第二个根因：
+       me.Renderable 默认 anchorPoint=(0.5,0.5)，preDraw 会按本层尺寸
+       translate(-(W*CELL/2), -(H*CELL/2))，叠加相机 translate 后本层的
+       世界坐标绘制整体被拉出画布外（探针实测 translate(-2944,-2382)）。
+       本层 draw() 按世界坐标切片绘制，必须把锚点重置为左上 (0,0)。 */
+    this.anchorPoint.set(0, 0);
     this.alpha = 1;
   }
   update(dt) {
@@ -718,9 +906,105 @@ function melonBoot() {
         return;
       }
       if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(28);
-      return game.bootstrapGeometry(ow).then(function () {
-        return initApplication();
-      }).then(function () {
+      return game.  bootstrapGeometry: function (ow) {
+    var self = this;
+    this.W = ow.world.width; this.H = ow.world.height; this.ow = ow;
+    CELL = ow.world.tile * ow.world.scale;
+    this._seed = ow.world.seed || 0;
+    var W = this.W, H = this.H;
+
+    // 可走性 flags
+    var flags = this.flags = new Int32Array(W * H);
+    var regionByTile = this.regionByTile = [];
+    for (var i = 0; i < H; i++) regionByTile.push(new Array(W));
+
+    // 区域（regionByTile 用 region 对象，便于小地图取色）
+    var ridByIdx = {};
+    if (ow.regions) ow.regions.forEach(function (r) { ridByIdx[r.id] = r; });
+    var regionStr = (ow.baked && ow.baked.region) || "";
+    if (regionStr.length === W * H) {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var c = regionStr.charAt(x + y * W);
+        if (c >= '0' && c <= '8') {
+          var rid = REGION_ORDER[parseInt(c, 10)];
+          if (ridByIdx[rid]) regionByTile[y][x] = ridByIdx[rid];
+        }
+      }
+    } else {
+      // 旧字段 fallback：用 region.rect 填充
+      (ow.regions || []).forEach(function (rg) {
+        var r = rg.rect, x0 = r[0], y0 = r[1], x1 = r[2], y1 = r[3];
+        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++)
+          if (x >= 0 && x < W && y >= 0 && y < H) regionByTile[y][x] = rg;
+      });
+    }
+
+    // 旧字段兼容：先处理 water_overlays / rivers / mountain_overlays / roads / solid_regions
+    function fillRect(list, flag) {
+      if (!Array.isArray(list)) return;
+      list.forEach(function (it) {
+        if (!it || it[0] !== 'rect') return;
+        var x0 = it[2], y0 = it[3], x1 = it[4], y1 = it[5];
+        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++)
+          if (y >= 0 && y < H && x >= 0 && x < W) flags[y * W + x] |= flag;
+      });
+    }
+    fillRect(ow.water_overlays, F.WATER);
+    fillRect(ow.river_snow,    F.WATER);
+    fillRect(ow.river_ridge,   F.WATER);
+    fillRect(ow.mountain_overlays, F.MOUNT);
+    (ow.roads || []).forEach(function (r) {
+      if (r.rect) { for (var i = r.rect[0]; i <= r.rect[2]; i++) for (var j = r.rect[1]; j <= r.rect[3]; j++) if (i >= 0 && i < W && j >= 0 && j < H) flags[j * W + i] |= F.ROAD; }
+      else if (r.x !== undefined) { for (var j = r.y0; j <= r.y1; j++) if (j >= 0 && j < H && r.x >= 0 && r.x < W) flags[j * W + r.x] |= F.ROAD; }
+      else if (r.y !== undefined) { for (var i = r.x0; i <= r.x1; i++) if (i >= 0 && i < W && r.y >= 0 && r.y < H) flags[r.y * W + i] |= F.ROAD; }
+    });
+    (ow.solid_regions || []).forEach(function (s) {
+      var r = s.rect;
+      for (var j = r[1]; j <= r[3]; j++) for (var i = r[0]; i <= r[2]; i++)
+        if (j >= 0 && j < H && i >= 0 && i < W) flags[j * W + i] |= F.SOLID;
+    });
+
+    // 新字段 baked.terrain：ground truth（覆盖旧字段）
+    // terrain 编码：0=DEEP 1=SHALLOW 2=BEACH 3=GRASS 4=HILL 5=MOUNT 6=ALPINE 7=LAVA 8=WALL 9=ICE 10=SALT 11=DRY
+    var terrainStr = (ow.baked && ow.baked.terrain) || "";
+    if (terrainStr.length === W * H) {
+      for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+        var t = terrainStr.charCodeAt(x + y * W) - 48;
+        if (t === 0 || t === 7) flags[y * W + x] |= F.WATER;
+        if (t === 5 || t === 6) flags[y * W + x] |= F.MOUNT;
+        if (t === 8) flags[y * W + x] |= F.WALL;
+      }
+    }
+    var WALL = 6;
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      if (x < WALL || x >= W - WALL || y < WALL || y >= H - WALL) flags[y * W + x] |= F.WALL;
+    }
+
+    // 装饰（烘焙数组或旧 decor_anchors/decor_plant 二选一）
+    this.decor = ow.decor || [];
+    if (!this.decor.length && ow.decor_anchors) {
+      this.decor = ow.decor_anchors.map(function (a) {
+        return [a.x, a.y, a.tile[0], a.tile[1], a.solid !== false];
+      });
+    }
+
+    // 玩家出生
+    var init;
+    if (ow.player && ow.player.spawn) init = ow.player.spawn;
+    else if (ow.player && ow.player.initial) init = ow.player.initial;
+    else init = { x: 58, y: 46 };
+    this.playerPos = { x: (init.x + 0.5) * CELL, y: (init.y + 0.5) * CELL };
+    this.playerSpeedPx = (ow.player && ow.player.speed) ? ow.player.speed * 1.6 : 256;
+    this.interactReachPx = ((ow.player && ow.player.interact_tiles) || 3.0) * CELL;
+
+    // 加载图集
+    return this._loadAtlases().then(function () {
+      self._prerender();
+      return self._prepDrawImage();
+    }).then(function () {
+      if (UI && typeof UI.setLoadingProgress === 'function') UI.setLoadingProgress(45);
+    });
+  }).then(function () {
         if (UI && typeof UI.refreshHUD === 'function') UI.refreshHUD();
       });
     })
