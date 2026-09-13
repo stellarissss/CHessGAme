@@ -1059,7 +1059,7 @@ class XiangqiBoard extends HTMLElement {
     z-index: 5;
 }
 
-.capture-move-indicator {
+.valid-move-indicator.capture-move-indicator {
     background: radial-gradient(circle, var(--neon-red, #ff3b3b) 0%, rgba(255, 59, 59, 0.55) 60%, transparent 100%);
     box-shadow: 0 0 10px var(--neon-red, #ff3b3b), 0 0 20px rgba(255, 59, 59, 0.6);
 }
