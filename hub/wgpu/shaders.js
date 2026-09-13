@@ -36,7 +36,7 @@ struct FrameUB {
   sunIntensity: f32,       // 184
   aoRadius    : f32,       // 188
   aoIntensity : f32,       // 192
-  pad0        : f32,       // 196
+  qualityFlags: f32,       // 196 画质开关位编码：bit0=SSAO bit1=Bloom bit2=体积光（智能画质档位）
 };
 // struct size = 208 bytes
 @group(0) @binding(0) var<uniform> frame : FrameUB;   // bound at @group(0) @binding(0)
@@ -355,9 +355,18 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
   let b2  = textureSampleLevel(bloom2, sam, in.uv, 0.0).rgb;
   let b3  = textureSampleLevel(bloom3, sam, in.uv, 0.0).rgb;
 
-  hdr *= ao;                       // SSAO
-  hdr += vol * frame.sunColor.xyz; // 体积光（加色）
-  hdr += (b0 * 0.5 + b1 * 0.25 + b2 * 0.15 + b3 * 0.10) * 0.9; // Bloom
+  // 智能画质档位：由设备能力检测写入 frame.qualityFlags（bit0=SSAO bit1=Bloom bit2=体积光）。
+  // 关闭时对应 RT 未绘制（内容未定义），必须在合成端把贡献归零。
+  let qflags = u32(frame.qualityFlags);
+  let useSSAO = (qflags & 1u) != 0u;
+  let useBloom = (qflags & 2u) != 0u;
+  let useVol = (qflags & 4u) != 0u;
+
+  if (useSSAO) { hdr *= ao; }                    // SSAO
+  if (useVol) { hdr += vol * frame.sunColor.xyz; } // 体积光（加色）
+  if (useBloom) {
+    hdr += (b0 * 0.5 + b1 * 0.25 + b2 * 0.15 + b3 * 0.10) * 0.9; // Bloom
+  }
 
   var col = aces(hdr * frame.exposure);
   col = gamma(col);

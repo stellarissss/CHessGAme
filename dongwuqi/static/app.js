@@ -323,12 +323,12 @@ class DongwuqiBoard extends HTMLElement {
         return `
 @font-face {
     font-family: 'Resource Han Rounded CN';
-    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot');
-    src: url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.eot?#iefix') format('embedded-opentype'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff2') format('woff2'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.woff') format('woff'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.ttf') format('truetype'),
-         url('https://db.onlinewebfonts.com/t/73defe6b1da4035bb8522bca39002191.svg#Resource Han Rounded CN') format('svg');
+    src: url('../shared/assets/fonts/resource-han-rounded-cn.woff2');
+    src: url('../shared/assets/fonts/resource-han-rounded-cn.woff2') format('woff2'),
+         url('../shared/assets/fonts/resource-han-rounded-cn.woff2') format('woff2'),
+         url('../shared/assets/fonts/resource-han-rounded-cn.woff2') format('woff2'),
+         url('../shared/assets/fonts/resource-han-rounded-cn.woff2') format('woff2'),
+         url('../shared/assets/fonts/resource-han-rounded-cn.woff2') format('woff2');
     font-weight: normal;
     font-style: normal;
     font-display: swap;

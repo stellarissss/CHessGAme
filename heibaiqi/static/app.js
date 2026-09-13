@@ -19,6 +19,7 @@ class HeibaiqiBoard extends HTMLElement {
         this.thinkingPollInterval = null;
         this._regionRectEl = null;
         this._keydownHandler = null;
+        this._karmaPollingTimer = null;  // 轮询定时器（事件驱动替代，保留字段防旧代码崩溃）
 
         this._personalityInfo = {
             normal:     { icon: '🧠', name: '标准型', subtitle: 'Normal',    desc: '攻守平衡的标准AI',          agg: 0.5, def: 0.5 },
@@ -889,6 +890,22 @@ class HeibaiqiBoard extends HTMLElement {
 
         this._initialized = true;
         this.dispatchEvent(new CustomEvent('ready', { bubbles: true, composed: true }));
+    }
+
+    startKarmaPolling() {
+        // 已迁移到事件驱动刷新（BroadcastChannel + visibility/focus 兜底）。
+        // 此方法保留为空 no-op，以免旧代码 / 外部调用崩溃。
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
+        }
+    }
+
+    stopKarmaPolling() {
+        if (this._karmaPollingTimer) {
+            clearInterval(this._karmaPollingTimer);
+            this._karmaPollingTimer = null;
+        }
     }
 
     async loadSamsaraState() {
