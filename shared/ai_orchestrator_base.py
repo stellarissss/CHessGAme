@@ -1088,7 +1088,14 @@ class AIOrchestratorBase:
         user_prompt = f"""当前游戏状态：
 - 当前回合：{board.get('current_turn', self.DEFAULT_TURN)}
 - 棋盘概况：{pieces_summary}
+- 棋局实况（供回答玩家的棋局信息问题）：
+{self._build_game_insight(board)}
 - 已激活的自定义规则：{', '.join(active_rules) if active_rules else '无'}
+
+回答规则：
+- 若玩家只是在询问棋局信息（如局面如何、谁占优、预测哪方胜率高等），请按「E类·闲聊/查询」处理：
+  feasible=true，classification="E"，actions 为空数组；并在 response_to_player 中**基于上面的"棋局实况"如实、自然地回答**，明确告知当前局面与大致强弱倾向，不要拒绝、不要答非所问，也不要让它变成一次修改。
+- 若玩家提出的是具体修改请求（改规则/改棋子/改界面等），则按 A/B/C/C+/D/F 分类正常处理。
 
 玩家输入："{command}"
 
@@ -1127,6 +1134,43 @@ class AIOrchestratorBase:
             count = len([p for p in alive if p["side"] == side])
             parts.append(f"{self.SIDE_LABELS.get(side, side)}{count}子")
         return ", ".join(parts)
+
+    def _build_game_insight(self, board: dict) -> str:
+        """生成详细的棋局实况（供 E 类闲聊/查询回答局面、哪方占优、预测胜负等）。"""
+        pieces = board.get("pieces", [])
+        if not isinstance(pieces, list):
+            pieces = []
+        alive = [p for p in pieces if p.get("is_alive", True)]
+        order = self.BOARD_SUMMARY_ORDER or []
+        labels = self.SIDE_LABELS or {}
+        counts: Dict[str, int] = {}
+        lines: List[str] = []
+        for side in order:
+            sp = [p for p in alive if p.get("side") == side]
+            counts[side] = len(sp)
+            label = labels.get(side, side)
+            if not sp:
+                lines.append(f"- {label}：已无存活棋子（面临被全歼）")
+                continue
+            desc = "、".join(
+                f"{p.get('name') or p.get('type')}@({p.get('position', [0, 0])[0]},{p.get('position', [0, 0])[1]})"
+                for p in sp
+            )
+            lines.append(f"- {label}：存活 {len(sp)} 子 —— {desc}")
+        nonzero = {s: c for s, c in counts.items() if c}
+        if len(nonzero) >= 2 and len(set(nonzero.values())) == 1:
+            lines.append("- 双方存活子数相等，胜负更多取决于棋子种类与走位")
+        elif nonzero:
+            lead = max(nonzero, key=nonzero.get)
+            lines.append(
+                f"- 仅按存活子数粗略看，{labels.get(lead, lead)}偏多（强弱需结合棋子类型/规则综合判断）"
+            )
+        ws = board.get("game_status", {})
+        if isinstance(ws, dict) and ws.get("state") == "ended":
+            lines.append(f"- 对局已结束，胜者：{labels.get(ws.get('winner'), ws.get('winner'))}")
+        turn = labels.get(board.get("current_turn", self.DEFAULT_TURN), board.get("current_turn", self.DEFAULT_TURN))
+        lines.append(f"- 当前轮到：{turn}")
+        return "\n".join(lines)
 
     def _side_config_for(self, intent: dict) -> Tuple[str, str]:
         """从意图的 side / target_files 推断 (棋子规则配置名, 中文标签)。
@@ -2155,13 +2199,17 @@ class AIOrchestratorBase:
         parameters = instruction.get("parameters", {})
 
         # 相关性检查：如果action与界面修改无关，拒绝处理
+        # （含棋子外观：颜色/大小/字形等属于 D 类界面修改，目标词覆盖中英文）
         d_actions = {"change_color", "modify_style", "change_theme", "modify_layout",
                      "update_appearance", "change_font", "modify_board", "customize",
-                     "update_ui", "style_change", "appearance"}
+                     "update_ui", "style_change", "appearance",
+                     "piece", "pieces", "piece_size", "piece_color", "piece_style",
+                     "resize", "scale", "size", "棋子", "大小", "尺寸"}
         if action and not any(act in action.lower() for act in d_actions):
             # 棋盘目标词在所有棋类中通用，board_layout 目标也接受
             d_targets = {"board", "ui", "theme", "style", "layout", "appearance",
-                         "color", "font", "background", "visual", "display"}
+                         "color", "font", "background", "visual", "display",
+                         "piece", "pieces", "棋子", "棋子大小", "棋子颜色", "棋子样式"}
             if target and not any(t in target.lower() for t in d_targets):
                 return {
                     "success": False,
@@ -2229,6 +2277,12 @@ class AIOrchestratorBase:
 - 目标: {target}
 - 参数: {json.dumps(parameters, ensure_ascii=False)}
 {size_change_note}
+## 棋子外观修改指引（若涉及棋子颜色/大小/字形）
+- 棋子颜色：改 {target_config_name} 的 theme.pieces.*_color / *bg 字段（红黑方同理）
+- 棋子大小/比例/字大小：在 custom_css 用 `.piece` 覆盖并加 !important，例如：
+  `.piece {{ width: 12% !important; height: 10% !important; font-size: 1.6rem !important; }}`
+  （部分棋类用 --piece-width/--piece-height/--piece-font-size 变量时也可一并覆盖；
+   若改整体棋盘大小时改 layout.board_size）
 ## 当前{config_filename}完整内容
 ```json
 {json.dumps(config_data, ensure_ascii=False, indent=2)}
