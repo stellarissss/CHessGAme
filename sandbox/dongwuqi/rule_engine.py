@@ -576,17 +576,19 @@ class RuleEngine:
         优先级：enter_den（进兽穴）> annihilation（全歼）> stalemate（困毙）
         """
         pieces = board_state.get("pieces", [])
+        enter_den_enabled = (self.rules.get("win_conditions", {}).get("enter_den", {}) or {}).get("enabled", True)
 
-        # 1. enter_den：己方动物进入对方兽穴
-        for p in pieces:
-            if not p.get("is_alive", True):
-                continue
-            pos = p.get("position")
-            side = p.get("side")
-            if not pos or not side:
-                continue
-            if self._is_in_enemy_den(pos, side):
-                return side
+        # 1. enter_den：己方动物进入对方兽穴（受 rules.json 的 win_conditions.enter_den.enabled 控制）
+        if enter_den_enabled:
+            for p in pieces:
+                if not p.get("is_alive", True):
+                    continue
+                pos = p.get("position")
+                side = p.get("side")
+                if not pos or not side:
+                    continue
+                if self._is_in_enemy_den(pos, side):
+                    return side
 
         # 2. annihilation：一方无存活棋子
         red_alive = any(p.get("is_alive", True) and p.get("side") == "red" for p in pieces)

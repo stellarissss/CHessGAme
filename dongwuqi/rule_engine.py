@@ -176,8 +176,11 @@ class RuleEngine:
         return None
 
     def _is_in_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
-        """是否在任意一方的陷阱中（基于陷阱棋子判定）"""
-        return bool(self._get_terrain_pieces_at(pos, board_state))
+        """是否在任意一方的陷阱中（仅计入真陷阱棋子，兽穴等其它地形不算）"""
+        for tp in self._get_terrain_pieces_at(pos, board_state):
+            if tp.get("type") == "trap":
+                return True
+        return False
 
     def _is_in_enemy_trap(self, pos: List[int], side: str, board_state: dict) -> bool:
         """是否在 side 的敌方陷阱中（仅计入真陷阱棋子，排除兽穴等其它地形）"""
@@ -744,19 +747,21 @@ class RuleEngine:
         地形棋子（陷阱）不参与胜负判定。
         """
         pieces = board_state.get("pieces", [])
+        enter_den_enabled = (self.rules.get("win_conditions", {}).get("enter_den", {}) or {}).get("enabled", True)
 
-        # 1. enter_den：己方动物进入对方兽穴
-        for p in pieces:
-            if not p.get("is_alive", True):
-                continue
-            if self._is_terrain_piece(p):
-                continue
-            pos = p.get("position")
-            side = p.get("side")
-            if not pos or not side:
-                continue
-            if self._is_in_enemy_den(pos, side):
-                return side
+        # 1. enter_den：己方动物进入对方兽穴（受 rules.json 的 win_conditions.enter_den.enabled 控制）
+        if enter_den_enabled:
+            for p in pieces:
+                if not p.get("is_alive", True):
+                    continue
+                if self._is_terrain_piece(p):
+                    continue
+                pos = p.get("position")
+                side = p.get("side")
+                if not pos or not side:
+                    continue
+                if self._is_in_enemy_den(pos, side):
+                    return side
 
         # 2. annihilation：一方无存活动物棋子（地形棋子不计入）
         red_alive = any(p.get("is_alive", True) and p.get("side") == "red"
