@@ -131,7 +131,7 @@
       "name": "砲",
       "side": "black",
       "position": [
-        7,
+        4,
         2
       ],
       "is_alive": true,
@@ -323,7 +323,7 @@
       "name": "炮",
       "side": "red",
       "position": [
-        7,
+        4,
         7
       ],
       "is_alive": true,
@@ -391,7 +391,32 @@
     }
   ],
   "current_turn": "red",
-  "move_history": [],
+  "move_history": [
+    {
+      "piece_id": "r_cannon_2",
+      "from": [
+        7,
+        7
+      ],
+      "to": [
+        4,
+        7
+      ],
+      "captured": null
+    },
+    {
+      "piece_id": "b_cannon_2",
+      "from": [
+        7,
+        2
+      ],
+      "to": [
+        4,
+        2
+      ],
+      "captured": null
+    }
+  ],
   "game_status": {
     "state": "playing",
     "winner": null,

@@ -4,48 +4,48 @@
     "description": "棋盘几何定义与渲染配置"
   },
   "geometry": {
-    "width": 9,
-    "height": 10,
-    "river_line": 5,
+    "width": 20,
+    "height": 20,
+    "river_line": 10,
     "palace": {
       "red": {
         "top_left": [
-          3,
-          7
+          8,
+          15
         ],
         "bottom_right": [
-          5,
-          9
+          11,
+          18
         ]
       },
       "black": {
         "top_left": [
-          3,
-          0
+          8,
+          1
         ],
         "bottom_right": [
-          5,
-          2
+          11,
+          4
         ]
       }
     },
     "regions": {
       "red_side": {
         "y_range": [
-          5,
-          9
+          10,
+          19
         ]
       },
       "black_side": {
         "y_range": [
           0,
-          4
+          9
         ]
       },
       "river": {
         "y_range": [
-          4,
-          5
+          9,
+          10
         ]
       }
     }

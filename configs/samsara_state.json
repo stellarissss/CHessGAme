@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "current_realm": "hell",
   "current_level": 0,
   "skill_points": 0,
@@ -16,10 +16,6 @@
     "heaven": 0.0
   },
   "skills": {
-    "karma_capacity_t1": {
-      "unlocked_at": "2026-08-18T12:41:44.347613",
-      "tier": 1
-    },
     "stealth_t1": {
       "unlocked_at": "2026-08-18T12:41:44.347622",
       "tier": 1
@@ -102,11 +98,12 @@
     "current_battle_active": false
   },
   "story_progress": {
-    "prologue_seen": false,
+    "prologue_seen": true,
     "current_dialogue_realm": null,
     "current_dialogue_level": null,
     "last_choice_made": null
   },
   "playthrough_count": 2,
-  "last_modified": "2026-08-20T13:52:14.689489"
+  "last_modified": "2026-09-13T14:15:26.551129",
+  "one_time_skill_usage": {}
 }
