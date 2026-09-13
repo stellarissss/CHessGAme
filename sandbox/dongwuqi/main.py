@@ -313,6 +313,9 @@ async def make_move(req: MoveRequest):
     if target_piece:
         target_piece["is_alive"] = False
 
+    # 陷阱捕食：敌方动物踩中己方陷阱立即被吞噬（阻止其下回合进兽穴）
+    state.rule_engine.is_killed_by_trap(piece, board)
+
     # 记录历史
     board.setdefault("move_history", []).append(
         {
@@ -455,6 +458,9 @@ async def ai_move():
     piece["position"] = move["to"]
     if target_piece:
         target_piece["is_alive"] = False
+
+    # 陷阱捕食：敌方动物踩中己方陷阱立即被吞噬（阻止其下回合进兽穴）
+    state.rule_engine.is_killed_by_trap(piece, board)
 
     board.setdefault("move_history", []).append(move)
 

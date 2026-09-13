@@ -209,6 +209,22 @@ class RuleEngine:
             effects.extend(e for e in tp_effects if e.get("target") in ("enemy", "all"))
         return effects
 
+    def is_killed_by_trap(self, piece: dict, board_state: dict) -> bool:
+        """敌方正陷于己方陷阱的动物会被吞噬：踩中敌方陷阱的动物立即死亡。
+
+        返回是否被吞噬（原地修改 piece.is_alive=False）。阻止踩陷阱的动物下一回合进兽穴。
+        """
+        if not (self.rules.get("special_rules", {}).get("trap_neutralizes_rank", {}) or {}).get("enabled", True):
+            return False
+        pos = piece.get("position")
+        side = piece.get("side")
+        if not pos or not side:
+            return False
+        if self._is_in_enemy_trap(pos, side, board_state):
+            piece["is_alive"] = False
+            return True
+        return False
+
     def _is_in_own_den(self, pos: List[int], side: str) -> bool:
         """是否在 side 自己的兽穴中"""
         own_den = "den_red" if side == "red" else "den_black"

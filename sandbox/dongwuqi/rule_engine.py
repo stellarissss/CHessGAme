@@ -63,6 +63,22 @@ class RuleEngine:
         enemy_den = "den_black" if side == "red" else "den_red"
         return (pos[0], pos[1]) in self._region_cells.get(enemy_den, set())
 
+    def is_killed_by_trap(self, piece: dict, board_state: dict) -> bool:
+        """敌方正陷于己方陷阱的动物会被吞噬：踩中敌方陷阱的动物立即死亡。
+
+        返回是否被吞噬（原地修改 piece.is_alive=False）。阻止踩陷阱的动物下一回合进兽穴。
+        """
+        if not (self.rules.get("special_rules", {}).get("trap_neutralizes_rank", {}) or {}).get("enabled", True):
+            return False
+        pos = piece.get("position")
+        side = piece.get("side")
+        if not pos or not side:
+            return False
+        if self._is_in_enemy_trap(pos, side):
+            piece["is_alive"] = False
+            return True
+        return False
+
     # ═══════════════════════════════════════════════════════════════
     # 主入口
     # ═══════════════════════════════════════════════════════════════

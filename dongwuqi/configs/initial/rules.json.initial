@@ -37,7 +37,7 @@
     },
     "trap_neutralizes_rank": {
       "enabled": true,
-      "description": "敌方动物进入己方陷阱后等级降为0，己方任何动物可吃"
+      "description": "敌方动物踩中己方陷阱立即被吞噬（死亡）"
     },
     "lion_tiger_jump_water": {
       "enabled": true,

@@ -701,7 +701,7 @@ workspace/
 10. **棋类进程保活与主动回收**：仅靠兜底空闲超会误杀对局中的进程；新增 `/api/lazy/ping`（按端口心跳刷新 `last`），`shared/game_shared_rpg.js` 每 40s 向大厅心跳保活；`play.js`、胜负页"返回地图/返回大陆"按钮与**页面 `pagehide`（真正关闭网页/浏览器退出）**时调用 `/api/lazy/stop?port=` 立即回收。**只在玩家主动关闭界面/关闭网页时回收**：切标签、休眠、焦点移开走 `visibilitychange`（不触发 pagehide），不会在后台误回收；后端 `LAZY_IDLE_SECONDS` 兜底阈值加大（默认 1800s），仅回收异常遗留（如浏览器崩溃、pagehide 未送达）的进程。
 11. **棋类启动加载进度条**：全部 12 个棋类 `static/index.html` 启动时先显示全屏"正在加载对局…"+进度条遮罩（`#boot-loader`），待棋盘组件发出 `ready` 事件后淡出（附 3s 走满 + 9s 兜底），不再白屏等待。
 12. **界面缩放与大地图黑屏修复**：移除 `overworld.html` 与全部 12 个棋类 `index.html` 的整页 `html{zoom:0.75}`——该全局缩放会压缩/裁切布局、破坏棋盘居中留边，并与 WebGPU 画布（自行管理后备缓冲尺寸 + swapchain）冲突导致**打开即黑屏**。改为让棋盘按自身尺寸（如 `min(85vmin,650px)`）自然渲染并在屏幕居中、四周留出内边距；大地图（含 DOM 覆盖层）以真实视口缩放，为避免 W/S 在小地图呈 45° 斜移，WASD 改为严格世界轴向移动。
-13. **动物棋"落子即消失"修复**：`dongwuqi/main.py` 移除与 `rules.json trap_neutralizes_rank` 冲突的"进敌陷阱即死"；`rule_engine.py` 删除 4 个**幻影陷阱**格并让 `_is_in_enemy_trap` 仅计真陷阱（排除兽穴），动物进入兽穴/幻影格不再被误杀，进入真陷阱改由吃子判定降级（防守方等级归零可被吃）。
+13. **动物棋陷阱吞噬规则**：敌方动物踩中己方**真陷阱**格立即被吞噬（死亡），可有效阻挡其直捣兽穴；`rule_engine.py` 的 `_is_in_enemy_trap`/`_is_in_trap` 仅计真陷阱（排除兽穴、幻影格），动物进入己方兽穴/幻影格不会误杀（兽穴判胜仍走 enter_den）。陷阱开关由 `rules.special_rules.trap_neutralizes_rank.enabled` 控制。
 14. **WebGPU 智能画质分级（v2.2）**：`overworld-load.js` 加载时检测 WebGPU 适配器（fallback / SwiftShader / llvmpipe 软件渲染器识别）与硬件信号（核数 / 内存 / 移动端 UA），自动选择 `ultra / high / balanced / software` 四档画质（渲染缩放 1.0/1.0/0.75/0.6 × DPR 上限 2.0/1.5/1.25/1.0；SSAO、Bloom、体积光按档位启停）；画质位编码经帧 uniform（`FrameUB.qualityFlags`）下传，在 compute/渲染 pass 与合成着色器三处零开销跳过。用户可用 `?owq=` URL 参数或 `localStorage.chesssage_ow_quality` 覆盖自动检测。
 
 ---

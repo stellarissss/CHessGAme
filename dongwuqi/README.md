@@ -80,8 +80,8 @@
 
 #### ✕ 陷阱（Trap）
 - 每方 3 个陷阱，位于己方兽穴周围
-- **敌方动物进入己方陷阱后，等级降为 0**
-- 陷阱中的敌方动物可以被己方任何动物吃掉（无论己方动物等级多低）
+- **敌方动物踩中己方陷阱立即被吞噬（死亡）**，可有效阻挡敌方直捣兽穴
+- 陷阱效果受 `rules.special_rules.trap_neutralizes_rank.enabled` 控制，关闭后陷阱不再吞噬/降级
 
 #### ★ 兽穴（Den）
 - 每方 1 个兽穴，位于底边中心
@@ -246,7 +246,7 @@ python main.py
 |---------|------------|------|
 | "让老鼠能斜着走" | 给 rat 的 moves 增加 `sym: "diag4"` 条目 | 鼠可沿对角线移动 |
 | "狮子跳河不用被阻挡" | 移除 lion ray 的 `path_constraint.no_blocker` | 狮跳河无视水中鼠 |
-| "陷阱不降级了" | `rules.special_rules.trap_neutralizes_rank.enabled → false` | 陷阱不再降低等级 |
+| "陷阱不降级了" | `rules.special_rules.trap_neutralizes_rank.enabled → false` | 陷阱不再吞噬/降级敌方动物 |
 | "让猫可以吃象" | 给 cat 的 capture.exceptions 增加 `{"can_eat": "elephant"}` | 猫获得吃象能力 |
 | "增加一只凤凰" | `pieces_red.json` / `pieces_black.json` 新增 `phoenix` 条目 | 新动物加入游戏 |
 
