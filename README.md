@@ -4,11 +4,11 @@
 
 以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
 
-**大陆渲染（v2.2 · WebGPU 次世代优先 + 智能画质 + melonJS 兜底）**：`overworld-load.js` 作为智能分发器，按设备能力自动选择渲染通道与画质档位，任何设备都不会黑屏/白屏——
+**大陆渲染（v3 · WebGPU 优先 + 智能画质 + melonJS 兜底）**：`overworld-load.js` 作为智能分发器，按设备能力自动选择渲染通道与画质档位。**WebGPU 优先级永远高于回退**——仅在"明确报错"（无 WebGPU / 初始化异常 / 适配器缺失 / 设备丢失）时才降级 melonJS；呈现自检默认非破坏（即便画面异常也保持 WebGPU，仅打角标告警），可用 `?owselfcheck=1` 在缺陷硬件上手动降级。
 - **主通道 · WebGPU 次世代管线（`overworld-wgpu.js` + `wgpu/shaders.js`）**：高度场地形（compute 生成高频细节场 + 顶点置换）、实例化装饰、SSAO（compute）、体积光 God Ray、Bloom mip 链、HDR + ACES 色调映射 + 暗角 + 抖动；DOM 覆盖层与 GPU 共用同一套 mvp 矩阵逐帧投影，严丝合缝。v2.2 修复了旧版三大缺陷：① 初始化竞态（配置接口变慢时相机未就绪 → `reading 'vw'` 黑屏，现在 `_initGPU` 前置相机兜底）；② WGSL 全部管线无效（旧草案 `visibility: 13/8/4` 常量 → 现行 `GPUShaderStage.*`）；③ error scope 未配对异常。
 - **智能画质分级（设备自适应）**：加载时检测 WebGPU 适配器（fallback/软件渲染器识别）+ 硬件信号（核数/内存/移动端），自动选择四档画质——`ultra`（renderScale 1.0、DPR≤2、SSAO+Bloom+体积光全开）、`high`（DPR≤1.5 全开）、`balanced`（0.75 倍渲染、无 SSAO/体积光）、`software`（0.6 倍渲染、纯几何）；画质开关以位编码写入帧 uniform，在 compute/渲染 pass 与合成着色器三处生效（跳过即零开销）。可用 URL `?owq=ultra|high|balanced|software|auto` 或 `localStorage.chesssage_ow_quality` 覆盖。
-- **呈现自检 + 自动降级**：WebGPU 初始化成功后 3.6 秒对画面中心采样，若管线成功但呈现全黑/全白（驱动/合成器兼容缺陷）→ 主动销毁 WebGPU 设备并无缝切换 melonJS，用户无感知。
-- **兜底通道 · melonJS v20（`overworld-melonjs.js`）**：图集整图预渲染 + 逐帧一次 `drawImage` 切片 + 昼夜/火把/道境动态光，WebGL 优先、Canvas2D 自动兜底；无 WebGPU、初始化失败、呈现异常三种情况均自动落到此通道。
+- **呈现自检（默认非破坏）**：WebGPU 初始化成功后 3.6 秒对画面中心采样；默认仅记录告警并保持 WebGPU 通道（角标"自检告警"），**不主动降级**。唯有 `?owselfcheck=1` 开启时才会在全黑/全白时销毁设备并切换 melonJS。
+- **兜底通道 · melonJS v20（`overworld-melonjs.js`）**：图集整图预渲染 + 逐帧一次 `drawImage` 切片 + 昼夜/火把/道境动态光，WebGL 优先、Canvas2D 自动兜底；仅在"明确报错"（无 WebGPU / 初始化失败 / 设备丢失）时落到此通道；`?owselfcheck=1` 下的呈现异常也会触发。
 - 左上角角标实时显示当前通道与画质档位（如「渲染：WebGPU · high」/「渲染：melonJS · 内置画布」）。
 
 **RPG 剧情系统**：主角林夜被吸入六道轮回，在棋局中直面愧疚、贪婪、本能、算计、愤怒与禅定。真心祈求会招致天道识破，五种结局等待抉择。
@@ -711,7 +711,8 @@ workspace/
 
 - [整体设计书 v3.1](六道轮回_整体设计书_v3.1.md) — 完整设计与机制详解（含 RPG 扩展 + 天道终战）
 - [RPG 化执行方案 v2.2](RPG化执行方案_v2.1.md) — RPG 开发规划（§9.0 WebGPU 主通道规范）
-- [大地图渲染架构 v2.2](WebGPU渲染架构.md) — WebGPU 主通道 + 智能画质分级 + 呈现自检降级 + 测试方法
+- [大地图渲染架构 v3](WebGPU渲染架构.md) — WebGPU 主通道 + 智能画质分级 + 呈现自检（默认非破坏）+ 测试方法
+- [大地图渲染情况报告](docs/overworld/RENDERING_REPORT.md) — 三套渲染框架（WebGPU/melonJS/iso-engine）对比、分发与画质方案、本次修复与障碍移除说明
 - [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
 - [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
 - [大地图景观设计书](docs/overworld/overworld_landscape_design.md) — 六道大陆景观与结构设计（生成器：`scripts/gen_overworld.py`，预览图：[`preview.png`](docs/overworld/preview.png)）

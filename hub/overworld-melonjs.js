@@ -128,11 +128,8 @@ var OverworldGame = {
           if (rx2 >= 0 && rx2 < W && r.y >= 0 && r.y < H) flags[r.y * W + rx2] |= F.ROAD;
       }
     });
-    (ow.solid_regions || []).forEach(function (s) {
-      var r = s.rect;
-      for (var y = r[1]; y <= r[3]; y++) for (var x = r[0]; x <= r[2]; x++)
-        if (y >= 0 && y < H && x >= 0 && x < W) flags[y * W + x] |= F.SOLID;
-    });
+    // 障碍机制已移除：solid_regions（原实心阻挡区）不再设置任何阻挡标志。
+    // 大地图仅保留 map 最外 WALL_TILES 边框（见下方外圈墙），玩家可自由穿行于水面/山体/熔岩之上。
 
     // baked.terrain（ground truth，覆盖旧字段）：
     // 0=DEEP 1=SHALLOW 2=BEACH 3=GRASS 4=HILL 5=MOUNT 6=ALPINE 7=LAVA 8=WALL 9=ICE 10=SALT 11=DRY
@@ -444,7 +441,9 @@ var OverworldGame = {
   },
   _isBarrier: function (tx, ty) {
     if (tx < 0 || ty < 0 || tx >= this.W || ty >= this.H) return true;
-    return !!(this.flags && (this.flags[ty * this.W + tx] & (F.WALL | F.WATER | F.MOUNT | F.SOLID)));
+    // 障碍机制已移除：水面 / 山体 / 熔岩 / 实心区均不再阻挡玩家通行；
+    // 仅保留地图最外 F.WALL 边框（与上面的越界判定）以阻止玩家走出地图外。
+    return !!(this.flags && (this.flags[ty * this.W + tx] & F.WALL));
   },
 
   /* —— DOM 覆盖层（玩家/POI/告示牌） —— */

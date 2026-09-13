@@ -67,8 +67,8 @@ OverworldGame.presentSelfCheck = function () {
 ```
 
 - **触发时机**：WebGPU 通道就绪后 3.6s（覆盖首批帧 + 后期链稳定）。
-- **降级动作**：`OverworldGame.destroy()`（置 `_destroyed` 停 rAF 帧循环、停轮询、摘 resize 监听、`device.destroy()`）→ 无缝启动 melonJS 通道，loading 遮罩由 melonJS 侧接管淡出。
-- **为什么需要**：headless/部分驱动环境下管线 0 错误、帧稳定提交，但 swapchain 呈现仍可能全黑/全白（合成器/驱动缺陷）。**代码正确性 ≠ 画面正确**，自检把"画面正确"也纳入契约。
+- **降级动作（默认非破坏）**：**WebGPU 优先级永远高于回退**——默认情况下即便自检发现全黑/全白，也**保持 WebGPU 通道**并仅打角标告警（"渲染：WebGPU · <档>（自检告警）"），不主动降级。只有在以下"明确报错"时才走 melonJS 兜底：初始化抛异常、`navigator.gpu` 缺失、适配器为空、`device.lost` 设备中途丢失。如需在缺陷硬件上诊断，可用 **`?owselfcheck=1`** 手动启用破坏性降级（此时自检失败才会 `destroy()` → 启动 melonJS）。
+- **为什么默认非破坏**：此前的"自动降级"会在缺陷驱动/合成器/无头环境下把工作正常的 GPU 误杀，造成"WebGPU 被回退"的体感。为兑现"WebGPU 优先级永远比回退更高、只有明确报错才回退"，自检改为默认不降级；代价是放弃"绝对不黑屏"保险，由 `?owselfcheck=1` 提供逃生口。
 
 ---
 

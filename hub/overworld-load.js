@@ -168,15 +168,22 @@
           return new Promise(function (res) { setTimeout(res, 3600); });
         }).then(function () {
           if (!g.presentSelfCheck || window.__owMelonBooted) return null;
+          // WebGPU 优先级永远高于回退：呈现自检默认【非破坏】——
+          // 即便检测到画面异常（极端驱动/合成器缺陷），也保持 WebGPU 通道，
+          // 仅在「明确报错」（初始化异常 / 适配器缺失 / 设备丢失）时才回退（见上方 catch 与 device.lost）。
+          // 可用 ?owselfcheck=1 手动启用破坏性降级，便于在缺陷硬件上诊断。
+          var allowDestructive = /[?&]owselfcheck=1\b/.test(location.search);
           return g.presentSelfCheck().then(function (ok) {
-            if (ok === false) {
-              try { sessionStorage.setItem('chesssage_ow_present_fail', '1'); } catch (e) {}
+            if (ok === true) {
+              setBadge('渲染：WebGPU · ' + quality);
+            } else if (ok === false && allowDestructive) {
               try { if (g.destroy) g.destroy(); } catch (e) {}
               window.__owWgpuBooted = false;
-              loadMelon('WebGPU 呈现异常（自检全黑/全白）');
+              loadMelon('WebGPU 呈现异常（自检全黑/全白 · 已手动启用降级）');
               setBadge('渲染：melonJS（WebGPU 呈现异常已降级）');
-            } else if (ok === true) {
-              setBadge('渲染：WebGPU · ' + quality);
+            } else {
+              console.warn('[dispatcher] WebGPU 呈现自检异常，但保持 WebGPU 通道（默认不主动降级；?owselfcheck=1 可启用破坏性降级）');
+              setBadge('渲染：WebGPU · ' + quality + '（自检告警）');
             }
             return null;
           });

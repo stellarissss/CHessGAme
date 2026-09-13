@@ -421,36 +421,41 @@ var OverworldGame = {
     });
 
     // 顶点属性 + flags/biome 码
+    // 障碍机制已移除：大地图不再有任何阻挡玩家通行的障碍物；
+    // 仅最外 6 格 F.WALL 边框（叠加越界判定）用于阻止玩家走出地图外。
     this.flags = new Int32Array(this.W * this.H);
     this.biome = new Int32Array(this.W * this.H);
     var fl = this.flags, bm = this.biome;
-    function fillRect(list, bit) {
-      if (!Array.isArray(list)) return;
-      list.forEach(function (it) {
-        if (!it || it[0] !== 'rect') return;
-        var y0 = it[3], x1 = it[4], y1 = it[5], x0 = it[2];
-        for (var y = y0; y <= y1; y++) for (var x = x0; x <= x1; x++)
-          if (y >= 0 && y < self.H && x >= 0 && x < self.W) fl[y * self.W + x] |= bit;
-      });
+
+    // —— 从 baked.terrain（单一真相源）推导地形 flags ——
+    // terrain 编码：0=DEEP 1=SHALLOW 2=BEACH 3=GRASS 4=HILL 5=MOUNT 6=ALPINE 7=LAVA 8=WALL 9=ICE
+    var tStr = (ow.baked && ow.baked.terrain) || "";
+    if (tStr.length === this.W * this.H) {
+      for (var ty0 = 0; ty0 < this.H; ty0++) for (var tx0 = 0; tx0 < this.W; tx0++) {
+        var tc = tStr.charCodeAt(tx0 + ty0 * this.W) - 48;
+        if (tc === 0 || tc === 1 || tc === 7 || tc === 9) fl[ty0 * this.W + tx0] |= 1; // DEEP/SHALLOW/LAVA/ICE → 水面
+        else if (tc === 5 || tc === 6) fl[ty0 * this.W + tx0] |= 4;                     // MOUNT/ALPINE
+        else if (tc === 8) fl[ty0 * this.W + tx0] |= 8;                                 // WALL（边框）
+      }
     }
-    fillRect(ow.water_overlays, 1); fillRect(ow.river_snow, 1); fillRect(ow.river_ridge, 1);
-    fillRect(ow.mountain_overlays, 4);
+
+    // —— 道路（新 schema 仍保留 ow.roads）——
     (ow.roads || []).forEach(function (r) {
       if (r.rect) for (var i2 = r.rect[0]; i2 <= r.rect[2]; i2++) for (var j2 = r.rect[1]; j2 <= r.rect[3]; j2++)
           if (i2 >= 0 && i2 < self.W && j2 >= 0 && j2 < self.H) fl[j2 * self.W + i2] |= 2;
       else if (r.x !== undefined) for (var j3 = r.y0; j3 <= r.y1; j3++) if (j3 >= 0 && j3 < self.H && r.x >= 0 && r.x < self.W) fl[j3 * self.W + r.x] |= 2;
       else if (r.y !== undefined) for (var i3 = r.x0; i3 <= r.x1; i3++) if (i3 >= 0 && i3 < self.W && r.y >= 0 && r.y < self.H) fl[r.y * self.W + i3] |= 2;
     });
-    (ow.solid_regions || []).forEach(function (s) {
-      var r = s.rect;
-      for (var j4 = r[1]; j4 <= r[3]; j4++) for (var i4 = r[0]; i4 <= r[2]; i4++)
-        if (j4 >= 0 && j4 < self.H && i4 >= 0 && i4 < self.W) fl[j4 * self.W + i4] |= 16;
-    });
+
+    // —— 地图外边界（最外 6 格 WALL）+ biome（区域归属，优先 baked.region 字符码 0-8 = BIOME_LIST 顺序）——
+    var WALL = 6;
+    var rStr2 = (ow.baked && ow.baked.region) || "";
     for (var y5 = 0; y5 < this.H; y5++) for (var x5 = 0; x5 < this.W; x5++) {
       if (x5 < WALL || x5 >= this.W - WALL || y5 < WALL || y5 >= this.H - WALL) fl[y5 * this.W + x5] |= 8;
-      var rg = this.regionByTile[y5][x5];
-      var rid = rg && rg.id ? rg.id : 'c_plain';
-      bm[y5 * this.W + x5] = (BIOME_ID[rid] !== undefined ? BIOME_ID[rid] : 4);
+      var bcode = 4; // 默认 c_plain
+      if (rStr2.length === self.W * self.H) bcode = rStr2.charCodeAt(x5 + y5 * self.W) - 48;
+      else { var rg = self.regionByTile[y5][x5]; if (rg && BIOME_ID[rg.id] !== undefined) bcode = BIOME_ID[rg.id]; }
+      bm[y5 * this.W + x5] = (bcode >= 0 && bcode <= 8) ? bcode : 4;
     }
     this.playerPos = { x: ((this.ow.player && this.ow.player.initial) || { x: 58, y: 46 }).x + 0.5, y: ((this.ow.player && this.ow.player.initial) || { x: 58, y: 46 }).y + 0.5 };
     this.playerSpeed = ((this.ow.player && this.ow.player.speed) || 160) / 5;
