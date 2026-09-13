@@ -844,6 +844,11 @@ class DongwuqiBoard extends HTMLElement {
     z-index: 5;
 }
 
+.valid-move-indicator.capture-move-indicator {
+    background: radial-gradient(circle, var(--neon-red, #ff3b3b) 0%, rgba(255, 59, 59, 0.55) 60%, transparent 100%);
+    box-shadow: 0 0 10px var(--neon-red, #ff3b3b), 0 0 20px rgba(255, 59, 59, 0.6);
+}
+
 /* Input section */
 .input-section {
     padding: 20px 32px 24px;
@@ -2847,6 +2852,15 @@ class DongwuqiBoard extends HTMLElement {
         if (el) el.classList.add('selected');
     }
 
+    // 目标格是否为吃子（目标上站着敌方棋子）
+    isCaptureTarget(x, y) {
+        const pieces = this.boardState?.pieces || [];
+        const movingSide = this.selectedPiece?.side;
+        return pieces.some(p => p.is_alive !== false &&
+            p.position[0] === x && p.position[1] === y &&
+            p.side !== movingSide);
+    }
+
     showValidMoves() {
         this.clearValidMoves();
         const container = this.shadowRoot.getElementById('board-container');
@@ -2857,8 +2871,9 @@ class DongwuqiBoard extends HTMLElement {
         const viewBoxW = width + pad * 2;
         const viewBoxH = height + pad * 2;
         this.validMoves.forEach(([x, y]) => {
+            const isCapture = this.isCaptureTarget(x, y);
             const indicator = document.createElement('div');
-            indicator.className = 'valid-move-indicator';
+            indicator.className = isCapture ? 'valid-move-indicator capture-move-indicator' : 'valid-move-indicator';
             const leftPct = ((x + 0.5 + pad) / viewBoxW) * 100;
             const topPct = ((y + 0.5 + pad) / viewBoxH) * 100;
             indicator.style.left = `${leftPct}%`;
@@ -2868,8 +2883,11 @@ class DongwuqiBoard extends HTMLElement {
             indicator.style.pointerEvents = 'auto';
 
             const highlight = this.uiConfig?.theme?.highlight;
-            if (highlight?.valid_move) {
+            if (highlight?.valid_move && !isCapture) {
                 indicator.style.background = highlight.valid_move;
+            }
+            if (isCapture && highlight?.capture) {
+                indicator.style.background = highlight.capture;
             }
 
             indicator.addEventListener('click', (e) => {
