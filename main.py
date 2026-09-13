@@ -67,17 +67,79 @@ def log_error(msg):
     """输出红色错误"""
     print(_c("red", msg))
 
-# 若环境未安装依赖，给出友好提示后再尝试启动
-_FROZEN_ROOT = bool(getattr(sys, "frozen", False)) or ("__compiled__" in globals())
+# ═══════════════════════════════════════════════════════════════
+# 冻结态识别与「可执行文件路径」
+# ═══════════════════════════════════════════════════════════════
+# 判定顺序（任一命中即为冻结态）：
+#   1. CHESSSAGE_FROZEN 环境变量 —— 由打包脚本/子进程启动显式置位，最可靠；
+#   2. sys.frozen            —— PyInstaller / cx_Freeze；
+#   3. __compiled__          —— Nuitka（注意需用 globals() 运行时取值）。
+_FROZEN_ROOT = (
+    os.environ.get("CHESSSAGE_FROZEN") == "1"
+    or bool(getattr(sys, "frozen", False))
+    or ("__compiled__" in globals())
+)
+
+
+def _exe_path() -> str:
+    """冻结产物自身的可执行文件路径（用于以「解释器 + 脚本」语义拉起子进程）。
+
+    Nuitka standalone 下 sys.executable 指向本 exe；PyInstaller onedir 同样。
+    但某些打包/启动方式（如被其他 exe 用 CreateProcess 拉起、或在 IDE 内调试）
+    会让 sys.executable 回落到真实 Python 解释器，因此这里以 sys.argv[0] 兜底。
+    """
+    candidates = [sys.executable, sys.argv[0] if sys.argv else ""]
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return os.path.abspath(c)
+    return os.path.abspath(sys.executable)
+
+
 if _FROZEN_ROOT:
     # 冻结（Nuitka/PyInstaller）产物：以可执行文件所在目录为项目根
-    WORKSPACE_ROOT = Path(sys.executable).resolve().parent
+    WORKSPACE_ROOT = Path(_exe_path()).resolve().parent
 else:
     WORKSPACE_ROOT = Path(__file__).resolve().parent
 HUB_DIR = WORKSPACE_ROOT / "hub"
 SHARED_DIR = WORKSPACE_ROOT / "shared"
 ACHIEVEMENTS_FILE = WORKSPACE_ROOT / "achievements.json"
 HUB_PORT = int(os.environ.get("HUB_PORT", 8080))
+
+
+def _run_as_child_script(argv: list) -> bool:
+    """冻结态子进程分支：argv[1] 是某个棋类服务的 main.py 路径时，就地执行它。
+
+    冻结后 sys.executable 指向本程序，父进程以 `[exe, <棋类>/main.py]` 拉起子进程，
+    期望得到与开发态 `python <棋类>/main.py` 完全一致的效果。Nuitka 把本文件编译成
+    唯一入口，因此该分支必须内联在这里（外置 bootstrap.py 不会被编译进去）。
+    返回 True 表示已按子进程语义执行完毕（调用方应直接退出）。
+    """
+    if len(argv) <= 1:
+        return False
+    target = argv[1]
+    if not (target.endswith(".py") and os.path.isfile(target)):
+        return False
+
+    import runpy
+
+    target = os.path.abspath(target)
+    script_dir = os.path.dirname(target)
+    # sys.path 顺序：脚本目录优先（保证同名模块 chess_ai/rule_engine 取本棋类版本），
+    # 其次是项目根与进程 cwd，最后追加 exe 目录兜底。
+    for p in (script_dir, str(WORKSPACE_ROOT), os.getcwd(), os.path.dirname(_exe_path())):
+        if p and p not in sys.path:
+            sys.path.insert(0, p)
+    try:
+        runpy.run_path(target, run_name="__main__")
+    except SystemExit:
+        raise
+    except BaseException:
+        # 子进程模式下错误必须可见（父进程会实时转发 stdout/stderr）
+        import traceback
+        print(f"[子进程] 加载失败: {target}", file=sys.stderr)
+        traceback.print_exc()
+        raise
+    return True
 
 # ═══════════════════════════════════════════════════════════════
 # 成就定义
@@ -266,8 +328,11 @@ def _pipe_logger(process, name):
             level = _classify_line(line)
             tag = _c("dim", f"[{name}]")
             print(f"{tag} {_c(level, line)}")
-    except Exception:
-        pass
+    except Exception as e:
+        # 子进程输出读取异常必须可见（曾被静默吞掉，导致「子进程失败却无任何日志」）
+        import traceback
+        print(f"{_c('dim', '[' + str(name) + ']')} {_c('red', f'日志管道异常: {e}')}", file=sys.stderr)
+        traceback.print_exc()
 
 
 def start_process(name, script_path, port, cwd=None):
@@ -278,10 +343,19 @@ def start_process(name, script_path, port, cwd=None):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(WORKSPACE_ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     env["GAME_PORT"] = str(port)
+    if _FROZEN_ROOT:
+        # 显式告知子进程「我是被冻结产物拉起的」，绕开各打包器标记差异
+        env["CHESSSAGE_FROZEN"] = "1"
 
     try:
+        # 冻结态：以 [本exe, 脚本路径] 拉起，由入口的 _run_as_child_script 还原
+        # “解释器 + 脚本”语义（各棋类获得独立进程与模块命名空间，避免同名模块冲突）。
+        launcher = [
+            _exe_path() if _FROZEN_ROOT else sys.executable,
+            str(script_path),
+        ]
         process = subprocess.Popen(
-            [sys.executable, str(script_path)],
+            launcher,
             cwd=str(cwd),
             env=env,
             stdout=subprocess.PIPE,
@@ -310,9 +384,10 @@ _LAZY_KEY_BY_REALM = {g["realm"]: g["id"] for g in GAMES}
 _LAZY_KEY_BY_SANDBOX_PORT = {g["port"]: g["id"] for g in SANDBOX_GAMES}
 _LAZY_KEY_BY_RPG_PORT = {g["port"]: g["id"] for g in GAMES}
 
-# 冻结（PyInstaller/Nuitka）产物中以子进程方式拉起棋类：sys.executable 即打包入口，
-# 传 [exe, 脚本路径] 触发 bootstrap 子进程分支（bootstrap.py），与开发态 python 运行脚本等价，
-# 为各棋类提供独立解释器/模块命名空间，避免同目录同名模块（chess_ai 等）跨棋类冲突。
+# 冻结（PyInstaller/Nuitka）产物中以子进程方式拉起棋类：以本 exe 为解释器，
+# 传 [exe, 脚本路径] 触发 main.py 入口处的子进程分支（_run_as_child_script），
+# 与开发态 `python <棋类>/main.py` 等价，为各棋类提供独立进程/模块命名空间，
+# 避免同目录同名模块（chess_ai / rule_engine 等）跨棋类冲突。
 def _layout_key(mode: str, gid: str):
     return f"{mode}:{gid}"
 
@@ -991,4 +1066,7 @@ def main():
 
 
 if __name__ == "__main__":
+    # 冻结态子进程分支：被父进程以 [exe, <棋类>/main.py] 拉起时，就地执行该脚本并退出。
+    if _FROZEN_ROOT and _run_as_child_script(sys.argv):
+        sys.exit(0)
     main()
