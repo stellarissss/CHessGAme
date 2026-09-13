@@ -42,6 +42,11 @@ def run(base):
     killed = re.is_killed_by_trap(red_ele, bs2)
     assert killed is True, f"{base}: 红象踩黑陷阱应被吞噬"
     assert red_ele["is_alive"] is False, f"{base}: 被吞噬后 is_alive 应为 False"
+    # 一次性陷阱：吞噬后陷阱自身也消失——记入 consumed_traps；若该格存在陷阱棋子则一并置亡
+    assert list(bs2.get("consumed_traps", [[]])[0]) == [2, 0], f"{base}: 应记录消耗陷阱格"
+    for tp in bs2.get("pieces", []):
+        if tp.get("type") == "trap" and list(tp.get("position", [])) == [2, 0]:
+            assert tp.get("is_alive") is False, f"{base}: 陷阱棋子应随吞噬消失"
 
     # 2) 己方陷阱不作用
     bs3 = copy.deepcopy(bs)

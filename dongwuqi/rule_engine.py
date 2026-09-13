@@ -132,7 +132,18 @@ class RuleEngine:
             (2, 0, "black"), (4, 0, "black"), (3, 1, "black"),
             (2, 8, "red"),   (4, 8, "red"),   (3, 7, "red"),
         ]
+        # 已由 board_state 中的陷阱棋子表示的格（存活或已被吞噬）不再兜底合成，
+        # 保证被吞噬后的陷阱不会"阴魂不散"地继续生效/显示。
+        existing_trap_cells = set()
+        for tp in board_state.get("pieces", []):
+            if tp.get("type") == "trap" and isinstance(tp.get("position"), (list, tuple)) and len(tp["position"]) == 2:
+                existing_trap_cells.add((tp["position"][0], tp["position"][1]))
+        for c in board_state.get("consumed_traps", []):
+            if isinstance(c, (list, tuple)) and len(c) >= 2:
+                existing_trap_cells.add((c[0], c[1]))
         for tx, ty, ts in standard_traps:
+            if (tx, ty) in existing_trap_cells:
+                continue
             fake = {
                 "type": "trap",
                 "side": ts,
@@ -212,7 +223,9 @@ class RuleEngine:
     def is_killed_by_trap(self, piece: dict, board_state: dict) -> bool:
         """敌方正陷于己方陷阱的动物会被吞噬：踩中敌方陷阱的动物立即死亡。
 
-        返回是否被吞噬（原地修改 piece.is_alive=False）。阻止踩陷阱的动物下一回合进兽穴。
+        陷阱本身也随吞噬一并消耗（一次性陷阱），记入 board_state.consumed_traps，
+        即使纯净模式没有独立的陷阱棋子，也按此格记录消失；若恰好存在真陷阱棋子则一并置亡。
+        返回是否被吞噬（原地修改 piece.is_alive=False）。
         """
         if not (self.rules.get("special_rules", {}).get("trap_neutralizes_rank", {}) or {}).get("enabled", True):
             return False
@@ -220,10 +233,22 @@ class RuleEngine:
         side = piece.get("side")
         if not pos or not side:
             return False
+        consumed = board_state.setdefault("consumed_traps", [])
+        if any(list(c) == list(pos) for c in consumed):
+            return False
         if self._is_in_enemy_trap(pos, side, board_state):
             piece["is_alive"] = False
+            consumed.append(list(pos))
+            self._consume_trap_at(pos, board_state)
             return True
         return False
+
+    def _consume_trap_at(self, pos: List[int], board_state: dict):
+        """将 pos 处由 board_state 表示的真陷阱棋子置亡（若有；一次性陷阱）。"""
+        for tp in board_state.get("pieces", []):
+            if (tp.get("type") == "trap" and tp.get("is_alive", True)
+                    and list(tp.get("position", [])) == list(pos)):
+                tp["is_alive"] = False
 
     def _is_in_own_den(self, pos: List[int], side: str) -> bool:
         """是否在 side 自己的兽穴中"""

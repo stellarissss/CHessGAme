@@ -66,7 +66,8 @@ class RuleEngine:
     def is_killed_by_trap(self, piece: dict, board_state: dict) -> bool:
         """敌方正陷于己方陷阱的动物会被吞噬：踩中敌方陷阱的动物立即死亡。
 
-        返回是否被吞噬（原地修改 piece.is_alive=False）。阻止踩陷阱的动物下一回合进兽穴。
+        陷阱本身也随吞噬一并消耗（一次性陷阱，记入 board_state.consumed_traps，前端随之消失）。
+        返回是否被吞噬（原地修改 piece.is_alive=False）。
         """
         if not (self.rules.get("special_rules", {}).get("trap_neutralizes_rank", {}) or {}).get("enabled", True):
             return False
@@ -74,8 +75,11 @@ class RuleEngine:
         side = piece.get("side")
         if not pos or not side:
             return False
+        if tuple(pos) in {tuple(c) for c in board_state.get("consumed_traps", [])}:
+            return False
         if self._is_in_enemy_trap(pos, side):
             piece["is_alive"] = False
+            board_state.setdefault("consumed_traps", []).append(list(pos))
             return True
         return False
 

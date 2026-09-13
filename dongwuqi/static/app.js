@@ -3695,8 +3695,14 @@ class DongwuqiBoard extends HTMLElement {
         if (layoutConfig.traps?.enabled) {
             const trapsCfg = layoutConfig.traps;
             // 陷阱现在作为 category=terrain 的棋子存在，从棋子数组动态渲染
+            // 已被吞噬的一次性陷阱（consumed_traps）不再显示，即使该格没有独立陷阱棋子也一并消失
+            const consumedTrapKeys = new Set(
+                (this.boardState?.consumed_traps || []).map(c => `${c[0]},${c[1]}`)
+            );
             const trapPieces = (this.boardState?.pieces || []).filter(
-                p => (p.type === 'trap' || p.category === 'terrain') && p.is_alive
+                p => (p.type === 'trap' || p.category === 'terrain')
+                    && p.is_alive
+                    && !consumedTrapKeys.has(`${p.position[0]},${p.position[1]}`)
             );
             trapPieces.forEach(piece => {
                 const [cx, cy] = piece.position;

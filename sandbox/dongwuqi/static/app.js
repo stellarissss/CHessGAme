@@ -2612,7 +2612,9 @@ class DongwuqiBoard extends HTMLElement {
         if (layoutConfig.traps?.enabled) {
             const trapsCfg = layoutConfig.traps;
             const allTraps = [...(regions.trap_red?.cells || []), ...(regions.trap_black?.cells || [])];
+            const consumedTraps = new Set((this.boardState?.consumed_traps || []).map(c => `${c[0]},${c[1]}`));
             allTraps.forEach(([cx, cy]) => {
+                if (consumedTraps.has(`${cx},${cy}`)) return; // 已被吞噬的一次性陷阱不再显示
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
                 rect.setAttribute('x', cx);
                 rect.setAttribute('y', cy);
