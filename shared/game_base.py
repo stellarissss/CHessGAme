@@ -651,6 +651,13 @@ def register_common_routes(
 
         Bug 2 修复：apply 成功后再 reset_board()，保证开局棋盘/规则/棋子
         回到本关初始状态（否则前端沿用之前的修改，第二关视觉与规则不恢复）。
+
+        道境一致性守卫：棋类 ↔ 道一一对应（象棋=人道、黑白棋=地狱道…）。
+        旁路进入（直连棋类 URL、/play 容器页、刷新页面）不会经过大地图
+        「轮回修行」的 /samsara/api/levels/start 调用，samsara 全局道境会
+        停留在上一次的道（默认 hell），导致玩家在象棋里看到"地狱道·暗之始"。
+        apply 时发现道境与本服务棋类不符 → 自动切到本棋类对应道，并按
+        该道玩家进度（levels_passed）选择关卡索引，与设计书"六棋=六道"一致。
         """
         try:
             samsara_level = None
@@ -658,6 +665,46 @@ def register_common_routes(
                 resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
                 data = resp.json()
                 level = data.get("current_level")
+
+                # ── 道境一致性守卫 ──
+                if level and level.get("game_type") and level["game_type"] != game_type:
+                    fixed = False
+                    for rp in data.get("realms", []):
+                        if rp.get("game_type") != game_type:
+                            continue
+                        realm = rp.get("realm")
+                        passed = int(rp.get("levels_passed", 0) or 0)
+                        total = int(rp.get("total_levels", 0) or 0)
+                        if not realm:
+                            break
+                        # 该道已通关则停在最后一关，否则落在下一个未通关卡
+                        idx = min(passed, total - 1) if total > 0 else 0
+                        start_resp = await client.post(
+                            f"{SAMSARA_API_URL}/api/levels/start",
+                            json={"realm": realm, "level_index": idx},
+                        )
+                        if start_resp.status_code == 200:
+                            start_data = start_resp.json()
+                            new_level = (start_data or {}).get("level")
+                            if new_level:
+                                level = new_level
+                                fixed = True
+                        break
+                    if not fixed:
+                        # 兜底：仅切道（set_realm 会把 current_level 归零并重置关卡变量）
+                        realm_fallback = {
+                            "xiangqi": "human", "wuziqi": "heaven",
+                            "weiqi": "asura", "dongwuqi": "animal",
+                            "tiaoqi": "hungry", "heibaiqi": "hell",
+                        }.get(game_type)
+                        if realm_fallback:
+                            await client.post(
+                                f"{SAMSARA_API_URL}/api/levels/start",
+                                json={"realm": realm_fallback},
+                            )
+                            re_resp = await client.get(f"{SAMSARA_API_URL}/api/levels")
+                            level = (re_resp.json() or {}).get("current_level") or level
+
                 if not level:
                     # 沙盒 / fallback：无 level 时仍返回 success + 本地 karma 快照
                     return {
