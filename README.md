@@ -706,6 +706,7 @@ workspace/
 - [RPG 化执行方案 v2.1](RPG化执行方案_v2.1.md) — RPG 开发规划
 - [剧情实现草案 v1.4](轻RPG化剧情实现草案_v1.4.md) — 完整剧情设计（剧情权威源为 `configs/story.json`）
 - [关卡内容报告书](关卡内容报告书.md) — 33 关 + 6 Boss 关卡详细设计
+- [大地图景观设计书](docs/overworld/overworld_landscape_design.md) — 六道大陆景观与结构设计（生成器：`scripts/gen_overworld.py`，预览图：[`preview.png`](docs/overworld/preview.png)）
 
 ---
 
