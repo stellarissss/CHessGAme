@@ -326,6 +326,9 @@ var OverworldGame = {
       this._moveAxis((sx / inv) * spd, (sy / inv) * spd);
     } else this.moving = false;
     if (this.moving) this.walkPhase = (this.walkPhase || 0) + 0.6;
+    // 水平速度平滑（指数趋近）：让「运动时微微倾斜」拥有柔和的加减速过渡，
+    // 而非按键瞬间的生硬倾角跳变；松手后速度归零，身体缓缓回正。
+    this._velX = (this._velX || 0) + (sx - (this._velX || 0)) * Math.min(1, dtSec * 10);
 
     // 火把跟随玩家
     if (this._torchLight) this._torchLight.pos.set(this.playerPos.x, this.playerPos.y);
@@ -391,6 +394,8 @@ var OverworldGame = {
     this.overlayEl.appendChild(pd);
     this.playerEl = pd;
     this.facing = 1; this.moving = false; this.walkPhase = 0;
+    // ☯️ 标记动画的平滑状态：浮动高度 / 倾斜角 / 水平速度（驱动移动倾斜）
+    this._bobY = 0; this._lean = 0; this._velX = 0;
   },
   _buildPoisOverlay: function () {
     var self = this;
@@ -481,8 +486,27 @@ var OverworldGame = {
     var pe = this.playerEl, av = pe.querySelector('.player-avatar');
     av.style.left = (pp.x - 23).toFixed(1) + 'px';
     av.style.top = (pp.y - 44).toFixed(1) + 'px';
-    av.style.transform = (this.facing < 0 ? 'scaleX(-1) ' : '') +
-      (this.moving ? 'translateY(' + (Math.abs(Math.sin(this.walkPhase)) * -6).toFixed(1) + 'px)' : '');
+    // ☯️ 标记动画：静止时轻微上下浮动（呼吸感），移动时随步伐跳动并朝移动方向微微倾斜。
+    // 浮动：移动时跟随步伐相位（峰值 -6px），静止时以 2px 幅度缓慢呼吸（~3s 周期）。
+    var targetBob = this.moving
+      ? -Math.abs(Math.sin(this.walkPhase)) * 6
+      : Math.sin((this._timeGlobal || 0) * 2.0) * 2.5;
+    this._bobY = (this._bobY || 0) + (targetBob - (this._bobY || 0)) * 0.18;
+    // 倾斜：与水平速度平滑值成正比（峰值约 ±5.5°），旋转置于 scaleX(-1) 之外，
+    // 保证镜像翻转只作用于图形本身，而倾角始终遵循屏幕坐标的移动方向。
+    var targetLean = (this._velX || 0) * 5.5;
+    this._lean = (this._lean || 0) + (targetLean - (this._lean || 0)) * 0.15;
+    av.style.transform = 'rotate(' + this._lean.toFixed(2) + 'deg) ' +
+      (this.facing < 0 ? 'scaleX(-1) ' : '') +
+      'translateY(' + this._bobY.toFixed(2) + 'px)';
+    // 阴影联动：浮起越高影子越小越淡——让浮动有真实的离地感，而非贴图上下平移。
+    var shade = pe.querySelector('.player-shade');
+    if (shade) {
+      var lift = Math.max(0, -this._bobY);
+      var shrink = (1 - lift * 0.035).toFixed(3);
+      shade.style.transform = 'scale(' + shrink + ',' + shrink + ')';
+      shade.style.opacity = (1 - lift * 0.09).toFixed(3);
+    }
     var cam = this.viewport;
     var dprX = this._domScale ? this._domScale.x : 1;
     this.pois.forEach(function (m) {

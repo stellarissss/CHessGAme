@@ -92,6 +92,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
     position: absolute; left: -20px; top: -10px;
     width: 40px; height: 12px; border-radius: 50%;
     background: radial-gradient(ellipse, rgba(0,0,0,0.48), rgba(0,0,0,0) 70%);
+    will-change: transform, opacity;
 }
 .player-avatar {
     position: absolute; left: -23px; top: -44px;
@@ -104,11 +105,9 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: 
     border-radius: 50%;
     box-shadow: 0 5px 16px rgba(0,0,0,0.6), 0 0 20px rgba(212,175,55,0.45);
     transform-origin: 50% 100%;
-    animation: playerFloat 2.4s ease-in-out infinite;
-}
-@keyframes playerFloat {
-    0%, 100% { transform: translateY(0); }
-    50%      { transform: translateY(-3px); }
+    /* 浮动/倾斜由 JS 每帧驱动（overworld-melonjs.js _updateOverlay）：
+       CSS animation 会覆盖 inline transform，两者并存必然打架，故只用 JS 一条链路 */
+    will-change: transform;
 }
 
 /* HUD 顶部 */
