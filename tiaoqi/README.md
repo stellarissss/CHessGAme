@@ -99,7 +99,7 @@ python main.py
 ### 设置AI API密钥
 
 首次使用需要在界面左侧面板设置LLM API密钥（支持OpenAI兼容接口）：
-- 默认模型: `deepseek-v4-flash`
+- 默认模型: `deepseek-flash`（统一取自 `config.json`）
 - 默认接口: `https://api.deepseek.com/v1`
 
 ## API端点

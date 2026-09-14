@@ -31,6 +31,13 @@ AI 编排器 —— 共享基类（AIOrchestratorBase / RPGOrchestratorBase）�
         * dongwuqi: _route_modify_existing_piece（C+→C 改现有棋子路由）
     - RPG 子类的 __init__（构造本棋类的 KarmaAssessor）
 
+【参数化点】
+    DEFAULT_MODEL：不再由子类各自写死，统一从 ai_config.get_model() 解析
+        （配置真源 = 仓库根 config.json / 环境变量 DEEPSEEK_MODEL）。
+        顶层 6 棋类与 sandbox 6 棋类因此共用同一模型，消除历史上的
+        「顶层 v4-flash、sandbox 混用 chat / v4-flash」的分裂状态。
+    基类 __init__ 接收 base_dir（棋类目录），用于定位 configs/token_stats.json。
+
 【行为等价性说明】
 
     重构消除了三类既存的"复制漂移"缺陷（统一后自动修复，行为变化为
@@ -69,6 +76,7 @@ try:
         validate_rules,
         validate_ui_config,
     )
+    from .ai_config import get_base_url, get_model
 except ImportError:  # Fallback：shared/ 已在 sys.path 时
     from json_patch_utils import apply_patch, generate_diff, is_valid_patch  # type: ignore
     from schema_validator import (  # type: ignore
@@ -78,6 +86,7 @@ except ImportError:  # Fallback：shared/ 已在 sys.path 时
         validate_rules,
         validate_ui_config,
     )
+    from ai_config import get_base_url, get_model  # type: ignore
 
 
 class ConversationLog:
@@ -156,7 +165,11 @@ class AIOrchestratorBase:
 
     # ── 棋类身份 ──
     GAME_TYPE: str = ""
-    DEFAULT_MODEL: str = "deepseek-v4-flash"
+    # DeepSeek 模型：统一取自 ai_config（配置真源 = 根 config.json / 环境变量）。
+    # 顶层 6 棋类与 sandbox 6 棋类共用此值，不再各自覆盖写死。
+    # 注：类属性在导入时求值一次；若运行中改了 config.json，调用 reload_config()
+    # 并重新赋值 DEFAULT_MODEL 即可生效（或直接改用实例方法 get_model()）。
+    DEFAULT_MODEL: str = get_model()
 
     # ── side 命名体系 ──
     DEFAULT_TURN: str = "red"
@@ -271,7 +284,8 @@ class AIOrchestratorBase:
     def __init__(self, base_dir: Path, api_key: str = ""):
         self.base_dir = Path(base_dir)
         self.api_key = api_key
-        self.base_url = "https://api.deepseek.com/v1"
+        # Base URL 同样取自配置真源（根 config.json / 环境变量 DEEPSEEK_BASE_URL）。
+        self.base_url = get_base_url()
         self.configs_dir = "configs"
         self.logger = ConversationLog()
         self.current_thinking = False
@@ -676,7 +690,7 @@ class AIOrchestratorBase:
     ) -> Tuple[str, float]:
         """调用DeepSeek API，返回(响应内容, 耗时秒数)。
 
-        model 缺省时使用 DEFAULT_MODEL（顶层 v4-flash / sandbox chat）。
+        model 缺省时使用 DEFAULT_MODEL（由 ai_config 统一提供；顶层与 sandbox 一致）。
         """
         if model is None:
             model = self.DEFAULT_MODEL

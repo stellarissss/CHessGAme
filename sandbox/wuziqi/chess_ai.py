@@ -9,6 +9,16 @@ import math
 from typing import Dict, Any, List, Tuple, Optional
 from rule_engine import RuleEngine
 
+# ── 模型真源导入（复用逻辑说明）────────────────────────────────
+# 本文件不写死 DeepSeek 模型名，统一从 shared/ai_config.py 的 get_model() 取。
+# 顶层棋类与 sandbox 棋类因此共享同一模型配置（根 config.json / 环境变量
+# DEEPSEEK_MODEL），换模型只需改配置真源一处，避免多处漏改。
+# ────────────────────────────────────────────────────────────
+try:
+    from shared.ai_config import get_model, get_no_think_params
+except ImportError:  # Fallback：shared/ 已在 sys.path 时（顶层 main.py 的注入方式）
+    from ai_config import get_model, get_no_think_params  # type: ignore
+
 # 棋型评分常量
 SCORE_FIVE = 100000
 SCORE_LIVE_FOUR = 10000
@@ -577,13 +587,16 @@ class GomokuAI:
                 "Content-Type": "application/json",
             }
             payload = {
-                "model": "deepseek-chat",
+                # 模型名统一取自 ai_config（配置真源）；禁止在此写死模型字符串
+                "model": get_model(),
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 "temperature": 0,
-                "max_tokens": 50,
+                # 关闭推理：棋子估值是简单数值映射，无需思考链（详见 shared/ai_config.py）
+                **get_no_think_params(),
+                "max_tokens": 512,
             }
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(

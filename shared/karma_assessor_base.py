@@ -44,6 +44,9 @@ from typing import Optional
 
 import httpx
 
+# 模型/地址真源：统一从 ai_config 读取，禁止在本文件写死模型字符串。
+from .ai_config import get_base_url, get_model, get_no_think_params
+
 # 原 karma_assessor.py 中保留了 BASE_DIR 供潜在路径引用；
 # 基类统一保留该语义（指向 shared/ 的父目录，即仓库根）。
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -125,7 +128,9 @@ class KarmaAssessorBase:
 
     def __init__(self, api_key: str = "", game_type: Optional[str] = None):
         self.api_key = api_key
-        self.base_url = "https://api.deepseek.com/v1"
+        # Base URL / 模型名均取自配置真源（根 config.json / 环境变量），
+        # 与 ai_orchestrator / chess_ai 保持完全一致，避免三处配置漂移。
+        self.base_url = get_base_url()
         # game_type：优先使用显式传入值，否则回退到子类 GAME_TYPE 常量。
         self.game_type = game_type if game_type is not None else self.GAME_TYPE
         self._cache = {}
@@ -219,10 +224,14 @@ class KarmaAssessorBase:
                         f"{self.base_url}/chat/completions",
                         headers={"Authorization": f"Bearer {self.api_key}"},
                         json={
-                            "model": "deepseek-v4-flash",
+                            "model": get_model(),
                             "messages": [{"role": "user", "content": prompt}],
                             "temperature": 0.3,
-                            "max_tokens": 10,
+                            # 关闭推理：业力评估是简单数值映射，无需思考链。
+                            # 实测开启推理时延 ~21s 且 content 常为空；关闭后 ~0.65s。
+                            **get_no_think_params(),
+                            # 保留适度预算，兼容未关闭推理的兼容模型。
+                            "max_tokens": 512,
                         },
                     )
                     response.raise_for_status()

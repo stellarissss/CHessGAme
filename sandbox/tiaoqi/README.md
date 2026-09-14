@@ -51,7 +51,7 @@
 
 ```
 checkers/
-├── main.py                  # FastAPI 服务入口（端口8003）
+├── main.py                  # FastAPI 服务入口（端口8004）
 ├── rule_engine.py           # 跳棋规则引擎（step/hop原语）
 ├── chess_ai.py              # AI引擎（Minimax + Alpha-Beta + 推进度评估）
 ├── ai_orchestrator.py       # AI指令解析与配置修改编排器
@@ -94,12 +94,12 @@ cd checkers
 python main.py
 ```
 
-服务启动后访问: **http://localhost:8003/**
+服务启动后访问: **http://localhost:8004/**
 
 ### 设置AI API密钥
 
 首次使用需要在界面左侧面板设置LLM API密钥（支持OpenAI兼容接口）：
-- 默认模型: `deepseek-v4-flash`
+- 默认模型: `deepseek-flash`（统一取自 `config.json`）
 - 默认接口: `https://api.deepseek.com/v1`
 
 ## API端点

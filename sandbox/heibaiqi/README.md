@@ -46,7 +46,7 @@ pip install -r requirements.txt
 python main.py
 ```
 
-访问 **http://localhost:8003/** 即可开始游戏。
+访问 **http://localhost:8005/** 即可开始游戏。
 
 ### 配置 AI
 
@@ -58,7 +58,7 @@ python main.py
 
 ```
 heibaiqi/
-├── main.py                # FastAPI 服务入口（端口 8003）
+├── main.py                # FastAPI 服务入口（端口 8005）
 ├── rule_engine.py         # 规则引擎（flip 原语 + 合法落子点 + 翻转逻辑）
 ├── chess_ai.py            # AI 引擎（Minimax + Alpha-Beta + 位置权重）
 ├── ai_orchestrator.py     # 二级 AI 编排器（意图解析 → 代码生成）
@@ -96,14 +96,14 @@ heibaiqi/
 
 ### 后端
 
-- **FastAPI** + Uvicorn，端口 8003
+- **FastAPI** + Uvicorn，端口 8005
 - 异步 LLM 请求（httpx）
 - JSON Patch (RFC 6902) 优先策略
 - 撤销栈（最多 10 层）
 
 ### AI 引擎
 
-- **二级 AI 协作**：deepseek-v4-flash（意图解析）→ deepseek-v4-pro（代码生成）
+- **二级 AI 协作**：deepseek-flash（意图解析 + 代码生成，模型名统一取自 `config.json`）
 - **对弈 AI**：Minimax + Alpha-Beta 剪枝，深度 1-7（easy/normal/hard/master）
 - **评估函数**：角点权重 + 稳定棋子 + 行动力差 + 棋子数差 + 边缘控制 + AI 性格参数
 

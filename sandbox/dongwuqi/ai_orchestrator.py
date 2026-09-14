@@ -23,7 +23,8 @@ class AIOrchestrator(AIOrchestratorBase):
 
     # ── 棋类差异配置（默认值见 AIOrchestratorBase 类属性注释） ──
     GAME_TYPE = "dongwuqi"
-    DEFAULT_MODEL = "deepseek-chat"
+    # 模型名：继承基类 DEFAULT_MODEL（来自 ai_config，与顶层棋类统一）。
+    # 历史遗留的 "deepseek-chat" 覆盖已移除 —— 顶层与 sandbox 共用同一模型。
     PIECE_TYPE_MAPPING = {
             "小鼠": "rat", "老鼠": "rat", "mouse": "rat",
             "猫": "cat", "小猫": "cat",

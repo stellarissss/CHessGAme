@@ -1,9 +1,23 @@
 import json
 import asyncio
 import os
+import sys
 import httpx
 from pathlib import Path
 from .state import SamsaraState
+
+# ── 模型/地址真源导入（复用逻辑说明）────────────────────────────
+# samsara 这一层位于 RPG 全局包装器，不经过棋类 main.py 的 sys.path 注入，
+# 因此此处显式把 <repo>/shared 加入 sys.path，再复用同一份 ai_config。
+# 这样「模型名 / Base URL / 密钥」与 12 个棋类完全同源，换模型一处生效。
+# 以前这里硬编码了完整 URL 与模型名，是历史遗留的配置分裂点，现统一。
+# ────────────────────────────────────────────────────────────
+_SHARED = Path(__file__).resolve().parent.parent / "shared"
+if _SHARED.exists() and str(_SHARED) not in sys.path:
+    sys.path.insert(0, str(_SHARED))
+
+from ai_config import get_api_key as _cfg_get_api_key  # noqa: E402
+from ai_config import get_base_url, get_model, get_no_think_params  # noqa: E402
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_FILE = BASE_DIR / "config.json"
@@ -66,17 +80,9 @@ class KarmaAssessor:
         self._cache = {}
 
     def _load_api_key(self):
-        # 优先使用环境变量注入的密钥，避免明文密钥随仓库提交
-        env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
-        if env_key:
-            return env_key
-        if CONFIG_FILE.exists():
-            try:
-                config = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-                return config.get("api_key", "")
-            except (json.JSONDecodeError, OSError):
-                pass
-        return ""
+        # 密钥真源：统一走 ai_config（环境变量 DEEPSEEK_API_KEY > 根 config.json > 默认值），
+        # 与 12 个棋类共用同一解析链，避免 samsara 层再维护一套密钥查找逻辑。
+        return _cfg_get_api_key()
 
     def set_api_key(self, api_key):
         self._api_key = api_key
@@ -153,13 +159,15 @@ class KarmaAssessor:
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(
-                    "https://api.deepseek.com/v1/chat/completions",
+                    f"{get_base_url()}/chat/completions",
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     json={
-                        "model": "deepseek-v4-flash",
+                        "model": get_model(),
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.3,
-                        "max_tokens": 10,
+                        # 关闭推理：业力评估是简单数值映射，无需思考链（详见 shared/ai_config.py）
+                        **get_no_think_params(),
+                        "max_tokens": 512,
                     },
                 )
                 response.raise_for_status()

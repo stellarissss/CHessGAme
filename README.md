@@ -358,7 +358,7 @@ pip install -r requirements.txt
 {
   "deepseek_api_key": "sk-xxxxxxxxxxxxxxxx",
   "deepseek_base_url": "https://api.deepseek.com/v1",
-  "model": "deepseek-chat"
+  "model": "deepseek-flash"
 }
 ```
 
@@ -578,7 +578,7 @@ workspace/
 | **对局前端** | 原生 Web Components + Shadow DOM |
 | **大地图像素资产** | Kenney Tiny Farm / Tiny Town / Tiny Battle / Tiny Dungeon (CC0，atlas 留存、地图主体用等距色块) |
 | **后端** | FastAPI + Uvicorn（多进程架构） |
-| **AI** | DeepSeek（deepseek-chat / deepseek-v4-flash），两级流水线 |
+| **AI** | DeepSeek（`deepseek-flash`，统一配置真源 `config.json`），两级流水线 |
 | **配置修改** | RFC 6902 JSON Patch + JSON Schema |
 | **存档** | JSON 文件持久化（`configs/samsara_state.json`） |
 | **测试** | pytest + FastAPI TestClient；大地图 DOM-over-等距渲染用浏览器端到端验证 |

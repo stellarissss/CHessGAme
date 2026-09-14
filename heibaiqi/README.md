@@ -103,7 +103,7 @@ heibaiqi/
 
 ### AI 引擎
 
-- **二级 AI 协作**：deepseek-v4-flash（意图解析）→ deepseek-v4-pro（代码生成）
+- **二级 AI 协作**：deepseek-flash（意图解析 + 代码生成，模型名统一取自 `config.json`）
 - **对弈 AI**：Minimax + Alpha-Beta 剪枝，深度 1-7（easy/normal/hard/master）
 - **评估函数**：角点权重 + 稳定棋子 + 行动力差 + 棋子数差 + 边缘控制 + AI 性格参数
 
