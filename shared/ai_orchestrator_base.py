@@ -889,8 +889,50 @@ class AIOrchestratorBase:
                 "action_results": results,
             }
 
+    # mechanisms 字段内各原语均为「列表」，并行 action 各自追加时应做并集而非覆盖
+    _MECHANISM_LIST_KEYS = (
+        "skip_turns", "ai_control", "random_moves",
+        "extra_turns", "move_limits", "player_control",
+    )
+
+    def _merge_mechanism_list(self, base_list: list, incoming: list) -> list:
+        """合并两条机制原语列表（按 side 去重，保留先到者，后到者仅补充缺失字段）。
+
+        语义：同一 side 的同类机制在游戏内是「取第一条激活项」，因此重复 side
+        视为同一机制，取剩余回合数较大者，避免并行 action 产生互相打架的重复条目。
+        """
+        merged = [dict(x) for x in base_list if isinstance(x, dict)]
+        for item in incoming:
+            if not isinstance(item, dict):
+                continue
+            same_side_idx = next(
+                (i for i, m in enumerate(merged)
+                 if m.get("side") == item.get("side")),
+                None,
+            )
+            if same_side_idx is None:
+                merged.append(dict(item))
+                continue
+            existing = merged[same_side_idx]
+            # 取更长的剩余回合/步数（remaining 更大者），并补齐缺失字段
+            for k, v in item.items():
+                if k not in existing or existing[k] in (None, "", []):
+                    existing[k] = v
+            if isinstance(item.get("remaining"), int) and item["remaining"] != 0:
+                cur = existing.get("remaining")
+                if not isinstance(cur, int) or cur == 0 or item["remaining"] < 0:
+                    existing["remaining"] = item["remaining"]
+                elif item["remaining"] > cur:
+                    existing["remaining"] = item["remaining"]
+        return merged
+
     def _deep_merge_board_state(self, base: dict, override: dict):
-        """深度合并两个board_state配置（主要处理custom_rules_active数组合并）"""
+        """深度合并两个board_state配置。
+
+        关键：mechanisms 字段是「列表容器」，多个并行 action 各自
+        生成一份 mechanisms patch 时，必须做并集合并，否则后一个 action 会用
+        它自己的 mechanisms 整体覆盖前一个，导致（例如）多AI协同只保留 black 一侧。
+        """
         if not isinstance(base, dict) or not isinstance(override, dict):
             return
         for key, value in override.items():
@@ -898,6 +940,18 @@ class AIOrchestratorBase:
                 if key not in base or not isinstance(base[key], list):
                     base[key] = []
                 base[key].extend(value)
+            elif key == "mechanisms" and isinstance(value, dict):
+                if key not in base or not isinstance(base[key], dict):
+                    base[key] = {}
+                for m_key, m_val in value.items():
+                    if m_key in self._MECHANISM_LIST_KEYS and isinstance(m_val, list):
+                        cur = base[key].get(m_key)
+                        if not isinstance(cur, list):
+                            base[key][m_key] = list(m_val)
+                        else:
+                            base[key][m_key] = self._merge_mechanism_list(cur, m_val)
+                    elif m_key not in base[key]:
+                        base[key][m_key] = m_val
             elif isinstance(value, dict) and key in base and isinstance(base[key], dict):
                 self._deep_merge_board_state(base[key], value)
             else:

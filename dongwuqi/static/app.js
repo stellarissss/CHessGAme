@@ -4069,8 +4069,13 @@ class DongwuqiBoard extends HTMLElement {
                     return;
                 }
 
-                await this.sleep(800);
-                await this.makeAIMove();
+                // 仅当回合落到 AI 方时才请求 AI 走棋（跳过回合时回合不会交给 AI）。
+                if (this._isCurrentTurnAITurn()) {
+                    await this.sleep(800);
+                    await this.makeAIMove();
+                } else {
+                    this.aiThinking = false;
+                }
             } else {
                 this.addMessage(data.message || '移动失败', 'error');
                 if (data.ai_controlled && !this.aiThinking) {
@@ -4301,6 +4306,9 @@ class DongwuqiBoard extends HTMLElement {
                         return;
                     }
                     await this.loadConfigs();
+                    // AI 改规则后当前选中棋子的 validMoves 缓存已失效，必须清空选中态，
+                    // 否则下一次点击会拿旧缓存判定合法性（规则改了却仍能走）。
+                    this.clearSelection();
                     this.renderBoard();
                     this.renderPieces();
                     this.updateTurnIndicator();
@@ -5138,7 +5146,7 @@ class DongwuqiBoard extends HTMLElement {
         };
         document.addEventListener('keydown', this._keydownHandler);
 
-        this.shadowRoot.getElementById('board-container').addEventListener('click', (e) => {
+        this.shadowRoot.getElementById('board-container').addEventListener('click', async (e) => {
             if (this.coordInsertMode) {
                 return;
             }
@@ -5147,7 +5155,26 @@ class DongwuqiBoard extends HTMLElement {
                 const [gridX, gridY] = this._getGridCoordsFromEvent(e);
                 if (gridX === null) return;
 
-                const isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+                let isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+                // 防御：AI 可能在选子期间改了规则，本地 validMoves 已过期。
+                // 落子前向后端实时复核一次，避免用陈旧缓存放行已被规则禁止的走法。
+                if (isValidMove) {
+                    try {
+                        const resp = await fetch(`${this.apiBase}/api/valid_moves`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ piece_id: this.selectedPiece.id,
+                                                   to: this.selectedPiece.position })
+                        });
+                        const data = await resp.json();
+                        if (data.success && Array.isArray(data.moves)) {
+                            this.validMoves = data.moves;
+                            isValidMove = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+                        }
+                    } catch (err) {
+                        console.warn('落子前复核合法走法失败，沿用本地缓存:', err);
+                    }
+                }
                 if (isValidMove) {
                     this.executeMove(this.selectedPiece.id, [gridX, gridY]);
                     return;

@@ -1837,7 +1837,7 @@ class HeibaiqiBoard extends HTMLElement {
         };
         document.addEventListener('keydown', this._keydownHandler);
 
-        this.shadowRoot.getElementById('board-container').addEventListener('click', (e) => {
+        this.shadowRoot.getElementById('board-container').addEventListener('click', async (e) => {
             if (this.coordInsertMode) {
                 return;
             }
@@ -1847,7 +1847,26 @@ class HeibaiqiBoard extends HTMLElement {
             if (!this._isCurrentTurnPlayerControlled()) return;
             const [gridX, gridY] = this._getGridCoordsFromEvent(e);
             if (gridX === null) return;
-            const isValid = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+            let isValid = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+            // 防御：AI 可能在指令处理后改了规则，本地 validMoves 已过期。
+            // 落子前向后端实时复核一次，避免用陈旧缓存放行已被规则禁止的落点。
+            if (isValid) {
+                try {
+                    const side = this.boardState?.current_turn || 'black';
+                    const resp = await fetch(`${this.apiBase}/api/valid_moves`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ side })
+                    });
+                    const data = await resp.json();
+                    if (data.success && Array.isArray(data.moves)) {
+                        this.validMoves = data.moves;
+                        isValid = this.validMoves.some(m => m[0] === gridX && m[1] === gridY);
+                    }
+                } catch (err) {
+                    console.warn('落子前复核合法落点失败，沿用本地缓存:', err);
+                }
+            }
             if (isValid) {
                 this.placeStone(gridX, gridY);
             }
