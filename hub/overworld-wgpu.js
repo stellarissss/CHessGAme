@@ -404,6 +404,13 @@ var OverworldGame = {
   stopPolling: function () { if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; } },
   isOpen: function () { return UI ? UI.isModalOpen() : false; },
 
+  /* ── 渲染暂停开关 ──
+     全屏模态（玩法教程等）打开时，必须真正停掉每帧重绘，而不只是屏蔽输入：
+     模态若带 backdrop-filter/blur，浏览器每帧都要对下方整张 canvas 做全屏模糊采样，
+     叠加从未停止的场景渲染，会占满渲染队列，导致整页点不动（"一点教程就卡死"）。
+     暂停时 loop() 跳过 _render()，仅保留 rAF 心跳，恢复时自动继续。 */
+  setRenderPaused: function (v) { this._renderPaused = !!v; },
+
   /* ── 世界几何引导 ── */
   bootstrapGeometry: function (ow) {
     var self = this;
@@ -1440,6 +1447,9 @@ OverworldGame.start = function () {
     (function loop(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       self._time += dt;
+      /* 全屏模态打开时跳过整帧渲染（见 setRenderPaused 注释）。
+         仍保留 rAF 心跳，模态关闭后可立即恢复绘制。 */
+      if (self._renderPaused) { requestAnimationFrame(loop); return; }
       self.step(dt);
       if (self.device && self._ctx && !self._destroyed) {
         self._updateView(); self._frameCB++;

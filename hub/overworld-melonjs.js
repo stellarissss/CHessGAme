@@ -60,6 +60,11 @@ var OverworldGame = {
   stopPolling: function () { if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; } },
   isOpen: function () { return UI ? UI.isModalOpen() : false; },
 
+  /* —— 渲染暂停开关 ——
+     与 WebGPU 渲染器同语义：全屏模态打开时真正停掉每帧场景更新/重绘，
+     避免与模态的 backdrop-filter 叠加占满渲染队列，导致整页点不动。 */
+  setRenderPaused: function (v) { this._renderPaused = !!v; },
+
   /* —— 确定性哈希（保证每格地面在刷新间稳定） —— */
   _hash: function (x, y, salt) {
     var h = (x * 374761393 + y * 668265263 + salt * 2246822519) | 0;
@@ -371,6 +376,8 @@ var OverworldGame = {
 
   /* —— 每帧逻辑（由 MapLayer.update 调用） —— */
   _frame: function (dtSec) {
+    /* 全屏模态打开时跳过整帧更新（见 setRenderPaused 注释） */
+    if (this._renderPaused) return;
     this._timeGlobal = (this._timeGlobal || 0) + dtSec;
     var paused = !!(UI && UI.isModalOpen());
 

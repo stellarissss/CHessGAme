@@ -137,11 +137,10 @@
         if (dom.achBtn) dom.achBtn.addEventListener('click', function () { openAchievements(); });
         if (dom.skillBtn) dom.skillBtn.addEventListener('click', function () { openSkillTree(); });
         if (dom.rpgBtn) dom.rpgBtn.addEventListener('click', function () { openRpgStats(); });
-        /* 玩法教程：复用全局教程模块（/static/tutorial.js）的弹窗，与标题页同源同内容 */
-        if (dom.tutorialBtn) dom.tutorialBtn.addEventListener('click', function () {
-            if (window.OverworldTutorial) window.OverworldTutorial.open();
-        });
-
+        /* 玩法教程：复用全局教程模块（/static/tutorial.js）的弹窗，与标题页同源同内容。
+           注意：教程模块内部已自行为同一个按钮绑定 open()（见 tutorial.js mount()），
+           此处不再重复绑定，避免一次点击触发两次 open/close（表现为"点了没反应/闪关"）。
+           教程开关期间由 UI.setTutorialOpen 统一暂停/恢复底层场景渲染。 */
         /* 制作进度告知条：可手动收起（仅本次会话，不写 localStorage，刷新后仍可见） */
         if (dom.wipNoticeClose) dom.wipNoticeClose.addEventListener('click', function () {
             var n = $('wip-notice');
@@ -175,6 +174,20 @@
         if (window.OverworldTutorial && window.OverworldTutorial.isOpen()) return true;
         return !!openId;
     }
+
+    /* ── 全屏模态打开时暂停底层渲染 ──
+       教程等全屏模态会盖住整个场景。若底层 canvas 仍每帧重绘，浏览器还要为模态的
+       backdrop-filter 每帧做一次全屏模糊采样，两者叠加会占满渲染队列，导致整页点不动
+       （玩家反馈的"一点教程就彻底卡死"）。
+       这里把"是否暂停渲染"收敛到唯一入口，渲染器只暴露 setRenderPaused。 */
+    function setRenderPaused(v) {
+        game = game || null;
+        var target = game || (window.OverworldGame || null);
+        if (target && typeof target.setRenderPaused === 'function') {
+            try { target.setRenderPaused(!!v); } catch (e) { /* 渲染器不支持则忽略 */ }
+        }
+    }
+    function setTutorialOpen(v) { setRenderPaused(!!v); }
 
     function setUI(ref) { game = ref; }
 
@@ -753,6 +766,7 @@
         openRealmSelect: openRealmSelect,
         openSkillTree: openSkillTree,
         openTutorial: function () { if (window.OverworldTutorial) window.OverworldTutorial.open(); },
+        setTutorialOpen: setTutorialOpen,
         openAchievements: openAchievements,
         openRpgStats: openRpgStats,
         toast: toast,

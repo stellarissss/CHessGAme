@@ -238,15 +238,34 @@
             if (err) err.classList.add('hidden');
         };
 
+        /* 全屏模态打开期间必须真正暂停底层场景渲染：
+           本弹窗覆盖整屏，若底下 canvas 仍每帧重绘，浏览器还要为弹窗背景每帧做全屏
+           模糊采样，两者叠加会占满渲染队列，导致整页点不动（"一点教程就卡死"）。
+           优先经 OverworldUI.setTutorialOpen 统一开关；无 UI 的独立页面则直接找渲染器。 */
+        var setScenePaused = function (v) {
+            try {
+                if (window.OverworldUI && typeof window.OverworldUI.setTutorialOpen === 'function') {
+                    window.OverworldUI.setTutorialOpen(!!v);
+                    return;
+                }
+                var g = window.OverworldGame;
+                if (g && typeof g.setRenderPaused === 'function') g.setRenderPaused(!!v);
+            } catch (e) { /* 渲染器不支持则忽略，不影响教程本身可用 */ }
+        };
+
         var open = function () {
             dismissBlockingMasks();
+            setScenePaused(true);
             modal.classList.add('active');
             /* 打开后把焦点交给关闭按钮，键盘用户可直接 Esc/Enter 退出 */
             if (closeBtn && typeof closeBtn.focus === 'function') {
                 try { closeBtn.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ }
             }
         };
-        var close = function () { modal.classList.remove('active'); };
+        var close = function () {
+            modal.classList.remove('active');
+            setScenePaused(false);
+        };
 
         /* 防重复绑定：复用页面已有按钮时，可能已被 overworld-ui.js 绑定过点击，
            这里用标记位确保同一个按钮只挂一次 open，避免"点了反复开关"。 */

@@ -1008,8 +1008,10 @@ body {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(10px);
+    /* 用不透明底色替代 backdrop-filter: blur()：
+       模糊需要每帧对下方整张画面做全屏采样，与底层场景渲染叠加会占满渲染队列，
+       导致整个页面点不动（"一点教程就卡死"）。纯色遮罩视觉差别极小，代价几乎为零。 */
+    background: rgba(6, 8, 14, 0.94);
     z-index: 210;
     align-items: center;
     justify-content: center;
