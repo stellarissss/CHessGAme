@@ -208,7 +208,12 @@
             modal.innerHTML = buildModalInner();
         }
 
-        var fab = document.getElementById('tutorial-btn');
+        /* 入口按钮：优先复用页面自带按钮（如大地图顶栏的 #btn-tutorial），
+           没有时才创建右下角悬浮球 #tutorial-btn。
+           注意二者 id 不同：大地图用 #btn-tutorial，独立页面用 #tutorial-btn，
+           不能只查 #tutorial-btn，否则大地图会多出一个重复的悬浮球。 */
+        var fab = document.getElementById('btn-tutorial') ||
+                  document.getElementById('tutorial-btn');
         if (!fab) {
             fab = document.createElement('button');
             fab.className = 'tutorial-fab';
@@ -226,8 +231,16 @@
         var open = function () { modal.classList.add('active'); };
         var close = function () { modal.classList.remove('active'); };
 
-        fab.addEventListener('click', open);
-        if (closeBtn) closeBtn.addEventListener('click', close);
+        /* 防重复绑定：复用页面已有按钮时，可能已被 overworld-ui.js 绑定过点击，
+           这里用标记位确保同一个按钮只挂一次 open，避免"点了反复开关"。 */
+        if (!fab.__tutorialBound) {
+            fab.__tutorialBound = true;
+            fab.addEventListener('click', open);
+        }
+        if (closeBtn && !closeBtn.__tutorialBound) {
+            closeBtn.__tutorialBound = true;
+            closeBtn.addEventListener('click', close);
+        }
         // 点击遮罩关闭
         modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
         // Esc 关闭（仅在教程打开时拦截）
