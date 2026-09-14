@@ -1,0 +1,253 @@
+/**
+ * 玩法教程 · 可复用模块
+ * ------------------------------------------------------------------
+ * 内置「核心玩法速览」弹窗，涵盖 8 个章节：
+ *   总览 / 对局基础 / 业力 / 识破 / AI修改 / 技能 / 六道 / 修行结局
+ *
+ * 复用方式（在任意页面引入即可，无需各自维护内容）：
+ *   <script src="/static/tutorial.js"></script>
+ *   OverworldTutorial.mount();                         // 注入悬浮按钮 + 弹窗，绑定交互
+ *   OverworldTutorial.open();                          // 手动打开
+ *   OverworldTutorial.autoOpenOnce('overworld');       // 首次进入时自动弹出一次（localStorage 记忆）
+ *
+ * 依赖：hub/style.css 中的 .tutorial-fab / .tutorial-modal 等样式（全局已含）。
+ */
+(function () {
+    'use strict';
+
+    if (window.OverworldTutorial) return;
+
+    var SECTION_NAV = [
+        ['tut-overview', '总览'],
+        ['tut-rule', '对局基础'],
+        ['tut-karma', '业力'],
+        ['tut-detection', '识破'],
+        ['tut-ai', 'AI修改'],
+        ['tut-skill', '技能'],
+        ['tut-realm', '六道'],
+        ['tut-rpg', '修行结局']
+    ];
+
+    var BODY_HTML = [
+        '<section id="tut-overview">',
+        '<h3>🎮 游戏总览</h3>',
+        '<p>你扮演六道轮回中的一名棋手，从<strong>地狱道</strong>一路闯过六重棋境（地狱·饿鬼·畜生·人·阿修罗·天道），在每一局棋中既靠棋艺取胜，也可以偷偷使用<strong>AI修改</strong>改写规则来作弊。</p>',
+        '<p>作弊会让你背上一份<strong>业力</strong>；业力超过安全值时会累积<strong>识破概率</strong>，一旦被天道识破，将走向审判结局。是清心正打下棋消业，还是铤而走险改写规则，每一次抉择都由你决定。</p>',
+        '<p>一句话抓住核心：<em>「下棋能消业，作弊涨业力，业力积累到一定程度就会被天道识破。」</em></p>',
+        '</section>',
+
+        '<section id="tut-rule">',
+        '<h3>♟ 对局基础</h3>',
+        '<ul>',
+        '<li>点击总坛中某一「道」的卡片，会弹出该道关卡列表；已解锁的关卡可直接点击进入对局。</li>',
+        '<li>每一关通常有<strong>20 回合</strong>限制，在回合内完成关卡目标（夺子、连五、提死棋、夺别等，见关卡描述）即算胜出。</li>',
+        '<li>对局中你与 AI 轮流落子。除此之外，对局界面通常提供一块入口，让你用<strong>一句话</strong>向 AI 提要求（改规则、变棋子、改样式等），这就是「AI修改」。</li>',
+        '<li>胜利可获得<strong>技能点</strong>，本道通关后还会解锁该道的<strong>沙盒模式</strong>（自由对弈）。</li>',
+        '</ul>',
+        '</section>',
+
+        '<section id="tut-karma">',
+        '<h3>💫 业力</h3>',
+        '<p>业力是衡量你「业障」的数值，只在一局之内生效（关卡间会变化），它同时是你使用 AI 修改的能源。</p>',
+        '<table>',
+        '<thead><tr><th>项目</th><th>数值</th></tr></thead>',
+        '<tbody>',
+        '<tr><td>每局初始业力</td><td>50</td></tr>',
+        '<tr><td>业力安全阈值</td><td>120</td></tr>',
+        '<tr><td>单次作弊业力上限</td><td>120</td></tr>',
+        '</tbody>',
+        '</table>',
+        '<ul>',
+        '<li><strong>作弊（AI修改）会增加业力</strong>：单项修改按「分类价目表」扣业力，超过当前业力可透支，但会造成危险。</li>',
+        '<li><strong>下棋会减少业力（消业）</strong>：吃子、将军、连子、提子等棋局事件按不同棋类各有一档「消业值」自动降业。</li>',
+        '<li><strong>关卡结束</strong>：本局业力超出安全阈值 120 的部分，会作为<strong>溢出量</strong>叠加给本道下一关（胜负都会叠加）；<strong>换一道时溢出清零</strong>。</li>',
+        '<li>业力耗尽后并非不能作弊，但<strong>透支越多，识破概率涨得越快</strong>。</li>',
+        '</ul>',
+        '<p>一句话：<em>「业力是作弊的燃料，也是泄露行踪的证据——只要超出安全阈值，就开始往识破概率里添柴。」</em></p>',
+        '</section>',
+
+        '<section id="tut-detection">',
+        '<h3>👁 识破概率</h3>',
+        '<p>识破概率是「天道是否会看穿你作弊」的风险值（0–100），<strong>按道分别累积</strong>。</p>',
+        '<ul>',
+        '<li><strong>如何上涨</strong>：当你业力透支（关卡内业力超过安全阈值）时，超出量会按公式换算成识破概率增量：<code>Δ = 0.1 × 透支量^1.5</code>。透支量越大，上涨得越快（非线性）。</li>',
+        '<li><strong>每次 AI 修改后判定一次</strong>：用当前识破概率随机结算一次，命中即被宣布「被天道识破」。</li>',
+        '<li><strong>被识破后</strong>：识破概率被锁死、清空，本道后续不再增长；但你的结局路径已走向「<strong>识破 / 天道审判</strong>」线，通关六道后会触发天道 Boss 战。</li>',
+        '<li>识别阈值示例：约 3.8 点溢出 ≈ 0.07 点概率，明显很低；但当溢出达到 100 时，一次就能让概率+100（即 100%）。</li>',
+        '</ul>',
+        '<p>部分技能可降低风险：提升识破系数上限的技能、首透支豁免、迷雾、金蝉脱壳等（见「技能」）。</p>',
+        '</section>',
+
+        '<section id="tut-ai">',
+        '<h3>🤖 AI 修改</h3>',
+        '<p>这是本游戏最独特的玩法：在棋局内用<strong>自然语言一句指令</strong>，让 AI 实时改写棋子、规则、棋盘、界面甚至游戏机制。AI 会先判断你的意图属于哪一「类」，再按分类定价扣除业力、并实际改动。</p>',
+        '<h4>AI 修改的七个类型（分类价目表）</h4>',
+        '<table>',
+        '<thead><tr><th>分类</th><th>含义</th><th>业力造价</th><th>解锁条件</th></tr></thead>',
+        '<tbody>',
+        '<tr><td><code>E</code></td><td>闲聊 / 搞笑 / 查询</td><td>固定 1</td><td>默认可用</td></tr>',
+        '<tr><td><code>D</code></td><td>界面 / 外观改写（含棋子颜色、大小）</td><td>8–23</td><td>需技能「前端修改」</td></tr>',
+        '<tr><td><code>A</code></td><td>机制修改（悔棋、AI托管、冻结对手、改胜利条件等）</td><td>30–60</td><td>默认可用</td></tr>',
+        '<tr><td><code>B</code></td><td>棋盘 / 棋子位置变换</td><td>23–53</td><td>默认可用</td></tr>',
+        '<tr><td><code>C</code></td><td>规则修改 / 棋子走法</td><td>45–90</td><td>默认可用</td></tr>',
+        '<tr><td><code>C+</code></td><td>创建新棋子</td><td>75–120</td><td>需技能「自定义棋子」</td></tr>',
+        '<tr><td><code>F</code></td><td>核心引擎级修改</td><td>——（一般拒绝）</td><td>通常不可行</td></tr>',
+        '</tbody>',
+        '</table>',
+        '<h4>造价计算逻辑</h4>',
+        '<ul>',
+        '<li><strong>强度倍数</strong>：改 1 个棋子/1 条规则 ×1；改 2 个 ×2；改 3 个及以上 ×3。</li>',
+        '<li><strong>局势调整</strong>：你大优时造价稍重，你劣势时稍轻。</li>',
+        '<li><strong>特殊道加成</strong>：畜生道改高等级棋子额外 +20 业力。</li>',
+        '<li>每个请求的最低业力为 1，最高单次不超过 120（超过会被拦截）。</li>',
+        '</ul>',
+        '<h4>实用提醒</h4>',
+        '<ul>',
+        '<li>修改的棋子/规则只对你指定的那一方生效（如只说「黑方」），否则默认双方一起改。</li>',
+        '<li>每次 AI 修改结束都会触发一次识破判定，用之前先算算你的业力和识破风险值。</li>',
+        '</ul>',
+        '</section>',
+
+        '<section id="tut-skill">',
+        '<h3>🌳 技能树</h3>',
+        '<p>在总坛点击「技能树」可查看和购买被动技能，消耗通关获得的<strong>技能点</strong>。技能分四条分支，需逐层解锁：</p>',
+        '<ul>',
+        '<li><strong>业力掌控</strong>：提升业力安全阈值、单次上限、消业效率，降低初始业力与识破指数。</li>',
+        '<li><strong>隐匿之术</strong>：降低识破系数、首透支豁免、连续无作弊减罚、金蝉脱壳、迷雾等保命技能。</li>',
+        '<li><strong>作弊精通</strong>：解锁「自定义棋子」「前端修改」等高级作弊分类，并提升作弊效率/上限。</li>',
+        '<li><strong>六道悟道</strong>：针对特定道的折扣、降低 Boss 技能触发率、轮回 buff 等。</li>',
+        '</ul>',
+        '</section>',
+
+        '<section id="tut-realm">',
+        '<h3>☸ 六道与守道者</h3>',
+        '<p>六道每道的「守道者」会在最后一关（Boss 关）出现，各有特殊技能：</p>',
+        '<table>',
+        '<thead><tr><th>道</th><th>棋类</th><th>守道者技能</th></tr></thead>',
+        '<tbody>',
+        '<tr><td>地狱道</td><td>黑白棋</td><td>翻覆者：你改规则有 30% 概率被翻转效果</td></tr>',
+        '<tr><td>饿鬼道</td><td>跳棋</td><td>饕餮者：每作弊 2 次额外偷改 1 次</td></tr>',
+        '<tr><td>畜生道</td><td>动物棋</td><td>秩序者：改高等级棋子额外 +20 业力</td></tr>',
+        '<tr><td>人道</td><td>象棋</td><td>算计者：无特殊技能（最公平对决）</td></tr>',
+        '<tr><td>阿修罗道</td><td>围棋</td><td>狂乱者：作弊后 25% 概率随机规则变化</td></tr>',
+        '<tr><td>天道</td><td>五子棋</td><td>禅定者：每局 3 次清除你最近 1 条修改</td></tr>',
+        '</tbody>',
+        '</table>',
+        '</section>',
+
+        '<section id="tut-rpg">',
+        '<h3>🙏 修行与结局</h3>',
+        '<ul>',
+        '<li><strong>悟道 / 堕落 / 祈求</strong>：剧情抉择会累积这些修行值，影响你可走向的结局。</li>',
+        '<li><strong>祈求</strong>：每次使用 AI 修改都会计入「祈求」次数；一旦祈求过，即便识破概率为 0，你的结局路径也已锁定到「识破」方向。</li>',
+        '<li><strong>记忆碎片</strong>：每道达成条件可解锁一段记忆，集齐 6 段解锁真相结局。</li>',
+        '<li><strong>结局</strong>：悟道 / 堕落 / 轮回 / 真我 / 识破（天道审判）等多条结局线，由你的修行、识破状态与通关情况决定。</li>',
+        '<li><strong>天道 Boss</strong>：若被识破，通关六道后即被拉入天道 Boss 战；击败或失败将写出对应终局。</li>',
+        '</ul>',
+        '</section>'
+    ].join('');
+
+    var NAV_HTML = SECTION_NAV.map(function (n) {
+        return '<a href="#' + n[0] + '">' + n[1] + '</a>';
+    }).join('');
+
+    var mountedEls = null;
+
+    /* 单页仅注入一次弹窗内容 */
+    function buildModalInner() {
+        return '<div class="tutorial-content">' +
+                    '<div class="tutorial-header">' +
+                        '<h2 id="tutorial-title">📖 核心玩法速览</h2>' +
+                        '<button class="close-tutorial-btn" id="close-tutorial-btn" type="button" aria-label="关闭教程">✕</button>' +
+                    '</div>' +
+                    '<div class="tutorial-navbar">' + NAV_HTML + '</div>' +
+                    '<div class="tutorial-body" id="tutorial-body">' + BODY_HTML + '</div>' +
+                '</div>';
+    }
+
+    /* 幂等注入：悬浮按钮 + 弹窗容器（若页面已含则复用） */
+    function mount() {
+        if (mountedEls) return mountedEls;
+
+        var modal = document.getElementById('tutorial-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.className = 'tutorial-modal';
+            modal.id = 'tutorial-modal';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-labelledby', 'tutorial-title');
+            modal.innerHTML = buildModalInner();
+            document.body.appendChild(modal);
+        } else if (!modal.querySelector('#tutorial-body')) {
+            /* 页面提供了空的 <div class="tutorial-modal"> 占位：补齐内容 */
+            modal.innerHTML = buildModalInner();
+        }
+
+        var fab = document.getElementById('tutorial-btn');
+        if (!fab) {
+            fab = document.createElement('button');
+            fab.className = 'tutorial-fab';
+            fab.id = 'tutorial-btn';
+            fab.type = 'button';
+            fab.title = '核心玩法速览';
+            fab.textContent = '📖 玩法教程';
+            document.body.appendChild(fab);
+        }
+
+        var closeBtn = modal.querySelector('#close-tutorial-btn');
+        // 关闭按钮触控目标（移动端友好）
+        if (closeBtn) { closeBtn.style.minWidth = '36px'; closeBtn.style.minHeight = '36px'; }
+
+        var open = function () { modal.classList.add('active'); };
+        var close = function () { modal.classList.remove('active'); };
+
+        fab.addEventListener('click', open);
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        // 点击遮罩关闭
+        modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
+        // Esc 关闭（仅在教程打开时拦截）
+        document.addEventListener('keydown', function (e) {
+            if ((e.key === 'Escape' || e.key === 'Esc') && modal.classList.contains('active')) {
+                close();
+            }
+        });
+
+        mountedEls = { modal: modal, fab: fab, open: open, close: close };
+        return mountedEls;
+    }
+
+    function open() { mount().open(); }
+    function close() { if (mountedEls) mountedEls.close(); }
+    function isOpen() { return !!(mountedEls && mountedEls.modal.classList.contains('active')); }
+
+    /* 首次进入自动弹出一次（以 storageKey 记忆，默认 'overworld'） */
+    function autoOpenOnce(storageKey, delayMs) {
+        var key = 'chesssage_tutorial_seen_' + (storageKey || 'overworld');
+        var seen = false;
+        try { seen = localStorage.getItem(key) === '1'; } catch (e) { seen = false; }
+        if (seen) return false;
+        try { localStorage.setItem(key, '1'); } catch (e) { /* 隐私模式忽略 */ }
+        mount();
+        setTimeout(open, (typeof delayMs === 'number') ? delayMs : 600);
+        return true;
+    }
+
+    /* 每次都弹（不受记忆限制），代码上仍写入已看标记，便于其它入口统一判断 */
+    function autoOpenAlways(storageKey, delayMs) {
+        var key = 'chesssage_tutorial_seen_' + (storageKey || 'overworld');
+        try { localStorage.setItem(key, '1'); } catch (e) { /* ignore */ }
+        mount();
+        setTimeout(open, (typeof delayMs === 'number') ? delayMs : 600);
+        return true;
+    }
+
+    window.OverworldTutorial = {
+        mount: mount,
+        open: open,
+        close: close,
+        isOpen: isOpen,
+        autoOpenOnce: autoOpenOnce,
+        autoOpenAlways: autoOpenAlways
+    };
+})();

@@ -84,6 +84,7 @@
         dom.skillBranches = $('skill-branches');
         dom.skillClose = $('close-skill-modal');
         dom.overviewBtn = $('btn-overview');
+        dom.tutorialBtn = $('btn-tutorial');
         dom.achBtn = $('btn-ach');
         dom.achModal = $('ach-modal');
         dom.achSummary = $('ach-summary');
@@ -107,6 +108,16 @@
         if (!_boundOnce) {
             _boundOnce = true;
             bindCore();
+            /* 进入大地图：首次自动弹出一次玩法教程（localStorage 记忆，之后可随时点顶栏按钮打开）。
+               延迟到加载遮罩淡出后再弹，避免与"载入中"遮罩叠在一起。 */
+            if (window.OverworldTutorial) {
+                try { window.OverworldTutorial.mount(); } catch (e) { /* 教程不可用不影响主流程 */ }
+                setTimeout(function () {
+                    try {
+                        if (!isModalOpen()) window.OverworldTutorial.autoOpenOnce('overworld', 0);
+                    } catch (e) { /* ignore */ }
+                }, 1200);
+            }
         }
         refreshHUD();
     }
@@ -125,9 +136,15 @@
         if (dom.achBtn) dom.achBtn.addEventListener('click', function () { openAchievements(); });
         if (dom.skillBtn) dom.skillBtn.addEventListener('click', function () { openSkillTree(); });
         if (dom.rpgBtn) dom.rpgBtn.addEventListener('click', function () { openRpgStats(); });
+        /* 玩法教程：复用全局教程模块（/static/tutorial.js）的弹窗，与标题页同源同内容 */
+        if (dom.tutorialBtn) dom.tutorialBtn.addEventListener('click', function () {
+            if (window.OverworldTutorial) window.OverworldTutorial.open();
+        });
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' || e.key === 'Esc') {
+                /* 教程弹窗优先：它自带 Esc 关闭，此处让行，避免同时打开总览 */
+                if (window.OverworldTutorial && window.OverworldTutorial.isOpen()) return;
                 if (openId) { closeModal(); }
                 else { toggleOverview(true); }
             }
@@ -146,7 +163,11 @@
     }
 
     /* ── 告知 overworld 场景：当前是否弹窗打开（暂停互动）── */
-    function isModalOpen() { return !!openId; }
+    function isModalOpen() {
+        /* 教程弹窗也视为"占屏弹窗"：打开时同样暂停大地图移动/互动 */
+        if (window.OverworldTutorial && window.OverworldTutorial.isOpen()) return true;
+        return !!openId;
+    }
 
     function setUI(ref) { game = ref; }
 
@@ -719,6 +740,7 @@
         setRealmGuide: setRealmGuide,
         openRealmSelect: openRealmSelect,
         openSkillTree: openSkillTree,
+        openTutorial: function () { if (window.OverworldTutorial) window.OverworldTutorial.open(); },
         openAchievements: openAchievements,
         openRpgStats: openRpgStats,
         toast: toast,

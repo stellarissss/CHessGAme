@@ -102,6 +102,20 @@
         }
         /* 进入世界 · 金 */
         .mode-card.world { --mode-accent: var(--gold); --mode-glow: rgba(212,175,55,0.22); }
+        /* 核心玩法速览 · 玉 */
+        .mode-card.quick {
+            --mode-accent: var(--jade);
+            --mode-glow: rgba(13,115,119,0.24);
+            padding: 38px 28px 32px;
+        }
+        .mode-card.quick .mode-icon { font-size: 54px; margin-bottom: 14px; }
+        .mode-card.quick .mode-name { font-size: 28px; }
+        /* 玉色悬浮反馈 */
+        .mode-card.quick:hover { border-color: var(--jade); box-shadow: 0 32px 90px rgba(0,0,0,0.7), 0 0 50px rgba(13,115,119,0.35); }
+        /* 双卡并排（宽屏），窄屏自动堆叠 */
+        @media (min-width: 760px) {
+            .title-mode-grid { grid-template-columns: 1fr 1fr; max-width: 900px; }
+        }
 
         .title-footer {
             text-align: center;
@@ -146,6 +160,18 @@
                 </p>
                 <span class="mode-enter">开始探索 ▶</span>
             </a>
+
+            <a href="#" id="link-quick" class="mode-card quick">
+                <div class="mode-icon">⚡</div>
+                <h2 class="mode-name">核心玩法速览</h2>
+                <div class="mode-sub">Core Gameplay</div>
+                <p class="mode-desc">
+                    直入纯净象棋，无剧情、无业力束缚。<br>
+                    纯棋艺对弈 + 一句话让 AI 改规。<br>
+                    最快体验本作的核心玩法。
+                </p>
+                <span class="mode-enter">立即体验 ▶</span>
+            </a>
         </section>
 
         <footer class="title-footer">
@@ -154,6 +180,7 @@
         </footer>
     </main>
 
+    <script src="/static/tutorial.js"></script>
     <script>
         // 首次进入剧情模式时自动播放序章；已看过则直达六道大陆。
         (function () {
@@ -167,6 +194,35 @@
                     else link.href = '/overworld';
                 })
                 .catch(function () { link.href = '/overworld'; });
+        })();
+
+        // 核心玩法速览：拉起纯净象棋（沙盒 8010）后新标签打开，无任何剧情。
+        (function () {
+            var quick = document.getElementById('link-quick');
+            if (!quick) return;
+            var opening = false;
+            quick.addEventListener('click', function (e) {
+                e.preventDefault();
+                if (opening) return;
+                opening = true;
+                var span = quick.querySelector('.mode-enter');
+                if (span) span.textContent = '正在进入…';
+                // 先确保纯净象棋进程已启动（幂等），再新标签打开对局页
+                fetch('/api/lazy/start?mode=sandbox&game=xiangqi', { cache: 'no-store' })
+                    .catch(function () { /* 即便拉起失败也尝试打开（可能已在运行） */ })
+                    .finally(function () {
+                        window.open('http://localhost:8010/', '_blank', 'noopener,noreferrer');
+                        opening = false;
+                        if (span) span.textContent = '立即体验 ▶';
+                    });
+            });
+        })();
+
+        // 玩法教程：标题页提供常驻悬浮按钮（首次进入自动弹一次）
+        (function () {
+            if (!window.OverworldTutorial) return;
+            window.OverworldTutorial.mount();
+            window.OverworldTutorial.autoOpenOnce('title');
         })();
     </script>
 </body>

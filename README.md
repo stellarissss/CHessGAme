@@ -4,6 +4,12 @@
 
 以六种棋类为战斗场景、「AI 作弊改规」为核心玩法的 Roguelike 大游戏。剧情模式入口为 2.5D 等距自由探索大地图「**六道大陆**」，玩家在其中四向行走、寻找六道入口、与菩提老者兑换技能、在大陆各区域（雪原/密林/湖泊/平原/丘陵/沙漠/地牢/石林/海岸）间自由穿行。
 
+**双入口（标题页 `hub/title.html`）**：
+- **进入世界**（金色）——剧情模式，首次进入先播序章，之后直达六道大陆 `/overworld`。
+- **核心玩法速览**（玉色）——**一步直入纯净象棋对局**（无剧情、无业力束缚）：点击即按需拉起沙盒象棋（`/api/lazy/start?mode=sandbox&game=xiangqi`，端口 8010）后新标签打开，最快体验"纯棋艺对弈 + 一句话让 AI 改规"的核心玩法。适合比赛演示/快速上手。
+
+**内置玩法教程**：标题页与大地图均提供「📖 玩法教程」入口（大地图位于顶部上边栏、标题页为右下悬浮按钮），**进入大地图时首次自动弹出一次**（`localStorage` 记忆，之后可随时手动打开）。教程共 8 章：游戏总览 / 对局基础 / 业力 / 识破概率 / AI 修改（七类分类价目表）/ 技能树 / 六道与守道者 / 修行与结局。教程内容与逻辑集中在可复用模块 `hub/tutorial.js`（`window.OverworldTutorial`），标题页与大地图共用同一份内容，样式复用 `hub/style.css` 的 `.tutorial-*`。
+
 **大陆渲染（v3 · WebGPU 优先 + 智能画质 + melonJS 兜底）**：`overworld-load.js` 作为智能分发器，按设备能力自动选择渲染通道与画质档位。**WebGPU 优先级永远高于回退**——仅在"明确报错"（无 WebGPU / 初始化异常 / 适配器缺失 / 设备丢失）时才降级 melonJS；呈现自检默认非破坏（即便画面异常也保持 WebGPU，仅打角标告警），可用 `?owselfcheck=1` 在缺陷硬件上手动降级。
 - **主通道 · WebGPU 次世代管线（`overworld-wgpu.js` + `wgpu/shaders.js`）**：高度场地形（compute 生成高频细节场 + 顶点置换）、实例化装饰、SSAO（compute）、体积光 God Ray、Bloom mip 链、HDR + ACES 色调映射 + 暗角 + 抖动；DOM 覆盖层与 GPU 共用同一套 mvp 矩阵逐帧投影，严丝合缝。v2.2 修复了旧版三大缺陷：① 初始化竞态（配置接口变慢时相机未就绪 → `reading 'vw'` 黑屏，现在 `_initGPU` 前置相机兜底）；② WGSL 全部管线无效（旧草案 `visibility: 13/8/4` 常量 → 现行 `GPUShaderStage.*`）；③ error scope 未配对异常。
 - **智能画质分级（设备自适应）**：加载时检测 WebGPU 适配器（fallback/软件渲染器识别）+ 硬件信号（核数/内存/移动端），自动选择四档画质——`ultra`（renderScale 1.0、DPR≤2、SSAO+Bloom+体积光全开）、`high`（DPR≤1.5 全开）、`balanced`（0.75 倍渲染、无 SSAO/体积光）、`software`（0.6 倍渲染、纯几何）；画质开关以位编码写入帧 uniform，在 compute/渲染 pass 与合成着色器三处生效（跳过即零开销）。可用 URL `?owq=ultra|high|balanced|software|auto` 或 `localStorage.chesssage_ow_quality` 覆盖。
@@ -390,13 +396,14 @@ workspace/
 ├── requirements.txt
 │
 ├── hub/                         # 六道众生总坛（轮回之门）
-│   ├── title.html               # 首页（六道转轮 + RPG 入口 + 技能树；/ 与 /hub 分别直出/重定向到 /overworld）
+│   ├── title.html               # 首页（进入世界 + 核心玩法速览双入口 + 教程 FAB；/ 直出，/hub 重定向到 /overworld）
 │   ├── overworld.html           # ★ 六道大陆页（渲染装载 + DOM HUD + 小地图）
 │   ├── overworld-load.js        # ★ 渲染器智能分发：设备能力检测 → 画质分级 → WebGPU 优先（呈现自检）→ melonJS 兜底（无黑屏）
 │   ├── overworld-melonjs.js     # ★ 大陆渲染·兜底通道（melonJS v20）：图集预渲染 + 逐帧一次 drawImage 切片 + 昼夜/火把/道境动态光 + 相机/碰撞/POI/小地图
 │   ├── overworld-wgpu.js        # ★ 大陆渲染·主通道（WebGPU）：高度场 + compute 细节场 + 顶点置换 + 实例化 + SSAO/体积光/Bloom/HDR + 智能画质档位 + 呈现自检
 │   ├── overworld-iso.js         # 大陆渲染（旧 iso-engine，仅保留作历史参考，默认不再启用）
-│   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 错误遮罩
+│   ├── overworld-ui.js          # ★ 大陆 UI：HUD / 选关弹窗 / 技能树 / 总览 / 教程弹窗接入 / 错误遮罩
+│   ├── tutorial.js              # ★ 内置玩法教程（8 章）+ 弹窗/FAB；标题页与大地图共用（window.OverworldTutorial）
 │   ├── wgpu/                    # WebGPU 渲染器着色器栈（shaders.js：WGSL 管线 + 智能画质 qualityFlags）
 │   ├── sandbox.html             # 纯净模式选棋类界面（由大陆沙盒训练场按 E 进入）
 │   ├── sandbox.js               # 纯净棋类卡片渲染 + 状态检测
