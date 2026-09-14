@@ -12,6 +12,14 @@ REM      --msvc             使用已安装的 Visual Studio Build Tools 编译
 REM      --clean            打包前清理旧的 build 产物
 REM      --no-cache         不使用 ccache（默认开启以加速二次编译）
 REM      --tmp D:\nktmp     把编译临时目录指到空间充足的盘
+REM      --no-shutdown      编译结束后【不】自动关机（默认会自动关机）
+REM      --shutdown-delay N 关机前等待秒数，默认 60（便于中途反悔取消）
+REM
+REM  关机行为（重要）：
+REM      默认在编译结束（无论成功或失败）后自动关机，适合挂机过夜编译。
+REM      编译期间会阻止系统休眠/睡眠，保证长时间编译不中断。
+REM      想要保留电脑开机，请加 --no-shutdown；执行中如需中止关机，
+REM      可在倒计时内运行 shutdown /a 取消。
 REM
 REM  产物：dist\棋圣\  （含 棋圣.exe + 依赖 + 游戏资源，整个目录可直接分发）
 REM ═══════════════════════════════════════════════════════════════════════
@@ -31,6 +39,9 @@ set "USE_MSVC=0"
 set "DO_CLEAN=0"
 set "USE_CCACHE=1"
 set "TMPDIR="
+set "DO_SHUTDOWN=1"
+set "SHUTDOWN_DELAY=60"
+set "SLEEP_TIMEOUT_CHANGED="
 
 :parse_args
 if "%~1"=="" goto args_done
@@ -39,10 +50,37 @@ if /i "%~1"=="--msvc"   ( set "USE_MSVC=1" & shift & goto parse_args )
 if /i "%~1"=="--clean"  ( set "DO_CLEAN=1" & shift & goto parse_args )
 if /i "%~1"=="--no-cache" ( set "USE_CCACHE=0" & shift & goto parse_args )
 if /i "%~1"=="--tmp"    ( set "TMPDIR=%~2" & shift & shift & goto parse_args )
+if /i "%~1"=="--no-shutdown" ( set "DO_SHUTDOWN=0" & shift & goto parse_args )
+if /i "%~1"=="--shutdown-delay" ( set "SHUTDOWN_DELAY=%~2" & shift & shift & goto parse_args )
 echo   [!] 未知参数：%~1（已忽略）
 shift
 goto parse_args
 :args_done
+
+REM ── 0.1) 阻止休眠（编译期间保持系统唤醒）────────────────────
+REM 编译动辄 10-25 分钟，若期间系统休眠会直接中断编译。
+REM 主方案：把「交流电睡眠超时」临时设为 0（永不睡眠），收尾时还原为 30 分钟。
+REM 该方案无需管理员权限、对整机生效，是最稳的做法。
+REM 辅助：powercfg /requestsoverride 为编译用的 python 进程登记 SYSTEM 请求
+REM （需管理员权限，非管理员时静默跳过，主方案已足够）。
+if "%DO_SHUTDOWN%"=="1" (
+    echo   [i] 编译结束（无论成功或失败）后将在 %SHUTDOWN_DELAY% 秒后自动关机。
+    echo       如需取消：见编译结束时的倒计时提示，或执行  shutdown /a
+) else (
+    echo   [i] 已指定 --no-shutdown：编译结束后保持开机。
+)
+echo   [i] 正在启用编译期休眠抑制...
+REM 主方案：临时关闭睡眠（记录是否改动成功，用于收尾还原）
+powercfg /change standby-timeout-ac 0 >nul 2>nul
+if !errorlevel! equ 0 (
+    set "SLEEP_TIMEOUT_CHANGED=1"
+    echo   [OK] 已临时关闭睡眠（交流电睡眠超时 → 永不）。
+) else (
+    echo   [!] 无法修改电源计划；建议以管理员身份运行本脚本。
+)
+REM 辅助方案：为 python 进程登记请求（无权限时静默忽略）
+powercfg /requestsoverride PROCESS python.exe SYSTEM >nul 2>nul
+echo.
 
 REM ── 1) 定位 Python ──────────────────────────────────────────
 echo [1/7] 定位 Python %PYVER% ...
@@ -160,17 +198,20 @@ if defined TMPDIR set "NK_ARGS=%NK_ARGS% --tmp "%TMPDIR%""
 if "%DO_CLEAN%"=="1" set "NK_ARGS=%NK_ARGS% --clean"
 
 "%VPY%" nuitka_build.py %NK_ARGS%
-if !errorlevel! neq 0 (
+REM 必须用 !errorlevel! 延迟展开：setlocal EnableDelayedExpansion 下 %errorlevel%
+REM 会在整个 if 块解析时就被提前求值，取到的是旧值。
+set "BUILD_RC=!errorlevel!"
+
+if !BUILD_RC! neq 0 (
     echo.
-    echo   [X] 打包失败。常见原因与处理：
+    echo   [X] 打包失败（退出码 !BUILD_RC!）。常见原因与处理：
     echo       1. 网络受限导致 Zig 下载失败 → 加 --msvc 参数改用 Visual Studio
     echo       2. 提示磁盘空间不足          → 加 --tmp D:\nktmp 指定到空间充足的盘
     echo       3. 缺少 pywebview（仅桌面窗口模式需要）→ 执行：
     echo          .venv-build\Scripts\python.exe -m pip install pywebview
     echo       4. 长时间无响应              → 首次编译属正常，耐心等待；二次编译会快很多
     echo.
-    pause
-    exit /b 1
+    goto finish
 )
 
 REM ── 7) 完成 ─────────────────────────────────────────────────
@@ -191,6 +232,43 @@ if exist "dist\棋圣" (
 ) else (
     echo   [!] 未找到 dist\棋圣，请检查上方 Nuitka 输出。
 )
+
+REM ══════════════════════════════════════════════════════════════
+REM  收尾：解除休眠抑制 → 可选自动关机（统一出口，成功/失败都会走到）
+REM ══════════════════════════════════════════════════════════════
+:finish
+echo.
+echo ------------------------------------------------------------
+REM 1) 解除休眠抑制：清除进程规则；若改过睡眠超时则还原为 30 分钟
+powercfg /requestsoverride PROCESS python.exe >nul 2>nul
+if defined SLEEP_TIMEOUT_CHANGED (
+    powercfg /change standby-timeout-ac 30 >nul 2>nul
+    echo   [i] 已还原电源计划（睡眠超时 30 分钟）。
+) else (
+    echo   [i] 休眠抑制已解除（电源计划未被改动）。
+)
+
+REM 2) 自动关机（默认开启；--no-shutdown 可关闭）
+if "%DO_SHUTDOWN%"=="1" (
+    echo.
+    echo   ============================================================
+    echo     [关机] 编译已结束，将在 %SHUTDOWN_DELAY% 秒后关闭计算机。
+    echo            想保留开机：在本窗口按任意键即可取消。
+    echo   ============================================================
+    echo.
+    REM timeout 被按键中断时 errorlevel=1（取消），自然超时=0（继续关机）
+    timeout /t %SHUTDOWN_DELAY%
+    if !errorlevel! neq 0 (
+        echo.
+        echo   [i] 已取消自动关机，保持开机状态。
+    ) else (
+        echo   [关机] 执行关机...
+        shutdown /s /t 5 /c "棋圣打包已完成，系统即将关机"
+    )
+) else (
+    echo   [i] 已按 --no-shutdown 保留开机状态。
+)
 echo.
 pause
+echo ------------------------------------------------------------
 endlocal

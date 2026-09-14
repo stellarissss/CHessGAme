@@ -149,13 +149,44 @@ dist/棋圣/
 ## 四、Windows 一键打包
 
 ```bat
-build_windows.bat                          :: 默认 py -3.12 + Zig
+build_windows.bat                          :: 默认 py -3.12 + Zig，编译完自动关机
+build_windows.bat --no-shutdown            :: 编译结束后保持开机（不关机）
+build_windows.bat --shutdown-delay 120     :: 关机前等待 120 秒（默认 60）
 build_windows.bat --msvc                   :: 改用 Visual Studio Build Tools
 build_windows.bat --python 3.12            :: 指定 Python 版本
 build_windows.bat --clean                  :: 打包前清理旧产物
 build_windows.bat --tmp D:\nktmp           :: 编译临时目录指到空间充足的盘
 build_windows.bat --no-cache               :: 关闭 ccache
 ```
+
+### 挂机编译：休眠抑制与自动关机
+
+长时间编译最怕两件事——**系统休眠中断编译**、**编完忘了关机**。脚本已内置处理。
+
+**休眠抑制（编译期间）**
+
+编译开始时执行 `powercfg /change standby-timeout-ac 0`，把「交流电睡眠超时」临时设为
+**永不睡眠**，编译结束后还原为 30 分钟。该方案无需管理员权限、对整机生效。
+
+辅助地，还会为 `python.exe` 登记 `powercfg /requestsoverride ... SYSTEM` 请求
+（需管理员权限，非管理员时静默跳过——主方案已足够）。
+
+**自动关机（编译结束后）**
+
+默认开启，**无论编译成功或失败**都会在倒计时结束后关机，适合挂机过夜编译。
+
+```
+============================================================
+  [关机] 编译已结束，将在 60 秒后关闭计算机。
+         想保留开机：在本窗口按任意键即可取消。
+============================================================
+```
+
+- **取消方式**：倒计时内按任意键；或另开窗口执行 `shutdown /a`
+- **不关机**：加 `--no-shutdown`
+- **调整等待时间**：`--shutdown-delay 120`
+- 失败时同样会走关机流程，因此**失败原因会先打印在窗口里**——如担心看不到，
+  建议失败排查场景加 `--no-shutdown`。
 
 ### 脚本 7 步流程
 
@@ -165,7 +196,7 @@ build_windows.bat --no-cache               :: 关闭 ccache
 4. **选择 C 编译器** —— 默认 `--zig`（Nuitka 自动下载，免装 VS）；`--msvc` 切换
 5. **清理旧产物**（仅 `--clean`）
 6. **调用 `nuitka_build.py`** —— 参数完全对齐
-7. **完成** —— 打印产物路径并自动打开目录
+7. **收尾** —— 解除休眠抑制 → 倒计时 → 自动关机（或按 `--no-shutdown` 保留开机）
 
 ### 前置要求
 
