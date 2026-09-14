@@ -160,13 +160,19 @@ def build() -> int:
             print("  [编译器] Zig（自动下载，免装 Visual Studio）")
         if not args.console:
             cmd.append("--windows-console-mode=disable")
-        cmd.append("--windows-icon-from-ico=")  # 无图标时为空占位，Nuitka 忽略
+        # 图标：仅当 assets 下存在 .ico 时才传，否则留空参数会被 Nuitka 判为非法
+        ico = ROOT / "assets" / "app.ico"
+        if ico.is_file():
+            cmd.append(f"--windows-icon-from-ico={ico}")
     else:
         print("  [编译器] 系统 gcc/clang")
 
     # ── 缓存 ───────────────────────────────────────────────────
-    if args.cache:
-        cmd.append("--enable-cache")
+    # Nuitka 的编译缓存（含 ccache）默认即为开启，没有 --enable-cache 这类选项，
+    # 只能通过 --disable-cache 关闭。故「开启」时什么都不加，仅关闭时传参。
+    if not args.cache:
+        cmd.append("--disable-cache=ccache")
+        print("  [缓存] 已关闭 ccache")
 
     # ── 临时目录 ───────────────────────────────────────────────
     tmp = args.tmp or os.environ.get("CHESSSAGE_TMP")

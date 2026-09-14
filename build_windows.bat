@@ -150,6 +150,7 @@ echo.
 REM 与 nuitka_build.py 的参数约定保持一致
 set "NK_ARGS=--windows"
 if defined NK_COMPILER set "NK_ARGS=%NK_ARGS% %NK_COMPILER%"
+REM Nuitka 编译缓存默认开启，无需显式参数；仅关闭时传 --no-cache
 if "%USE_CCACHE%"=="1" (
     set "NK_ARGS=%NK_ARGS% --enable-cache"
 ) else (
