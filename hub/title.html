@@ -223,7 +223,6 @@
         </footer>
     </main>
 
-    <script src="/static/tutorial.js"></script>
     <script>
         // 首次进入剧情模式时自动播放序章；已看过则直达六道大陆。
         (function () {
@@ -261,12 +260,9 @@
             });
         })();
 
-        // 玩法教程：标题页提供常驻悬浮按钮（首次进入自动弹一次）
-        (function () {
-            if (!window.OverworldTutorial) return;
-            window.OverworldTutorial.mount();
-            window.OverworldTutorial.autoOpenOnce('title');
-        })();
+        // 玩法教程：不在标题页弹出（也不注入悬浮按钮）。
+        // 教程仅在玩家首次进入大地图时自动弹出一次（见 overworld-ui.js 的 autoOpenOnce('overworld')），
+        // 无论是否看过序章；之后可随时点击大地图顶栏的「玩法教程」按钮再次查看。
     </script>
 </body>
 </html>
