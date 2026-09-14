@@ -1,24 +1,21 @@
 /**
- * 玩法教程 · 可复用模块
+ * 玩法教程 · 内容共享模块
  * ------------------------------------------------------------------
- * 内置「核心玩法速览」弹窗，涵盖 9 个章节：
- *   总览 / 棋圣哲学 / 对局基础 / 业力 / 识破 / AI修改 / 技能 / 六道 / 修行结局
+ * 单一真相源：教程的 9 个章节正文与导航项集中在这里维护。
+ * 使用方：
+ *   - hub/tutorial.html（独立教程页 /tutorial）直接渲染
+ *   - 任何页面如需引用同一份文案，读取 window.TutorialContent
  *
- * 复用方式（在任意页面引入即可，无需各自维护内容）：
- *   <script src="/static/tutorial.js"></script>
- *   OverworldTutorial.mount();                         // 注入悬浮按钮 + 弹窗，绑定交互
- *   OverworldTutorial.open();                          // 手动打开
- *   OverworldTutorial.autoOpenOnce('overworld');       // 首次进入大地图时自动弹出一次（localStorage 记忆）
- *                                                      // 注意：标题页不自动弹出，仅大地图首次进入弹一次。
- *
- * 依赖：hub/style.css 中的 .tutorial-fab / .tutorial-modal 等样式（全局已含）。
+ * 对外接口：
+ *   TutorialContent.SECTION_NAV  -> [[锚点 id, 标题], ...]
+ *   TutorialContent.NAV_HTML     -> 导航栏锚点 HTML
+ *   TutorialContent.BODY_HTML    -> 全部章节 HTML
  */
 (function () {
     'use strict';
+    if (window.TutorialContent) return;
 
-    if (window.OverworldTutorial) return;
-
-    var SECTION_NAV = [
+        var SECTION_NAV = [
         ['tut-overview', '总览'],
         ['tut-philosophy', '棋圣哲学'],
         ['tut-rule', '对局基础'],
@@ -175,152 +172,9 @@
         return '<a href="#' + n[0] + '">' + n[1] + '</a>';
     }).join('');
 
-    var mountedEls = null;
-
-    /* 单页仅注入一次弹窗内容 */
-    function buildModalInner() {
-        return '<div class="tutorial-content">' +
-                    '<div class="tutorial-header">' +
-                        '<h2 id="tutorial-title">📖 核心玩法速览</h2>' +
-                        '<button class="close-tutorial-btn" id="close-tutorial-btn" type="button" aria-label="关闭教程">✕</button>' +
-                    '</div>' +
-                    '<div class="tutorial-navbar">' + NAV_HTML + '</div>' +
-                    '<div class="tutorial-body" id="tutorial-body">' + BODY_HTML + '</div>' +
-                '</div>';
-    }
-
-    /* 幂等注入：悬浮按钮 + 弹窗容器（若页面已含则复用） */
-    function mount() {
-        if (mountedEls) return mountedEls;
-
-        var modal = document.getElementById('tutorial-modal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.className = 'tutorial-modal';
-            modal.id = 'tutorial-modal';
-            modal.setAttribute('role', 'dialog');
-            modal.setAttribute('aria-modal', 'true');
-            modal.setAttribute('aria-labelledby', 'tutorial-title');
-            modal.innerHTML = buildModalInner();
-            document.body.appendChild(modal);
-        } else if (!modal.querySelector('#tutorial-body')) {
-            /* 页面提供了空的 <div class="tutorial-modal"> 占位：补齐内容 */
-            modal.innerHTML = buildModalInner();
-        }
-
-        /* 入口按钮：优先复用页面自带按钮（如大地图顶栏的 #btn-tutorial），
-           没有时才创建右下角悬浮球 #tutorial-btn。
-           注意二者 id 不同：大地图用 #btn-tutorial，独立页面用 #tutorial-btn，
-           不能只查 #tutorial-btn，否则大地图会多出一个重复的悬浮球。 */
-        var fab = document.getElementById('btn-tutorial') ||
-                  document.getElementById('tutorial-btn');
-        if (!fab) {
-            fab = document.createElement('button');
-            fab.className = 'tutorial-fab';
-            fab.id = 'tutorial-btn';
-            fab.type = 'button';
-            fab.title = '核心玩法速览';
-            fab.textContent = '📖 玩法教程';
-            document.body.appendChild(fab);
-        }
-
-        var closeBtn = modal.querySelector('#close-tutorial-btn');
-        // 关闭按钮触控目标（移动端友好）
-        if (closeBtn) { closeBtn.style.minWidth = '36px'; closeBtn.style.minHeight = '36px'; }
-
-        /* 打开教程时顺手收起「错误」全屏遮罩：
-           错误遮罩是 pointer-events:auto 的全屏层，一旦残留会盖住整页，
-           让玩家觉得「按钮点不了、退不出去」。教程能打开即说明页面可用，
-           此时不应再被错误遮罩挡住。
-           （不动 loading-overlay：它由渲染流程自行控制，擅自隐藏会破坏加载动画。） */
-        var dismissBlockingMasks = function () {
-            var err = document.getElementById('error-overlay');
-            if (err) err.classList.add('hidden');
-        };
-
-        /* 全屏模态打开期间必须真正暂停底层场景渲染：
-           本弹窗覆盖整屏，若底下 canvas 仍每帧重绘，浏览器还要为弹窗背景每帧做全屏
-           模糊采样，两者叠加会占满渲染队列，导致整页点不动（"一点教程就卡死"）。
-           优先经 OverworldUI.setTutorialOpen 统一开关；无 UI 的独立页面则直接找渲染器。 */
-        var setScenePaused = function (v) {
-            try {
-                if (window.OverworldUI && typeof window.OverworldUI.setTutorialOpen === 'function') {
-                    window.OverworldUI.setTutorialOpen(!!v);
-                    return;
-                }
-                var g = window.OverworldGame;
-                if (g && typeof g.setRenderPaused === 'function') g.setRenderPaused(!!v);
-            } catch (e) { /* 渲染器不支持则忽略，不影响教程本身可用 */ }
-        };
-
-        var open = function () {
-            dismissBlockingMasks();
-            setScenePaused(true);
-            modal.classList.add('active');
-            /* 打开后把焦点交给关闭按钮，键盘用户可直接 Esc/Enter 退出 */
-            if (closeBtn && typeof closeBtn.focus === 'function') {
-                try { closeBtn.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ }
-            }
-        };
-        var close = function () {
-            modal.classList.remove('active');
-            setScenePaused(false);
-        };
-
-        /* 防重复绑定：复用页面已有按钮时，可能已被 overworld-ui.js 绑定过点击，
-           这里用标记位确保同一个按钮只挂一次 open，避免"点了反复开关"。 */
-        if (!fab.__tutorialBound) {
-            fab.__tutorialBound = true;
-            fab.addEventListener('click', open);
-        }
-        if (closeBtn && !closeBtn.__tutorialBound) {
-            closeBtn.__tutorialBound = true;
-            closeBtn.addEventListener('click', close);
-        }
-        // 点击遮罩关闭
-        modal.addEventListener('mousedown', function (e) { if (e.target === modal) close(); });
-        // Esc 关闭（仅在教程打开时拦截）
-        document.addEventListener('keydown', function (e) {
-            if ((e.key === 'Escape' || e.key === 'Esc') && modal.classList.contains('active')) {
-                close();
-            }
-        });
-
-        mountedEls = { modal: modal, fab: fab, open: open, close: close };
-        return mountedEls;
-    }
-
-    function open() { mount().open(); }
-    function close() { if (mountedEls) mountedEls.close(); }
-    function isOpen() { return !!(mountedEls && mountedEls.modal.classList.contains('active')); }
-
-    /* 首次进入自动弹出一次（以 storageKey 记忆，默认 'overworld'） */
-    function autoOpenOnce(storageKey, delayMs) {
-        var key = 'chesssage_tutorial_seen_' + (storageKey || 'overworld');
-        var seen = false;
-        try { seen = localStorage.getItem(key) === '1'; } catch (e) { seen = false; }
-        if (seen) return false;
-        try { localStorage.setItem(key, '1'); } catch (e) { /* 隐私模式忽略 */ }
-        mount();
-        setTimeout(open, (typeof delayMs === 'number') ? delayMs : 600);
-        return true;
-    }
-
-    /* 每次都弹（不受记忆限制），代码上仍写入已看标记，便于其它入口统一判断 */
-    function autoOpenAlways(storageKey, delayMs) {
-        var key = 'chesssage_tutorial_seen_' + (storageKey || 'overworld');
-        try { localStorage.setItem(key, '1'); } catch (e) { /* ignore */ }
-        mount();
-        setTimeout(open, (typeof delayMs === 'number') ? delayMs : 600);
-        return true;
-    }
-
-    window.OverworldTutorial = {
-        mount: mount,
-        open: open,
-        close: close,
-        isOpen: isOpen,
-        autoOpenOnce: autoOpenOnce,
-        autoOpenAlways: autoOpenAlways
+    window.TutorialContent = {
+        SECTION_NAV: SECTION_NAV,
+        NAV_HTML: NAV_HTML,
+        BODY_HTML: BODY_HTML
     };
 })();

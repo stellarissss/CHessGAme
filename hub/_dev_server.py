@@ -49,6 +49,10 @@ class Handler(BaseHTTPRequestHandler):
         if base in ("/", "/overworld", "/hub"):
             self._serve_file(ROOT / "overworld.html")
             return
+        if base == "/tutorial":
+            # 独立玩法教程页（与 main.py 的 /tutorial 路由对齐）
+            self._serve_file(ROOT / "tutorial.html")
+            return
         if base.startswith("/static/"):
             rel = base[len("/static/"):]
             self._serve_file((ROOT / rel).resolve())

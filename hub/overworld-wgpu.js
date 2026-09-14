@@ -405,10 +405,8 @@ var OverworldGame = {
   isOpen: function () { return UI ? UI.isModalOpen() : false; },
 
   /* ── 渲染暂停开关 ──
-     全屏模态（玩法教程等）打开时，必须真正停掉每帧重绘，而不只是屏蔽输入：
-     模态若带 backdrop-filter/blur，浏览器每帧都要对下方整张 canvas 做全屏模糊采样，
-     叠加从未停止的场景渲染，会占满渲染队列，导致整页点不动（"一点教程就卡死"）。
-     暂停时 loop() 跳过 _render()，仅保留 rAF 心跳，恢复时自动继续。 */
+     供全屏遮挡场景（将来若有）真正停掉每帧重绘，而不只是屏蔽输入。
+     玩法教程已改为独立标签页，当前无调用方，保留为渲染器的通用能力。 */
   setRenderPaused: function (v) { this._renderPaused = !!v; },
 
   /* ── 世界几何引导 ── */
@@ -1447,8 +1445,8 @@ OverworldGame.start = function () {
     (function loop(now) {
       var dt = Math.min(0.05, (now - last) / 1000); last = now;
       self._time += dt;
-      /* 全屏模态打开时跳过整帧渲染（见 setRenderPaused 注释）。
-         仍保留 rAF 心跳，模态关闭后可立即恢复绘制。 */
+      /* 渲染暂停时跳过整帧渲染（见 setRenderPaused 注释）。
+         仍保留 rAF 心跳，恢复后可立即继续绘制。 */
       if (self._renderPaused) { requestAnimationFrame(loop); return; }
       self.step(dt);
       if (self.device && self._ctx && !self._destroyed) {

@@ -724,10 +724,8 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
         </div>
     </div>
 
-    <!-- 玩法教程弹窗（内容由 /static/tutorial.js 注入，复用 .tutorial-* 全局样式） -->
-    <div class="tutorial-modal" id="tutorial-modal" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-        <div class="tutorial-content"></div>
-    </div>
+    <!-- 玩法教程已改为独立页面 /tutorial（点击顶栏「玩法教程」以新标签页打开），
+         此处不再保留浮窗 DOM：浮窗覆盖 canvas 会带来渲染负担与交互遮挡。 -->
 
     <!-- Toast 容器 -->
     <div id="toast-container" aria-live="polite"></div>
@@ -753,7 +751,6 @@ html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after 
     </div>
 </div>
 
-<script src="/static/tutorial.js"></script>
 <script src="/static/overworld-ui.js"></script>
 <script type="module" src="/static/overworld-load.js"></script>
 </body>

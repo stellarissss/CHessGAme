@@ -109,16 +109,8 @@
         if (!_boundOnce) {
             _boundOnce = true;
             bindCore();
-            /* 进入大地图：首次自动弹出一次玩法教程（localStorage 记忆，之后可随时点顶栏按钮打开）。
-               延迟到加载遮罩淡出后再弹，避免与"载入中"遮罩叠在一起。 */
-            if (window.OverworldTutorial) {
-                try { window.OverworldTutorial.mount(); } catch (e) { /* 教程不可用不影响主流程 */ }
-                setTimeout(function () {
-                    try {
-                        if (!isModalOpen()) window.OverworldTutorial.autoOpenOnce('overworld', 0);
-                    } catch (e) { /* ignore */ }
-                }, 1200);
-            }
+            /* 玩法教程已改为独立标签页（/tutorial）：
+               不再在进入大地图时自动弹浮窗，也不再有浮窗覆盖 canvas 的渲染负担。 */
         }
         refreshHUD();
     }
@@ -137,10 +129,12 @@
         if (dom.achBtn) dom.achBtn.addEventListener('click', function () { openAchievements(); });
         if (dom.skillBtn) dom.skillBtn.addEventListener('click', function () { openSkillTree(); });
         if (dom.rpgBtn) dom.rpgBtn.addEventListener('click', function () { openRpgStats(); });
-        /* 玩法教程：复用全局教程模块（/static/tutorial.js）的弹窗，与标题页同源同内容。
-           注意：教程模块内部已自行为同一个按钮绑定 open()（见 tutorial.js mount()），
-           此处不再重复绑定，避免一次点击触发两次 open/close（表现为"点了没反应/闪关"）。
-           教程开关期间由 UI.setTutorialOpen 统一暂停/恢复底层场景渲染。 */
+        /* 玩法教程：在独立标签页打开 /tutorial。
+           改为独立页后，教程不再覆盖在场景之上，也就不存在"浮窗盖住 canvas 导致整页卡死"的问题。
+           用 'noopener' 打开：新页无需反向操作本页，避免 opener 引用带来的性能与安全问题。 */
+        if (dom.tutorialBtn) dom.tutorialBtn.addEventListener('click', function () {
+            openTutorialPage();
+        });
         /* 制作进度告知条：可手动收起（仅本次会话，不写 localStorage，刷新后仍可见） */
         if (dom.wipNoticeClose) dom.wipNoticeClose.addEventListener('click', function () {
             var n = $('wip-notice');
@@ -149,8 +143,6 @@
 
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape' || e.key === 'Esc') {
-                /* 教程弹窗优先：它自带 Esc 关闭，此处让行，避免同时打开总览 */
-                if (window.OverworldTutorial && window.OverworldTutorial.isOpen()) return;
                 if (openId) { closeModal(); }
                 else { toggleOverview(true); }
             }
@@ -170,24 +162,25 @@
 
     /* ── 告知 overworld 场景：当前是否弹窗打开（暂停互动）── */
     function isModalOpen() {
-        /* 教程弹窗也视为"占屏弹窗"：打开时同样暂停大地图移动/互动 */
-        if (window.OverworldTutorial && window.OverworldTutorial.isOpen()) return true;
         return !!openId;
     }
 
-    /* ── 全屏模态打开时暂停底层渲染 ──
-       教程等全屏模态会盖住整个场景。若底层 canvas 仍每帧重绘，浏览器还要为模态的
-       backdrop-filter 每帧做一次全屏模糊采样，两者叠加会占满渲染队列，导致整页点不动
-       （玩家反馈的"一点教程就彻底卡死"）。
-       这里把"是否暂停渲染"收敛到唯一入口，渲染器只暴露 setRenderPaused。 */
-    function setRenderPaused(v) {
-        game = game || null;
-        var target = game || (window.OverworldGame || null);
-        if (target && typeof target.setRenderPaused === 'function') {
-            try { target.setRenderPaused(!!v); } catch (e) { /* 渲染器不支持则忽略 */ }
+    /* ── 打开玩法教程（独立标签页）──
+       教程已与大地图解耦为纯静态文档 /tutorial，不再使用浮窗，
+       因此打开教程不会给本页带来任何渲染负担。
+
+       注意：这里【不能】用 window.open 的返回值判断「是否被拦截」。
+       传 'noopener' 时浏览器出于安全约定会固定返回 null（即使成功打开了新标签页），
+       若据此回退 location.href，就会把当前大地图页自身导航走——
+       表现为「点了教程，大地图没了」。故一律按新标签页处理，不做返回值判断。 */
+    function openTutorialPage() {
+        try {
+            window.open('/tutorial', '_blank', 'noopener');
+        } catch (e) {
+            /* 极端情况下 open 抛错（如被扩展拦截）才回退为当前页跳转 */
+            location.href = '/tutorial';
         }
     }
-    function setTutorialOpen(v) { setRenderPaused(!!v); }
 
     function setUI(ref) { game = ref; }
 
@@ -765,8 +758,8 @@
         setRealmGuide: setRealmGuide,
         openRealmSelect: openRealmSelect,
         openSkillTree: openSkillTree,
-        openTutorial: function () { if (window.OverworldTutorial) window.OverworldTutorial.open(); },
-        setTutorialOpen: setTutorialOpen,
+        openTutorial: openTutorialPage,
+        openTutorialPage: openTutorialPage,
         openAchievements: openAchievements,
         openRpgStats: openRpgStats,
         toast: toast,

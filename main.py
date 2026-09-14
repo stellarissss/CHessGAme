@@ -539,6 +539,15 @@ def build_hub_app():
                 pass
         return JSONResponse({"error": "overworld.json 缺失或损坏"}, headers=NO_STORE, status_code=404)
 
+    @app.get("/tutorial")
+    async def tutorial_page():
+        # 独立玩法教程页：由大地图/标题页以新标签页打开。
+        # 内容与大地图完全解耦（纯静态文档），不存在浮窗覆盖 canvas 导致的卡死。
+        html_path = HUB_DIR / "tutorial.html"
+        if html_path.exists():
+            return HTMLResponse(html_path.read_text(encoding="utf-8"))
+        return HTMLResponse("<h1>教程页面未找到</h1>", status_code=404)
+
     @app.get("/sandbox")
     async def sandbox_page():
         # 沙盒总坛（纯净棋类入口，与 RPG 隔离）
