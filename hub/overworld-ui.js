@@ -85,6 +85,7 @@
         dom.skillClose = $('close-skill-modal');
         dom.overviewBtn = $('btn-overview');
         dom.tutorialBtn = $('btn-tutorial');
+        dom.wipNoticeClose = $('wip-notice-close');
         dom.achBtn = $('btn-ach');
         dom.achModal = $('ach-modal');
         dom.achSummary = $('ach-summary');
@@ -139,6 +140,12 @@
         /* 玩法教程：复用全局教程模块（/static/tutorial.js）的弹窗，与标题页同源同内容 */
         if (dom.tutorialBtn) dom.tutorialBtn.addEventListener('click', function () {
             if (window.OverworldTutorial) window.OverworldTutorial.open();
+        });
+
+        /* 制作进度告知条：可手动收起（仅本次会话，不写 localStorage，刷新后仍可见） */
+        if (dom.wipNoticeClose) dom.wipNoticeClose.addEventListener('click', function () {
+            var n = $('wip-notice');
+            if (n) n.classList.add('wip-hidden');
         });
 
         document.addEventListener('keydown', function (e) {
@@ -303,6 +310,11 @@
         setLoadingProgress(100);
         if (lb.raf) cancelAnimationFrame(lb.raf);
         lb.cur = 100; _lbPaint(); _lbHint();
+        /* 渲染成功后必须一并收起错误遮罩：
+           错误遮罩是全屏且 pointer-events:auto 的，若在「WebGPU 失败→降级 melonJS 成功」
+           这类路径上残留，会盖住整个大地图，导致所有 HUD 按钮与弹窗都点不动
+           （表现为「按钮点不了、退不出去」）。 */
+        if (dom.error) dom.error.classList.add('hidden');
         /* 最短展示时长：让玩家看到进度走满，再淡出遮罩 */
         var wait = 220;
         var elapsed = performance.now() - lb.start;

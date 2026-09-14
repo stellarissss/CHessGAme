@@ -228,7 +228,24 @@
         // 关闭按钮触控目标（移动端友好）
         if (closeBtn) { closeBtn.style.minWidth = '36px'; closeBtn.style.minHeight = '36px'; }
 
-        var open = function () { modal.classList.add('active'); };
+        /* 打开教程时顺手收起「错误」全屏遮罩：
+           错误遮罩是 pointer-events:auto 的全屏层，一旦残留会盖住整页，
+           让玩家觉得「按钮点不了、退不出去」。教程能打开即说明页面可用，
+           此时不应再被错误遮罩挡住。
+           （不动 loading-overlay：它由渲染流程自行控制，擅自隐藏会破坏加载动画。） */
+        var dismissBlockingMasks = function () {
+            var err = document.getElementById('error-overlay');
+            if (err) err.classList.add('hidden');
+        };
+
+        var open = function () {
+            dismissBlockingMasks();
+            modal.classList.add('active');
+            /* 打开后把焦点交给关闭按钮，键盘用户可直接 Esc/Enter 退出 */
+            if (closeBtn && typeof closeBtn.focus === 'function') {
+                try { closeBtn.focus({ preventScroll: true }); } catch (e) { /* 忽略 */ }
+            }
+        };
         var close = function () { modal.classList.remove('active'); };
 
         /* 防重复绑定：复用页面已有按钮时，可能已被 overworld-ui.js 绑定过点击，
