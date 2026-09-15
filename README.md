@@ -385,14 +385,18 @@ python main.py
 
 可选参数：`--browser`/`--no-window` 明确以浏览器模式启动（默认即此），`--window` 改用独立桌面窗口（pywebview），`--no-browser` 不自动打开浏览器，`HUB_PORT=8080` 自定义 Hub 端口。
 
-### Windows 源码版（免编译，快速分发）
+### Windows 打包（PyInstaller onedir，免编译环境出 exe）
+
+Windows 上直接产出 `棋圣.exe`（自带运行时，不含 Python 也免源依赖），无需 Nuitka：
 
 ```batch
-:: 无需编译：Win 装 Python 3.10+ 后双击「启动游戏.bat」即可（首次自动装依赖）
-python -m pip install -r requirements-run.txt
-python main.py
+pip install pyinstaller fastapi "uvicorn[standard]" httpx pydantic jsonschema jsonpatch
+python pyinstaller\build_game.py        :: 或双击 pyinstaller\一键打包.bat
 ```
-分发即拷贝源码目录（或 Releases 中的 `*-win-src-*.zip`）；另一路可编译为 exe（见下）。
+
+- spec：`pyinstaller/chesssage.spec`（入口为 `main.py`，后者内置冻结态判定与「启动器+子进程」双模式）。
+- 产物 `dist/chesssage/`：`棋圣.exe` + 游戏源码/资源 + `config.json`（API Key 默认清空，自行填入）。
+- PyInstaller **不支持交叉编译**——Windows 版 `.exe` 必须在 Windows 上构建（脚本跨平台，Windows 运行即出 exe）。
 
 ### 生产打包（Nuitka standalone）
 
