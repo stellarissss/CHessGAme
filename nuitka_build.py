@@ -59,9 +59,27 @@ DATA_DIRS = [
 ]
 
 # 运行期必需、但可能被静态分析漏掉的包。
+#
+# 【为什么必须显式列出】
+# 本项目的结构特殊：main.py（唯一被 Nuitka 编译的入口）自己只用标准库，
+# 真正的 Web 服务代码位于各棋类目录（xiangqi/main.py 等），它们是作为
+# 「数据文件」被携带的 .py，运行期由 runpy.run_path() 就地执行。
+# Nuitka 的静态分析只看得到 main.py 的 import，**看不到这些数据文件的
+# import**，因此 fastapi / uvicorn / pydantic / httpx 等都不会被自动打包，
+# 产物一启动就会 ModuleNotFoundError。必须在此显式声明。
+#
 # 注意：pywebview 无需在此列出——Nuitka 自带 pywebview 插件会自动识别并打包
 # （手动再加 --include-package=webview 会与之冲突报 FATAL）。
-INCLUDE_PACKAGES: list[str] = []
+INCLUDE_PACKAGES = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "httpx",
+    "jsonschema",
+    "jsonpatch",
+    "anyio",
+    "starlette",
+]
 
 # 明确排除的无用大包（减小产物体积 / 避免误报缺失）
 EXCLUDE_PACKAGES = [
@@ -140,7 +158,11 @@ def _is_excluded(p: Path) -> bool:
 
 
 def _list_data_files(root: Path) -> list[Path]:
-    """列出目录下所有应进产物的文件（已过滤缓存/垃圾），按路径排序保证命令稳定。"""
+    """列出目录下所有应进产物的文件（已过滤缓存/垃圾），按路径排序保证命令稳定。
+
+    仅供「产物预览 / 统计」使用；实际传给 Nuitka 的是通配参数（见 build()），
+    因为逐文件列举会产生上千条参数，撑爆 Windows 命令行长度上限。
+    """
     return sorted(
         p for p in root.rglob("*")
         if p.is_file() and not _is_excluded(p.relative_to(root.parent))
@@ -153,6 +175,23 @@ def _count_excluded(root: Path) -> int:
         1 for p in root.rglob("*")
         if p.is_file() and _is_excluded(p.relative_to(root.parent))
     )
+
+
+def _collect_extensions(root: Path) -> set[str]:
+    """收集目录下所有『应进产物』文件的扩展名（不含被排除者）。
+
+    用于生成 `--include-data-files=<dir>=./=<ext>` 通配参数：
+    每种扩展名一条，替代「每个文件一条」，把命令行从 20 万字符压到几百字符。
+    """
+    exts = set()
+    for p in root.rglob("*"):
+        if not p.is_file():
+            continue
+        if _is_excluded(p.relative_to(root.parent)):
+            continue
+        if p.suffix:
+            exts.add(p.suffix)
+    return exts
 
 
 def _pkg_available(name: str) -> bool:
@@ -246,18 +285,24 @@ def build() -> int:
         print(f"  [临时目录] {tmp_abs}（通过 TMP/TEMP 环境变量生效）")
 
     # ── 数据目录 ───────────────────────────────────────────────
-    # 两个必须绕开的 Nuitka 陷阱：
+    # 三个必须绕开的 Nuitka 陷阱：
     #   ① --include-data-dir 会把 .py 视为「代码」而自动过滤，导致棋类服务源码
     #      一个都进不了产物（这正是旧包「完全无法使用」的根因）；
     #   ② --include-data-dir 是「整目录拷贝」，会把 __pycache__ / *.pyc 等
-    #      编译缓存一并带进产物（不该分发给玩家的垃圾文件）。
-    # 因此这里**完全放弃 --include-data-dir**，改为逐文件精确枚举：
-    #   · 非 .py 资源（前端 static/、configs/ 等）→ 逐个 --include-data-files
-    #   · .py 源码                                 → 逐个 --include-data-files
-    # 逐文件映射必须精确到同名路径，不能用 <dir>/**/*.py 通配：通配会把子目录
-    # 层级压平（sandbox/xiangqi/main.py 会挤成 sandbox/main.py 互相覆盖）。
-    # 收益：产物内容完全可控，缓存/日志等垃圾无从混入。
+    #      编译缓存一并带进产物（不该分发给玩家的垃圾文件）；
+    #   ③ 若改为「逐文件列举」--include-data-files，参数会多达上千条，
+    #      命令行膨胀到 20 万字符，远超 Windows 上限（cmd.exe 8191 /
+    #      CreateProcess 32767），Nuitka 会直接启动失败。
+    #
+    # 正确做法：三值通配语法（官方文档明确支持保留目录层级）
+    #   --include-data-files=<扫描目录>=./=<模式>
+    # 每个数据目录「每种扩展名一条」参数，命令行压到几百字符；
+    # 再用 --noinclude-data-files 剔除缓存/垃圾，产物依然干净。
+    #     · 目录层级完整保留（sandbox/xiangqi/main.py 不会压平覆盖）
+    #     · .py 源码可正常进入产物（走数据文件通道，不走代码通道）
     excluded_hits = 0
+    total_files = 0
+    total_bytes = 0
     for d in DATA_DIRS:
         base = ROOT / d
         if not base.is_dir():
@@ -266,31 +311,67 @@ def build() -> int:
 
         files = _list_data_files(base)
         excluded_hits += _count_excluded(base)
-
+        total_files += len(files)
         for p in files:
-            rel = p.relative_to(ROOT).as_posix()
-            cmd.append(f"--include-data-files={rel}={rel}")
+            try:
+                total_bytes += p.stat().st_size
+            except OSError:
+                pass
+
+        exts = sorted(_collect_extensions(base))
+        for ext in exts:
+            # 三值语法 <源目录>=<目标目录>=<模式>：
+            # 目标目录必须写成「同名子目录」（如 shared=shared/=...），
+            # 若写成 ./=（产物根），所有文件会被压平到根目录并互相覆盖
+            # （xiangqi/main.py 与 wuziqi/main.py 会挤成同一个 main.py）。
+            # 源目录内文件的相对路径会保留并拼接到目标目录之后。
+            cmd.append(f"--include-data-files={d}={d}/=**/*{ext}")
+
         py_n = sum(1 for p in files if p.suffix == ".py")
         other_n = len(files) - py_n
-        print(f"  · {d}: {py_n} 个 .py 源码 + {other_n} 个资源文件")
+        print(f"  · {d}: {py_n} 个 .py 源码 + {other_n} 个资源文件"
+              f"（{len(exts)} 种扩展名）")
+
+    # 排除规则 -> 传给 Nuitka 的 --noinclude-data-files
+    # 注意：该选项匹配的是「目标路径」（产物内相对路径）。使用全局通配而非
+    # 逐目录列举，把 11 目录 × 14 后缀 = 154 条参数压到 14 条，避免命令行超限。
+    cmd.append("--noinclude-data-files=**/__pycache__")
+    cmd.append("--noinclude-data-files=**/__pycache__/*")
+    for ext in sorted(EXCLUDE_FILE_SUFFIXES):
+        cmd.append(f"--noinclude-data-files=**/*{ext}")
+    for name in sorted(EXCLUDE_FILE_NAMES):
+        cmd.append(f"--noinclude-data-files=**/{name}")
+    for ext in sorted(EXCLUDE_FILE_SUFFIXES_ASSETS):
+        cmd.append(f"--noinclude-data-files=**/*{ext}")
+    for rel in sorted(EXCLUDE_REL_PATHS):
+        cmd.append(f"--noinclude-data-files={rel}")
 
     if excluded_hits:
         print(f"  [i] 已排除 {excluded_hits} 个缓存/垃圾文件"
               f"（__pycache__ / *.pyc / .git / *.log 等）")
+    print(f"  [i] 数据文件合计 {total_files} 个，约 {total_bytes / 1024 / 1024:.1f} MB")
 
     cmd.append("--include-data-files=achievements.json=achievements.json")
     if (ROOT / "config.json").exists():
         cmd.append("--include-data-files=config.json=config.json")
 
     # ── 显式包含 / 排除 ────────────────────────────────────────
-    # pywebview 为可选依赖（仅 --window 桌面窗口模式需要），缺失时降级为告警，
-    # 不能因此让整个打包失败——默认浏览器模式无需它。
+    # INCLUDE_PACKAGES 里的包是棋类服务的运行期必需依赖（见列表处注释）。
+    # 若缺失，产物能编译成功但一启动就 ModuleNotFoundError，属于「静默产出坏包」，
+    # 因此这里缺失时直接报错中止，绝不能降级为告警放行。
+    missing = [pkg for pkg in INCLUDE_PACKAGES if not _pkg_available(pkg)]
+    if missing:
+        print("")
+        print("  [X] 以下运行期必需依赖未安装，无法打包：")
+        for pkg in missing:
+            print(f"        · {pkg}")
+        print("")
+        print("  请先安装后再打包：")
+        print("      python -m pip install -r requirements-build.txt")
+        print("")
+        return 1
     for pkg in INCLUDE_PACKAGES:
-        if _pkg_available(pkg):
-            cmd.append(f"--include-package={pkg}")
-        else:
-            print(f"  [!] 可选包未安装，跳过 --include-package={pkg}"
-                  f"（{pkg} 仅桌面窗口模式需要，浏览器模式不受影响）")
+        cmd.append(f"--include-package={pkg}")
     for pkg in EXCLUDE_PACKAGES:
         cmd.append(f"--nofollow-import-to={pkg}")
 

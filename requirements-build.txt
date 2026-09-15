@@ -23,3 +23,7 @@ jsonpatch>=1.33.0
 
 # === 独立桌面窗口（可选：仅 --window 模式需要）===
 pywebview>=5.0
+
+# 说明：starlette / anyio 是 fastapi 与 httpx 的传递依赖，会随上面几项自动安装，
+# 因此不在此显式 pin（显式 pin 反而容易造成版本冲突）。
+# nuitka_build.py 的 INCLUDE_PACKAGES 会校验它们可导入，缺失即报错中止。
