@@ -89,11 +89,69 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def _list_py(root: Path) -> list[Path]:
-    """列出目录下所有 .py 文件（排除 __pycache__），按路径排序保证命令稳定。"""
+# 打包容器的排除规则：这些内容绝不能进产物（发给玩家属于垃圾/泄露）
+EXCLUDE_DIRS = {
+    "__pycache__", ".git", ".github", ".pytest_cache", ".mypy_cache",
+    ".ruff_cache", ".venv", "venv", ".idea", ".vscode", "node_modules",
+    ".DS_Store", "build", "dist", ".tox", ".eggs",
+}
+EXCLUDE_FILE_SUFFIXES = {
+    ".pyc", ".pyo", ".pyd.orig", ".log", ".tmp", ".bak", ".orig", ".rej",
+    ".swp", ".swo", ".crdownload", ".part",
+}
+EXCLUDE_FILE_NAMES = {
+    ".DS_Store", "Thumbs.db", "desktop.ini", ".gitignore", ".gitattributes",
+    "nuitka-crash-report.xml",
+}
+# shared/assets 下的离线美术工具脚本：仅开发者本地生成素材时使用（抠图、抽帧、
+# 生成 CG 视频等），前端与游戏运行零引用，且会连带 rembg/onnxruntime 等重依赖。
+# 作为独立规则排除（这些文件在 shared/assets 内，但它不在包语义里，按文件排除）。
+EXCLUDE_REL_PATHS = {
+    "shared/assets/cutout_all.py",
+    "shared/assets/cutout_rembg.py",
+    "shared/assets/generate_all.py",
+    "shared/assets/generate_anim_frames.py",
+    "shared/assets/regenerate_white_bg.py",
+    "shared/assets/cg/generate_cg_videos.py",
+}
+# 素材包自带的开发/许可文件：.url 是编辑器快捷方式、.tsx 是 Tiled 工程源文件，
+# 均不参与运行。（.tmx 地图与 .md 文档保守保留——可能被后续地图功能用到。）
+EXCLUDE_FILE_SUFFIXES_ASSETS = {".url", ".tsx"}
+
+
+def _is_excluded(p: Path) -> bool:
+    """判断某路径是否属于打包时需要排除的缓存/垃圾文件。"""
+    if any(part in EXCLUDE_DIRS for part in p.parts):
+        return True
+    if p.name in EXCLUDE_FILE_NAMES:
+        return True
+    if p.suffix in EXCLUDE_FILE_SUFFIXES:
+        return True
+    # 隐藏文件（.env / .eslintrc 之类）一般不参与运行，且可能含敏感信息
+    if p.name.startswith(".") and p.is_file():
+        return True
+    rel = p.as_posix()
+    if rel in EXCLUDE_REL_PATHS:
+        return True
+    # 素材包开发文件（三方素材的 License.txt 会保留）
+    if p.suffix in EXCLUDE_FILE_SUFFIXES_ASSETS:
+        return True
+    return False
+
+
+def _list_data_files(root: Path) -> list[Path]:
+    """列出目录下所有应进产物的文件（已过滤缓存/垃圾），按路径排序保证命令稳定。"""
     return sorted(
-        p for p in root.rglob("*.py")
-        if "__pycache__" not in p.parts and p.is_file()
+        p for p in root.rglob("*")
+        if p.is_file() and not _is_excluded(p.relative_to(root.parent))
+    )
+
+
+def _count_excluded(root: Path) -> int:
+    """统计被排除的文件数（用于向用户展示过滤效果）。"""
+    return sum(
+        1 for p in root.rglob("*")
+        if p.is_file() and _is_excluded(p.relative_to(root.parent))
     )
 
 
@@ -188,29 +246,37 @@ def build() -> int:
         print(f"  [临时目录] {tmp_abs}（通过 TMP/TEMP 环境变量生效）")
 
     # ── 数据目录 ───────────────────────────────────────────────
-    # 关键陷阱：Nuitka 的 --include-data-dir 会把 .py 视为「代码」而自动过滤，
-    # 导致棋类服务的源码一个都进不了产物（这正是旧包「完全无法使用」的根因）。
-    # 因此分两路携带：
-    #   (1) --include-data-dir=<dir>=<dir>          —— 携带前端/配置等非 py 资源；
-    #   (2) --include-data-files=<单个py>=<同名路径> —— 逐个强制携带 .py 源码。
-    # 必须「逐文件精确映射」，不能用 <dir>/**/*.py 通配：通配会把子目录层级压平
-    # （sandbox/xiangqi/main.py 会挤成 sandbox/main.py 互相覆盖）。
+    # 两个必须绕开的 Nuitka 陷阱：
+    #   ① --include-data-dir 会把 .py 视为「代码」而自动过滤，导致棋类服务源码
+    #      一个都进不了产物（这正是旧包「完全无法使用」的根因）；
+    #   ② --include-data-dir 是「整目录拷贝」，会把 __pycache__ / *.pyc 等
+    #      编译缓存一并带进产物（不该分发给玩家的垃圾文件）。
+    # 因此这里**完全放弃 --include-data-dir**，改为逐文件精确枚举：
+    #   · 非 .py 资源（前端 static/、configs/ 等）→ 逐个 --include-data-files
+    #   · .py 源码                                 → 逐个 --include-data-files
+    # 逐文件映射必须精确到同名路径，不能用 <dir>/**/*.py 通配：通配会把子目录
+    # 层级压平（sandbox/xiangqi/main.py 会挤成 sandbox/main.py 互相覆盖）。
+    # 收益：产物内容完全可控，缓存/日志等垃圾无从混入。
+    excluded_hits = 0
     for d in DATA_DIRS:
-        if not (ROOT / d).is_dir():
+        base = ROOT / d
+        if not base.is_dir():
             print(f"  [!] 数据目录缺失，跳过：{d}")
             continue
-        # 仅当目录内存在非 .py 资源时才加 --include-data-dir；
-        # 纯 .py 目录（如 samsara/）加它会触发误导性的 "No data files" 告警。
-        if any(
-            p.is_file() and p.suffix != ".py" and "__pycache__" not in p.parts
-            for p in (ROOT / d).rglob("*")
-        ):
-            cmd.append(f"--include-data-dir={d}={d}")
-        pys = _list_py(ROOT / d)
-        for p in pys:
+
+        files = _list_data_files(base)
+        excluded_hits += _count_excluded(base)
+
+        for p in files:
             rel = p.relative_to(ROOT).as_posix()
             cmd.append(f"--include-data-files={rel}={rel}")
-        print(f"  · {d}: {len(pys)} 个 .py 源码")
+        py_n = sum(1 for p in files if p.suffix == ".py")
+        other_n = len(files) - py_n
+        print(f"  · {d}: {py_n} 个 .py 源码 + {other_n} 个资源文件")
+
+    if excluded_hits:
+        print(f"  [i] 已排除 {excluded_hits} 个缓存/垃圾文件"
+              f"（__pycache__ / *.pyc / .git / *.log 等）")
 
     cmd.append("--include-data-files=achievements.json=achievements.json")
     if (ROOT / "config.json").exists():
