@@ -168,19 +168,24 @@ def build() -> int:
         print("  [编译器] 系统 gcc/clang")
 
     # ── 缓存 ───────────────────────────────────────────────────
-    # Nuitka 的编译缓存（含 ccache）默认即为开启，没有 --enable-cache 这类选项，
-    # 只能通过 --disable-cache 关闭。故「开启」时什么都不加，仅关闭时传参。
+    # Nuitka 的编译缓存默认即为开启，没有 --enable-cache 这类选项，
+    # 只能通过 --disable-cache=<类型> 关闭。故「开启」时什么都不加，仅关闭时传参。
+    # 关全部（ccache + bytecode）：--no-cache 的语义是「本次不用任何缓存」，
+    # 只关 ccache 会留下 bytecode 缓存，与用户预期不符。
     if not args.cache:
-        cmd.append("--disable-cache=ccache")
-        print("  [缓存] 已关闭 ccache")
+        cmd.append("--disable-cache=all")
+        print("  [缓存] 已关闭编译缓存")
 
     # ── 临时目录 ───────────────────────────────────────────────
+    # 注意：Nuitka 没有 --temp-dir 选项。控制编译临时目录的正确做法是设置
+    # TMP/TEMP 环境变量，Nuitka 及其调用的 C 编译器（Zig/MSVC/gcc）都会继承。
     tmp = args.tmp or os.environ.get("CHESSSAGE_TMP")
     if tmp:
         tmp_abs = os.path.abspath(tmp)
         os.makedirs(tmp_abs, exist_ok=True)
-        cmd.append(f"--temp-dir={tmp_abs}")
-        print(f"  [临时目录] {tmp_abs}")
+        os.environ["TMP"] = tmp_abs
+        os.environ["TEMP"] = tmp_abs
+        print(f"  [临时目录] {tmp_abs}（通过 TMP/TEMP 环境变量生效）")
 
     # ── 数据目录 ───────────────────────────────────────────────
     # 关键陷阱：Nuitka 的 --include-data-dir 会把 .py 视为「代码」而自动过滤，

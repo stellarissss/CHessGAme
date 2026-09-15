@@ -140,14 +140,24 @@ if !errorlevel! neq 0 (
     if !errorlevel! neq 0 ( echo   [X] 依赖安装失败 & pause & exit /b 1 )
 )
 
-REM 打包工具链：Nuitka + 依赖 + 加速
+REM 打包工具链：Nuitka 及其必需依赖
+REM 注意：ccache 是 C 语言程序，并非 PyPI 包，不能用 pip 安装。
+REM Windows 下 Nuitka 走 Zig/MSVC 工具链，本就不使用 ccache，
+REM 因此这里只装 Nuitka 官方要求的两个依赖（缺任一都会导致编译报错）。
 set "NKPKGS=nuitka ordered-set zstandard"
-if "%USE_CCACHE%"=="1" set "NKPKGS=%NKPKGS% ccache"
 "%VPY%" -m pip install %NKPKGS% --quiet
 if !errorlevel! neq 0 (
     echo   [!] 使用国内镜像重试打包工具安装...
     "%VPY%" -m pip install %NKPKGS% --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
     if !errorlevel! neq 0 ( echo   [X] 打包工具安装失败 & pause & exit /b 1 )
+)
+
+REM 校验 Nuitka 可正常调用（提前暴露安装问题，避免编译到一半才失败）
+"%VPY%" -m nuitka --version >nul 2>nul
+if !errorlevel! neq 0 (
+    echo   [X] Nuitka 安装异常，无法执行 "%VPY% -m nuitka --version"
+    pause
+    exit /b 1
 )
 echo   [OK] 依赖就绪
 
