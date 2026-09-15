@@ -306,23 +306,31 @@ class BaseGameState:
                     carryover = 0
                 ka.reset_level_karma(skill_modifiers=modifiers, carryover=carryover)
 
-        # 若存在 karma_assessor 的 detection / 识破概率，也默认清到 0.0
+        # 同步「道级识破概率」到本地评估器副本。
+        #
+        # 语义（见 README §三 识破概率系统）：识破概率是【按道累积的全局变量】，
+        # 只增不减，且【跨关卡延续】——上一关残留的识破值必须带到下一关。
+        # 它仅在两种情况下归零：①被天道识破（服务端 samsara/state.py 的
+        # reset_on_detection()，把所有道的识破值锁死为 0）；②开启新周目（playthrough
+        # 重置）。因此这里【绝不能】清零，只能从服务端权威值同步，否则会把跨关卡的
+        # 累积抹掉（曾误改为置 0.0，属回归缺陷，已修正）。
         if orch is not None:
             ka = getattr(orch, "karma_assessor", None)
             if ka is not None and hasattr(ka, "set_realm_detection"):
                 try:
-                    # set_realm_detection 的签名是 (detection, realm)，realm 不可省略：
-                    # 识破概率按道分别记账，必须指明清的是哪一道。
-                    # 这里取当前道（与上方 reset_level_karma 同一数据源）。
                     from samsara.state import SamsaraState  # 延迟避免循环 import
-                    realm = SamsaraState().get("current_realm") or "human"
-                except Exception:
-                    realm = "human"
-                try:
-                    ka.set_realm_detection(0.0, realm)
+                    s = SamsaraState()
+                    realm = s.get("current_realm") or "human"
+                    # 传 (detection, realm)：与 KarmaAssessorBase 的签名一致；
+                    # 注意 SamsaraState 上的同名方法是 (realm, value)，顺序相反，勿混用。
+                    detection = s.get_realm_detection(realm)
+                    ka.set_realm_detection(detection, realm)
                 except TypeError:
-                    # 兼容旧版签名 set_realm_detection(realm, value)，避免因版本差异再次崩溃
-                    ka.set_realm_detection(realm, 0.0)
+                    # 兼容旧版相反参数序 set_realm_detection(realm, detection)
+                    try:
+                        ka.set_realm_detection(realm, detection)
+                    except Exception as _e:
+                        samsara_warn("samsara 调用", _e)
                 except Exception as _e:
                     samsara_warn("samsara 调用", _e)
         return None
