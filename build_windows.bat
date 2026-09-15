@@ -60,6 +60,17 @@ goto parse_args
 :args_done
 
 REM ----------------------------------------------------------------------
+REM  0.0) pip mirror + common flags
+REM ----------------------------------------------------------------------
+REM All pip traffic goes through the Tsinghua mirror. Direct PyPI access
+REM from CN often hangs at TCP level with no CPU/disk/network activity.
+set "PIP_MIRROR=-i https://pypi.tuna.tsinghua.edu.cn/simple"
+set "PIP_HOST=--trusted-host pypi.tuna.tsinghua.edu.cn"
+set "PIP_COMMON=--disable-pip-version-check --timeout 30 --retries 5"
+set "PIP_FALLBACK=-i https://mirrors.aliyun.com/pypi/simple/"
+set "PIP_FALLBACK_HOST=--trusted-host mirrors.aliyun.com"
+
+REM ----------------------------------------------------------------------
 REM  0.1) Suppress system sleep during the build
 REM ----------------------------------------------------------------------
 echo   [INFO] Enabling build-time sleep suppression...
@@ -140,11 +151,11 @@ REM ----------------------------------------------------------------------
 echo.
 echo [3/7] Installing / verifying dependencies (first run is slow) ...
 echo       Using requirements-build.txt (lean set; no rembg/onnxruntime).
-echo       A progress bar will appear below.
+echo       All pip traffic goes through the Tsinghua mirror for speed.
 echo.
 
 echo       [3.1/3.3] Upgrading pip / setuptools / wheel ...
-"%VPY%" -m pip install --upgrade pip setuptools wheel --disable-pip-version-check --progress-bar on
+"%VPY%" -m pip install --upgrade pip setuptools wheel !PIP_MIRROR! !PIP_HOST! !PIP_COMMON!
 if !errorlevel! neq 0 (
     echo   [FAIL] pip upgrade failed.
     pause
@@ -155,10 +166,10 @@ echo.
 echo       [3.2/3.3] Installing runtime dependencies ...
 set "BUILD_REQ=requirements-build.txt"
 if not exist "%BUILD_REQ%" set "BUILD_REQ=requirements.txt"
-"%VPY%" -m pip install -r "%BUILD_REQ%" --disable-pip-version-check --progress-bar on
+"%VPY%" -m pip install -r "%BUILD_REQ%" !PIP_MIRROR! !PIP_HOST! !PIP_COMMON!
 if !errorlevel! neq 0 (
-    echo   [WARN] Install problem; retrying with Tsinghua mirror...
-    "%VPY%" -m pip install -r "%BUILD_REQ%" --disable-pip-version-check --progress-bar on -i https://pypi.tuna.tsinghua.edu.cn/simple
+    echo   [WARN] Mirror install failed; retrying with Aliyun mirror...
+    "%VPY%" -m pip install -r "%BUILD_REQ%" !PIP_FALLBACK! !PIP_FALLBACK_HOST! !PIP_COMMON!
     if !errorlevel! neq 0 (
         echo   [FAIL] Dependency installation failed.
         pause
@@ -167,14 +178,15 @@ if !errorlevel! neq 0 (
 )
 
 echo.
-echo       [3.3/3.3] Installing build toolchain (Nuitka) ...
+echo       [3.3/3.3] Installing build toolchain (Nuitka + Zig) ...
 REM ccache is a C program, not a PyPI package (Windows uses Zig/MSVC anyway).
-REM Only the two deps Nuitka actually requires:
-set "NKPKGS=nuitka ordered-set zstandard"
-"%VPY%" -m pip install %NKPKGS% --disable-pip-version-check --progress-bar on
+REM Install ziglang up-front: Nuitka otherwise downloads Zig from GitHub,
+REM which stalls silently for a long time behind the GFW (CPU/disk/net all 0).
+set "NKPKGS=nuitka ordered-set zstandard ziglang"
+"%VPY%" -m pip install %NKPKGS% !PIP_MIRROR! !PIP_HOST! !PIP_COMMON!
 if !errorlevel! neq 0 (
-    echo   [WARN] Retrying with Tsinghua mirror...
-    "%VPY%" -m pip install %NKPKGS% --disable-pip-version-check --progress-bar on -i https://pypi.tuna.tsinghua.edu.cn/simple
+    echo   [WARN] Retrying with Aliyun mirror...
+    "%VPY%" -m pip install %NKPKGS% !PIP_FALLBACK! !PIP_FALLBACK_HOST! !PIP_COMMON!
     if !errorlevel! neq 0 (
         echo   [FAIL] Build toolchain installation failed.
         pause
@@ -182,8 +194,11 @@ if !errorlevel! neq 0 (
     )
 )
 
-REM Verify Nuitka is callable early, so failures surface now not mid-compile
-"%VPY%" -m nuitka --version >nul 2>nul
+REM Verify Nuitka is callable early, so failures surface now not mid-compile.
+REM Do NOT hide output: on a cold machine Nuitka reports progress here.
+echo.
+echo   [INFO] Verifying Nuitka (may download a C compiler on first run)...
+"%VPY%" -m nuitka --version
 if !errorlevel! neq 0 (
     echo   [FAIL] Nuitka is not runnable. Check the install above.
     pause
@@ -229,6 +244,7 @@ REM ----------------------------------------------------------------------
 echo.
 echo [6/7] Starting Nuitka build (expect 10-25 minutes) ...
 echo       Lots of C compiler output is normal. Do not close this window.
+echo       A separate heartbeat window will show elapsed time.
 echo.
 
 REM Argument contract with nuitka_build.py:
@@ -239,9 +255,28 @@ if defined NK_COMPILER set "NK_ARGS=%NK_ARGS% %NK_COMPILER%"
 if "%USE_CCACHE%"=="0" set "NK_ARGS=%NK_ARGS% --no-cache"
 if defined TMPDIR set NK_ARGS=%NK_ARGS% --tmp "%TMPDIR%"
 if "%DO_CLEAN%"=="1" set "NK_ARGS=%NK_ARGS% --clean"
+set "NK_ARGS=%NK_ARGS% %PIP_HOST%"
+
+REM --- Heartbeat: a visible clock so a silent compile never looks hung ---
+REM The script is emitted by Python (nuitka_build.py --emit-heartbeat) instead
+REM of being echoed from batch: generating it inline means fighting delayed
+REM expansion, redirection AND parenthesis escaping at once, which is exactly
+REM where parsing bugs hide.
+set "HB_SCRIPT=%TEMP%\chesssage_heartbeat.bat"
+"%VPY%" nuitka_build.py --emit-heartbeat "%HB_SCRIPT%"
+if exist "%HB_SCRIPT%" (
+    start "ChessSage Heartbeat" cmd /c "%HB_SCRIPT%"
+    echo   [INFO] Heartbeat window opened ^(shows elapsed time^).
+) else (
+    echo   [WARN] Could not create heartbeat script; build continues without it.
+)
 
 "%VPY%" nuitka_build.py %NK_ARGS%
 set "BUILD_RC=!errorlevel!"
+
+REM --- Stop the heartbeat window ---
+taskkill /f /fi "WINDOWTITLE eq ChessSage Heartbeat*" >nul 2>nul
+if exist "%HB_SCRIPT%" del /q "%HB_SCRIPT%" >nul 2>nul
 
 if !BUILD_RC! neq 0 (
     echo.

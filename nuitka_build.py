@@ -87,6 +87,9 @@ INCLUDE_PACKAGES = [
 EXCLUDE_PACKAGES = [
     "tkinter", "matplotlib", "numpy", "pandas", "scipy",
     "PIL", "rembg", "onnxruntime", "cv2", "notebook", "IPython",
+    # ziglang 是构建期依赖（wheel 内含整个 Zig 工具链，近 2 万个文件，
+    # 数百 MB）。产物运行时完全不需要它，必须显式排除，否则会撑爆产物。
+    "ziglang",
 ]
 
 
@@ -109,8 +112,54 @@ def parse_args() -> argparse.Namespace:
                     help="启用 LTO 链接期优化（生产最高性能；默认开启）")
     ap.add_argument("--no-lto", dest="lto", action="store_false",
                     help="关闭 LTO（加快编译速度，性能略降）")
+    ap.add_argument(
+        "--emit-heartbeat", metavar="PATH", default=None,
+        help="仅生成一个编译期心跳 .bat（显示已用时）后退出，不执行打包",
+    )
     args, _unknown = ap.parse_known_args()
     return args
+
+
+# 心跳脚本内容：由 Python 写出，避免在批处理里同时对抗延迟展开、
+# 重定向与括号转义（那里最容易藏解析 bug）。
+# 关键点：
+#   · EnableDelayedExpansion 下用 !var! 而非 %var%，否则循环里取到旧值；
+#   · `<nul set /p` 实现不换行的原地刷新，靠 ping 做秒级延时；
+#   · 用 ping 而不是 timeout：timeout 在 stdin 被重定向时会直接报错退出。
+HEARTBEAT_BAT = r"""@echo off
+chcp 65001 >nul 2>nul
+title ChessSage build heartbeat
+setlocal EnableDelayedExpansion
+echo.
+echo   ==========================================
+echo    Nuitka build is running. Elapsed time:
+echo.
+echo    Closing the MAIN window aborts the build.
+echo   ==========================================
+echo.
+set /a S=0
+:loop
+set /a M=!S!/60
+set /a R=!S!%%60
+if !R! lss 10 ( set "RS=0!R!" ) else ( set "RS=!R!" )
+<nul set /p "=[Elapsed] !M! min !RS! sec   "
+ping -n 2 127.0.0.1 >nul
+set /a S+=1
+goto loop
+"""
+
+
+def emit_heartbeat(path: str) -> int:
+    """写出心跳脚本（CRLF、无 BOM）。供 build_windows.bat 调用。"""
+    p = Path(path)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(HEARTBEAT_BAT.replace("\n", "\r\n").encode("utf-8"))
+    except OSError as exc:
+        print(f"[心跳] 生成失败：{exc}")
+        return 1
+    print(f"[心跳] 已生成：{p}")
+    return 0
 
 
 # 打包容器的排除规则：这些内容绝不能进产物（发给玩家属于垃圾/泄露）
@@ -209,6 +258,37 @@ def _pkg_available(name: str) -> bool:
         return False
 
 
+def _find_pip_zig() -> str | None:
+    """定位 pip 安装的 ziglang 包内的 zig 可执行文件。
+
+    ziglang 的 wheel 会把 Zig 二进制放在 <site-packages>/ziglang/zig.exe。
+    找到它并传给 Nuitka 的 --zig-binary-path，就能完全绕开
+    「Nuitka 去 GitHub 下载 Zig」这一步——后者在国内网络下会长时间
+    静默卡死（CPU / 磁盘 / 网络全部 0，无从判断是否还活着）。
+    """
+    if os.name != "nt":
+        return None
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("ziglang")
+    except (ImportError, ValueError):
+        return None
+    if spec is None or not spec.origin:
+        return None
+    pkg_dir = Path(spec.origin).resolve().parent
+    if not pkg_dir.is_dir():
+        return None
+    for name in ("zig.exe", "zig"):
+        cand = pkg_dir / name
+        if cand.is_file():
+            return str(cand)
+    # 兜底：递归找一层
+    for cand in pkg_dir.glob("**/zig.exe"):
+        if cand.is_file():
+            return str(cand)
+    return None
+
+
 def clean(extra_tmp: str | None = None) -> None:
     for p in (OUT_DIR, DEFAULT_OUTPUT):
         if p.exists():
@@ -223,6 +303,10 @@ def clean(extra_tmp: str | None = None) -> None:
 
 def build() -> int:
     args = parse_args()
+
+    # 旁路模式：只生成心跳脚本，不做任何打包工作。
+    if args.emit_heartbeat:
+        return emit_heartbeat(args.emit_heartbeat)
 
     print("=" * 60)
     print("  棋圣 ChessSage · Nuitka 打包（standalone onedir）")
@@ -260,7 +344,16 @@ def build() -> int:
             print("  [编译器] MSVC")
         elif args.zig or os.environ.get("CHESSSAGE_COMPILER", "zig") == "zig":
             cmd.append("--zig")
-            print("  [编译器] Zig（自动下载，免装 Visual Studio）")
+            # 关键：先尝试用 pip 装好的 ziglang（wheel 自带 Zig 二进制）。
+            # 否则 Nuitka 会去 github.com 下载 Zig，在 CN 网络下会长时间静默
+            # 卡死（CPU/磁盘/网络全部 0，看不出在做什么）。
+            zig_exe = _find_pip_zig()
+            if zig_exe:
+                cmd.append(f"--zig-binary-path={zig_exe}")
+                print(f"  [编译器] Zig（使用本地 ziglang 包：{zig_exe}）")
+            else:
+                print("  [编译器] Zig（本地未找到 ziglang，将由 Nuitka 自动下载）")
+                print("            如果长时间无输出，请 Ctrl+C 后改跑：build_windows.bat --msvc")
         if not args.console:
             cmd.append("--windows-console-mode=disable")
         # 图标：仅当 assets 下存在 .ico 时才传，否则留空参数会被 Nuitka 判为非法
@@ -380,6 +473,18 @@ def build() -> int:
         cmd.append(f"--include-package={pkg}")
     for pkg in EXCLUDE_PACKAGES:
         cmd.append(f"--nofollow-import-to={pkg}")
+
+    # ziglang 是「构建期」依赖，不进产物（几百 MB），但缺失会导致 Nuitka
+    # 联网下载 Zig 而静默卡死。这里仅告警，不阻断——用户可用 --msvc 绕过。
+    if os.name == "nt" and not args.msvc and _find_pip_zig() is None:
+        print("")
+        print("  [警告] 未检测到本地 ziglang 包。")
+        print("         Nuitka 将尝试从 GitHub 下载 Zig，国内网络下可能长时间无输出。")
+        print("         建议先执行：")
+        print("             .venv-build\\Scripts\\python.exe -m pip install ziglang "
+              "-i https://pypi.tuna.tsinghua.edu.cn/simple")
+        print("         或改用 MSVC 编译：  build_windows.bat --msvc")
+        print("")
 
     cmd.append(str(ENTRY))
 
