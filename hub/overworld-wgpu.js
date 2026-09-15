@@ -644,7 +644,14 @@ OverworldGame._initGPU = function () {
       self._float32Renderable = !!(adapter.features && typeof adapter.features.has === 'function' && adapter.features.has('float32-renderable'));
       diag('float32-renderable 特性可用 = ' + self._float32Renderable);
     } catch (e) { diag('读取适配器信息失败: ' + e.message); }
-    return adapter.requestDevice();
+    // 关键：WebGPU 特性必须在 requestDevice 时显式声明才会启用，否则 device.features 里
+    // 永远没有对应项（只读 adapter.features 会造成“看起来支持、实际未启用”的错位）。
+    // 位置缓冲若要用高精度 rgba32float，需要 float32-renderable；此处按适配器能力请求。
+    var reqFeat = [];
+    try {
+      if (self._float32Renderable && adapter.features.has('float32-renderable')) reqFeat.push('float32-renderable');
+    } catch (e) {}
+    return adapter.requestDevice(reqFeat.length ? { requiredFeatures: reqFeat } : undefined);
   }).then(function (device) {
     self.device = device;
     self.presentFormat = navigator.gpu.getPreferredCanvasFormat();
@@ -673,9 +680,12 @@ OverworldGame._initGPU = function () {
       });
     } catch (e) {}
     // 位置缓冲（世界坐标）缺省首选 rgba32float（高精度），但该格式仅当设备具备
-    // float32-renderable 特性时才允许作为渲染目标；否则管线校验失败→黑屏。
-    // 不具备该特性的设备（常见集成显卡/默认 WebGPU 关闭 32 位浮点渲染）退化为
-    // rgba16float，坐标为有界范围（≤数千），半精度足敷使用。
+    // float32-renderable 特性时才允许作为渲染目标。该特性已在上面 requestDevice({requiredFeatures})
+    // 显式请求，故此处读 device.features 即可反映真实启用状态。
+    // 注意：rgba32float 的采样类型只有 "unfilterable-float"，绑定它的 bind group layout
+    // 必须显式声明 sampleType:'unfilterable-float' + non-filtering 采样器（见 _mkFsLayout），
+    // 否则会报 "None of the supported sample types (UnfilterableFloat) ... (Float)" 并导致黑屏。
+    // 不具备该特性的设备退化为 rgba16float（可过滤，坐标为有界范围 ≤数千，半精度足敷使用）。
     try {
       self._float32Renderable = !!(device.features && typeof device.features.has === 'function' && device.features.has('float32-renderable'));
       diag('设备 float32-renderable = ' + self._float32Renderable);
@@ -694,6 +704,11 @@ OverworldGame._initGPU = function () {
     self._ctx = self._canvas.getContext('webgpu');
     self._ctx.configure({ device: device, format: self.presentFormat, alphaMode: 'opaque' });
     self._sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
+    // 非过滤采样器：位置缓冲可能是 rgba32float（仅有 "unfilterable-float" 采样类型，
+    // 不支持线性过滤），绑定它的 sampler 必须声明为 non-filtering，否则 createBindGroup
+    // 会抛 "None of the supported sample types (UnfilterableFloat) ... match ... (Float)"。
+    // 采样位置纹理本就只用 texelFetch / 就近取样，nearest 采样完全等价。
+    self._nfSampler = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
     // 用验证队捕获资源/管线/附件的创建期校验错误：若渲染目标格式、纹理视图 aspect、
     // bind group 布局等在真实设备上不合法，这里会弹出明确错误，而非静默黑屏。
     device.pushErrorScope('validation');
@@ -892,10 +907,15 @@ OverworldGame._buildPipelines = function () {
     depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less' }
   });
   // 全屏后处理（vol / bright / blur / composite 共用顶点三角形）
-  var fsLayout = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._postLayout || this._mkFsLayout()] });
-  this._pipeVol = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.VOL_FS, 'VOL_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
-  this._pipeBright = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BRIGHT_FS, 'BRIGHT_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
-  this._pipeBlur = d.createRenderPipeline({ layout: fsLayout, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BLUR_FS, 'BLUR_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  // 全屏 pass 的 pipeline layout 必须与所用 bind group 的 layout 完全一致：
+  //   VOL_FS 采样位置纹理（rgba32float 时不可过滤）→ 用 _postLayoutU；
+  //   BRIGHT_FS / BLUR_FS 采样颜色/bloom 纹理（rgba16float，可过滤）→ 用 _postLayoutF。
+  if (!this._postLayoutF) this._mkFsLayout();
+  var fsLayoutU = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._postLayoutU] });
+  var fsLayoutF = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._postLayoutF] });
+  this._pipeVol = d.createRenderPipeline({ layout: fsLayoutU, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.VOL_FS, 'VOL_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  this._pipeBright = d.createRenderPipeline({ layout: fsLayoutF, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BRIGHT_FS, 'BRIGHT_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
+  this._pipeBlur = d.createRenderPipeline({ layout: fsLayoutF, vertex: { module: module(sh.FULLSCREEN_VS, 'FULLSCREEN_VS') }, fragment: { module: module(sh.BLUR_FS, 'BLUR_FS'), targets: [this._fmt('rgba16float', null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
   // 合成
   var compLayout = d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout, this._compLayout || this._mkCompLayout()] });
   this._pipeComposite = d.createRenderPipeline({ layout: compLayout, vertex: { module: module(sh.FULLSCREEN_VS) }, fragment: { module: module(sh.COMPOSITE_FS), targets: [this._fmt(this.presentFormat, null)] }, primitive: { topology: 'triangle-list', cullMode: 'none' } });
@@ -919,14 +939,29 @@ OverworldGame._fmt = function (format, blend) {
 };
 // 全屏单一纹理 pass 的 bind group layout（src + sampler）
 OverworldGame._mkFsLayout = function () {
-  this._postLayout = this.device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} }] });
+  // 位置缓冲（_posRT）格式可能是 rgba32float 或 rgba16float：
+  //   · rgba32float 的采样类型只有 "unfilterable-float"，用默认的 "float" 会校验失败；
+  //   · rgba16float 同时兼容 "float" 与 "unfilterable-float"。
+  // 因此凡绑定 _posRT 的条目一律显式声明 sampleType:'unfilterable-float' 并配 non-filtering 采样器，
+  // 两种格式下都合法（这正是 "None of the supported sample types" 报错的修复点）。
+  // 注意：binding 顺序必须与 WGSL 一致。_postLayoutF 用于 VOL/BRIGHT/BLUR；
+  //       VOL_FS 采样的是位置纹理（可能不可过滤），故单独用 _postLayoutU。
+  this._postLayoutF = this.device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} },
+    { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {} }] });                     // 可过滤（colorRT/bloomRT）
+  this._postLayoutU = this.device.createBindGroupLayout({ entries: [
+    { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'unfilterable-float' } },
+    { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'non-filtering' } }] }); // 不可过滤（posRT）
+  this._postLayout = this._postLayoutF;   // 默认（历史调用点兼容）
   this._compLayout = this.device.createBindGroupLayout({ entries: [
     { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {} },
     { binding: 3, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 5, visibility: GPUShaderStage.FRAGMENT, texture: {} },
     { binding: 6, visibility: GPUShaderStage.FRAGMENT, texture: {} }, { binding: 7, visibility: GPUShaderStage.FRAGMENT, sampler: {} }] });
+  // SSAO：binding0 采样 _posRT（可能是 rgba32float → unfilterable-float），binding1 采样 _normalRT（rgba8unorm）
   this._ssaLayout = this.device.createBindGroupLayout({ entries: [
-    { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: {} }, { binding: 1, visibility: GPUShaderStage.COMPUTE, texture: {} }, { binding: 2, visibility: GPUShaderStage.COMPUTE, storageTexture: { format: 'rgba8unorm', access: 'write-only' } }] });
+    { binding: 0, visibility: GPUShaderStage.COMPUTE, texture: { sampleType: 'unfilterable-float' } },
+    { binding: 1, visibility: GPUShaderStage.COMPUTE, texture: {} },
+    { binding: 2, visibility: GPUShaderStage.COMPUTE, storageTexture: { format: 'rgba8unorm', access: 'write-only' } }] });
   return this._postLayout;
 };
 OverworldGame._mkCompLayout = function () { return this._compLayout; };
@@ -966,9 +1001,9 @@ OverworldGame._uploadWorld = function () {
 /* ── 后处理 bind group（随 RT 重建而重建） ── */
 OverworldGame._buildPostBindGroups = function () {
   var d = this.device, pass = this._fsPassBG = { base: {}, comp: {}, ssao: {} };
-  // vol: posRT
-  this._volBG = d.createBindGroup({ layout: this._postLayout, entries: [
-    { binding: 0, resource: this._posRT.createView() }, { binding: 1, resource: this._sampler }] });
+  // vol: posRT —— 位置纹理可能为 rgba32float（unfilterable-float），用不可过滤 layout + 非过滤采样器
+  this._volBG = d.createBindGroup({ layout: this._postLayoutU, entries: [
+    { binding: 0, resource: this._posRT.createView() }, { binding: 1, resource: this._nfSampler }] });
   // bright: colorRT
   this._brightBG = d.createBindGroup({ layout: this._postLayout, entries: [
     { binding: 0, resource: this._colorRT.createView() }, { binding: 1, resource: this._sampler }] });
