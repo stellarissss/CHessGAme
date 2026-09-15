@@ -258,34 +258,41 @@ def _pkg_available(name: str) -> bool:
         return False
 
 
-def _find_pip_zig() -> str | None:
-    """定位 pip 安装的 ziglang 包内的 zig 可执行文件。
+def _inject_pip_mirror() -> None:
+    """把镜像源注入环境变量，供 Nuitka 内部的 pip 子进程继承。
 
-    ziglang 的 wheel 会把 Zig 二进制放在 <site-packages>/ziglang/zig.exe。
-    找到它并传给 Nuitka 的 --zig-binary-path，就能完全绕开
-    「Nuitka 去 GitHub 下载 Zig」这一步——后者在国内网络下会长时间
-    静默卡死（CPU / 磁盘 / 网络全部 0，无从判断是否还活着）。
+    Nuitka 缺 Zig 时会执行 `sys.executable -m pip install ziglang`。
+    该命令没有 -i 参数，默认走 PyPI —— 国内直连会长时间静默卡死
+    （CPU / 磁盘 / 网络全部 0，看起来像死机）。
+    pip 原生支持 PIP_INDEX_URL / PIP_TRUSTED_HOST 环境变量，
+    子进程会继承，这是最干净的注入方式（无需改 Nuitka 源码或私有目录）。
+    用户若已自行设置，则不覆盖。
+    """
+    os.environ.setdefault(
+        "PIP_INDEX_URL", "https://pypi.tuna.tsinghua.edu.cn/simple"
+    )
+    os.environ.setdefault("PIP_TRUSTED_HOST", "pypi.tuna.tsinghua.edu.cn")
+    os.environ.setdefault("PIP_DISABLE_PIP_VERSION_CHECK", "1")
+    # 避免 pip 在超时后无限重试卡住整个编译
+    os.environ.setdefault("PIP_TIMEOUT", "30")
+    os.environ.setdefault("PIP_RETRIES", "5")
+
+
+def _find_nuitka_zig() -> str | None:
+    """查找 Nuitka 私有 pip space 中已就绪的 zig 可执行文件。
+
+    仅用于给用户一个「已缓存 / 需下载」的提示，不参与命令行构造
+    （Nuitka 自己会找到它，我们无法也不必覆盖）。
     """
     if os.name != "nt":
         return None
-    try:
-        import importlib.util
-        spec = importlib.util.find_spec("ziglang")
-    except (ImportError, ValueError):
+    base = Path.home() / ".cache" / "Nuitka" / "downloads" / "pip"
+    if not base.is_dir():
         return None
-    if spec is None or not spec.origin:
-        return None
-    pkg_dir = Path(spec.origin).resolve().parent
-    if not pkg_dir.is_dir():
-        return None
-    for name in ("zig.exe", "zig"):
-        cand = pkg_dir / name
-        if cand.is_file():
-            return str(cand)
-    # 兜底：递归找一层
-    for cand in pkg_dir.glob("**/zig.exe"):
-        if cand.is_file():
-            return str(cand)
+    for pkg_dir in sorted(base.glob("private-*")):
+        for cand in pkg_dir.glob("**/ziglang/zig.exe"):
+            if cand.is_file():
+                return str(cand)
     return None
 
 
@@ -344,16 +351,22 @@ def build() -> int:
             print("  [编译器] MSVC")
         elif args.zig or os.environ.get("CHESSSAGE_COMPILER", "zig") == "zig":
             cmd.append("--zig")
-            # 关键：先尝试用 pip 装好的 ziglang（wheel 自带 Zig 二进制）。
-            # 否则 Nuitka 会去 github.com 下载 Zig，在 CN 网络下会长时间静默
-            # 卡死（CPU/磁盘/网络全部 0，看不出在做什么）。
-            zig_exe = _find_pip_zig()
-            if zig_exe:
-                cmd.append(f"--zig-binary-path={zig_exe}")
-                print(f"  [编译器] Zig（使用本地 ziglang 包：{zig_exe}）")
+            # Zig 的获取方式（已核实 Nuitka 4.2.1 源码，勿凭印象改）：
+            #   Nuitka 用 utils/PrivatePipSpace.getZigBinaryPath() 找 Zig，
+            #   它【只】查自己的私有 pip space：
+            #       ~/.cache/Nuitka/downloads/pip/private-<hash>/.../site-packages/ziglang/zig.exe
+            #   找不到就调 `python -m pip install ziglang` 装进去。
+            #   → 所以往项目 venv 里装 ziglang 是【无效】的，Nuitka 看不见。
+            #   → Nuitka 也没有 --zig-binary-path 这类选项（曾误传，已删）。
+            # 正确做法：让 Nuitka 自己的 pip 走镜像即可 —— pip 会读取
+            # PIP_INDEX_URL 环境变量，而该子进程继承自我们。详见下方 _inject_pip_mirror()。
+            _inject_pip_mirror()
+            cached = _find_nuitka_zig()
+            if cached:
+                print(f"  [编译器] Zig（已缓存：{cached}）")
             else:
-                print("  [编译器] Zig（本地未找到 ziglang，将由 Nuitka 自动下载）")
-                print("            如果长时间无输出，请 Ctrl+C 后改跑：build_windows.bat --msvc")
+                print("  [编译器] Zig（首次将自动下载 ziglang 包，走清华镜像）")
+                print("            该包含完整 Zig 工具链，约 120MB，下载时无进度属正常。")
         if not args.console:
             cmd.append("--windows-console-mode=disable")
         # 图标：仅当 assets 下存在 .ico 时才传，否则留空参数会被 Nuitka 判为非法
@@ -474,16 +487,15 @@ def build() -> int:
     for pkg in EXCLUDE_PACKAGES:
         cmd.append(f"--nofollow-import-to={pkg}")
 
-    # ziglang 是「构建期」依赖，不进产物（几百 MB），但缺失会导致 Nuitka
-    # 联网下载 Zig 而静默卡死。这里仅告警，不阻断——用户可用 --msvc 绕过。
-    if os.name == "nt" and not args.msvc and _find_pip_zig() is None:
+    # Zig 下载提示：Nuitka 用私有 pip space，装到项目 venv 里它看不见，
+    # 所以无法「预装」；能做的是把镜像注入环境变量（已在上方完成），
+    # 首次编译时它会自动下载并且速度正常。这里只做提醒。
+    if os.name == "nt" and not args.msvc and _find_nuitka_zig() is None:
         print("")
-        print("  [警告] 未检测到本地 ziglang 包。")
-        print("         Nuitka 将尝试从 GitHub 下载 Zig，国内网络下可能长时间无输出。")
-        print("         建议先执行：")
-        print("             .venv-build\\Scripts\\python.exe -m pip install ziglang "
-              "-i https://pypi.tuna.tsinghua.edu.cn/simple")
-        print("         或改用 MSVC 编译：  build_windows.bat --msvc")
+        print("  [提示] 首次编译需要 Nuitka 下载 ziglang 包（约 120MB，含完整 Zig 工具链）。")
+        print(f"         已自动指向镜像：{os.environ.get('PIP_INDEX_URL', '(默认 PyPI)')}")
+        print("         下载期间只有这一行提示、无进度条，属正常现象，请耐心等待。")
+        print("         若超过 10 分钟仍无反应，按 Ctrl+C 改用 MSVC：build_windows.bat --msvc")
         print("")
 
     cmd.append(str(ENTRY))

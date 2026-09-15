@@ -70,6 +70,14 @@ set "PIP_COMMON=--disable-pip-version-check --timeout 30 --retries 5"
 set "PIP_FALLBACK=-i https://mirrors.aliyun.com/pypi/simple/"
 set "PIP_FALLBACK_HOST=--trusted-host mirrors.aliyun.com"
 
+REM Environment-level mirror injection: Nuitka's own pip subprocess reads
+REM PIP_INDEX_URL. Without this, its internal `pip install ziglang` goes to
+REM raw PyPI and can stall silently for a long time (CPU/disk/net all 0).
+set "PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple"
+set "PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn"
+set "PIP_TIMEOUT=30"
+set "PIP_RETRIES=5"
+
 REM ----------------------------------------------------------------------
 REM  0.1) Suppress system sleep during the build
 REM ----------------------------------------------------------------------
@@ -178,11 +186,10 @@ if !errorlevel! neq 0 (
 )
 
 echo.
-echo       [3.3/3.3] Installing build toolchain (Nuitka + Zig) ...
+echo       [3.3/3.3] Installing build toolchain (Nuitka) ...
 REM ccache is a C program, not a PyPI package (Windows uses Zig/MSVC anyway).
-REM Install ziglang up-front: Nuitka otherwise downloads Zig from GitHub,
-REM which stalls silently for a long time behind the GFW (CPU/disk/net all 0).
-set "NKPKGS=nuitka ordered-set zstandard ziglang"
+REM Only the deps Nuitka actually needs:
+set "NKPKGS=nuitka ordered-set zstandard"
 "%VPY%" -m pip install %NKPKGS% !PIP_MIRROR! !PIP_HOST! !PIP_COMMON!
 if !errorlevel! neq 0 (
     echo   [WARN] Retrying with Aliyun mirror...
@@ -195,9 +202,9 @@ if !errorlevel! neq 0 (
 )
 
 REM Verify Nuitka is callable early, so failures surface now not mid-compile.
-REM Do NOT hide output: on a cold machine Nuitka reports progress here.
+REM NOTE: `nuitka --version` does NOT download Zig; only an actual build does.
 echo.
-echo   [INFO] Verifying Nuitka (may download a C compiler on first run)...
+echo   [INFO] Verifying Nuitka...
 "%VPY%" -m nuitka --version
 if !errorlevel! neq 0 (
     echo   [FAIL] Nuitka is not runnable. Check the install above.
