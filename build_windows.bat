@@ -54,7 +54,7 @@ if /i "%~1"=="--no-clean"  ( set "DO_CLEAN=0" & shift & goto parse_args )
 if /i "%~1"=="--no-cache"  ( set "USE_CCACHE=0" & shift & goto parse_args )
 if /i "%~1"=="--tmp"       ( set "TMPDIR=%~2" & shift & shift & goto parse_args )
 if /i "%~1"=="--no-sleep"  ( set "DO_NOSLEEP=0" & shift & goto parse_args )
-echo   [!] Unknown option ignored: %~1
+echo   [WARN] Unknown option ignored: %~1
 shift
 goto parse_args
 :args_done
@@ -62,18 +62,18 @@ goto parse_args
 REM ----------------------------------------------------------------------
 REM  0.1) Suppress system sleep during the build
 REM ----------------------------------------------------------------------
-echo   [i] Enabling build-time sleep suppression...
+echo   [INFO] Enabling build-time sleep suppression...
 if "%DO_NOSLEEP%"=="1" (
     powercfg /change standby-timeout-ac 0 >nul 2>nul
     if !errorlevel! equ 0 (
         set "SLEEP_TIMEOUT_CHANGED=1"
-        echo   [OK] Sleep disabled (AC standby timeout set to never).
+        echo   [ OK ] Sleep disabled ^(AC standby timeout set to never^).
     ) else (
-        echo   [!] Could not change power plan; try running as Administrator.
+        echo   [WARN] Could not change power plan; try running as Administrator.
     )
     powercfg /requestsoverride PROCESS python.exe SYSTEM >nul 2>nul
 ) else (
-    echo   [i] Skipped sleep suppression (--no-sleep).
+    echo   [INFO] Skipped sleep suppression ^(--no-sleep^).
 )
 echo.
 
@@ -100,7 +100,7 @@ if !errorlevel! equ 0 (
     goto python_found
 )
 
-echo   [X] Python not found. Please install Python 3.11 / 3.12:
+echo   [FAIL] Python not found. Please install Python 3.11 / 3.12:
 echo       https://www.python.org/downloads/
 echo       During install, check "Add python.exe to PATH".
 echo.
@@ -109,9 +109,9 @@ exit /b 1
 
 :python_found
 if "!PYCMD!"=="py -%PYVER%" (
-    echo   [OK] Using py -%PYVER%
+    echo   [ OK ] Using py -%PYVER%
 ) else (
-    echo   [OK] Using python !PYACTUAL!
+    echo   [ OK ] Using python !PYACTUAL!
 )
 
 REM ----------------------------------------------------------------------
@@ -120,17 +120,17 @@ REM ----------------------------------------------------------------------
 echo.
 echo [2/7] Preparing build virtual environment (.venv-build) ...
 if not exist ".venv-build\Scripts\python.exe" (
-    echo   [i] Creating .venv-build (first run only)...
+    echo   [INFO] Creating .venv-build ^(first run only^)...
     %PYCMD% -m venv .venv-build
     if !errorlevel! neq 0 (
-        echo   [X] Failed to create virtual environment.
+        echo   [FAIL] Failed to create virtual environment.
         echo       Check that Python is installed correctly.
         pause
         exit /b 1
     )
-    echo   [OK] Created .venv-build
+    echo   [ OK ] Created .venv-build
 ) else (
-    echo   [OK] .venv-build already exists, reusing it.
+    echo   [ OK ] .venv-build already exists, reusing it.
 )
 set "VPY=.venv-build\Scripts\python.exe"
 
@@ -146,7 +146,7 @@ echo.
 echo       [3.1/3.3] Upgrading pip / setuptools / wheel ...
 "%VPY%" -m pip install --upgrade pip setuptools wheel --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 (
-    echo   [X] pip upgrade failed.
+    echo   [FAIL] pip upgrade failed.
     pause
     exit /b 1
 )
@@ -157,10 +157,10 @@ set "BUILD_REQ=requirements-build.txt"
 if not exist "%BUILD_REQ%" set "BUILD_REQ=requirements.txt"
 "%VPY%" -m pip install -r "%BUILD_REQ%" --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 (
-    echo   [!] Install problem; retrying with Tsinghua mirror...
+    echo   [WARN] Install problem; retrying with Tsinghua mirror...
     "%VPY%" -m pip install -r "%BUILD_REQ%" --disable-pip-version-check --progress-bar on -i https://pypi.tuna.tsinghua.edu.cn/simple
     if !errorlevel! neq 0 (
-        echo   [X] Dependency installation failed.
+        echo   [FAIL] Dependency installation failed.
         pause
         exit /b 1
     )
@@ -173,10 +173,10 @@ REM Only the two deps Nuitka actually requires:
 set "NKPKGS=nuitka ordered-set zstandard"
 "%VPY%" -m pip install %NKPKGS% --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 (
-    echo   [!] Retrying with Tsinghua mirror...
+    echo   [WARN] Retrying with Tsinghua mirror...
     "%VPY%" -m pip install %NKPKGS% --disable-pip-version-check --progress-bar on -i https://pypi.tuna.tsinghua.edu.cn/simple
     if !errorlevel! neq 0 (
-        echo   [X] Build toolchain installation failed.
+        echo   [FAIL] Build toolchain installation failed.
         pause
         exit /b 1
     )
@@ -185,12 +185,12 @@ if !errorlevel! neq 0 (
 REM Verify Nuitka is callable early, so failures surface now not mid-compile
 "%VPY%" -m nuitka --version >nul 2>nul
 if !errorlevel! neq 0 (
-    echo   [X] Nuitka is not runnable. Check the install above.
+    echo   [FAIL] Nuitka is not runnable. Check the install above.
     pause
     exit /b 1
 )
 echo.
-echo   [OK] Dependencies ready.
+echo   [ OK ] Dependencies ready.
 
 REM ----------------------------------------------------------------------
 REM  4) C compiler selection
@@ -198,10 +198,10 @@ REM ----------------------------------------------------------------------
 echo.
 echo [4/7] Checking C compiler ...
 if "%USE_MSVC%"=="1" (
-    echo   [i] MSVC mode; requires Visual Studio Build Tools with C++ desktop workload.
+    echo   [INFO] MSVC mode; requires Visual Studio Build Tools with C++ desktop workload.
     set "NK_COMPILER="
 ) else (
-    echo   [i] Zig mode (auto-downloaded by Nuitka; no Visual Studio needed).
+    echo   [INFO] Zig mode ^(auto-downloaded by Nuitka; no Visual Studio needed^).
     set "NK_COMPILER=--zig"
 )
 
@@ -213,14 +213,14 @@ echo [5/7] Cleaning old output ...
 if "%DO_CLEAN%"=="1" (
     if exist "build\nuitka" (
         rmdir /s /q "build\nuitka" 2>nul
-        echo   [OK] Removed build\nuitka
+        echo   [ OK ] Removed build\nuitka
     )
     if exist "dist\棋圣" (
         rmdir /s /q "dist\棋圣" 2>nul
-        echo   [OK] Removed dist\棋圣
+        echo   [ OK ] Removed dist\棋圣
     )
 ) else (
-    echo   [i] --clean not given; keeping incremental cache (faster rebuild).
+    echo   [INFO] --clean not given; keeping incremental cache ^(faster rebuild^).
 )
 
 REM ----------------------------------------------------------------------
@@ -237,7 +237,7 @@ REM   only --disable-cache exists. So pass --no-cache only when disabling.
 set "NK_ARGS=--windows"
 if defined NK_COMPILER set "NK_ARGS=%NK_ARGS% %NK_COMPILER%"
 if "%USE_CCACHE%"=="0" set "NK_ARGS=%NK_ARGS% --no-cache"
-if defined TMPDIR set "NK_ARGS=%NK_ARGS% --tmp "%TMPDIR%""
+if defined TMPDIR set NK_ARGS=%NK_ARGS% --tmp "%TMPDIR%"
 if "%DO_CLEAN%"=="1" set "NK_ARGS=%NK_ARGS% --clean"
 
 "%VPY%" nuitka_build.py %NK_ARGS%
@@ -245,10 +245,10 @@ set "BUILD_RC=!errorlevel!"
 
 if !BUILD_RC! neq 0 (
     echo.
-    echo   [X] Build failed (exit code !BUILD_RC!). Common causes:
+    echo   [FAIL] Build failed ^(exit code !BUILD_RC!^). Common causes:
     echo       1. Network blocked downloading Zig; add --msvc to use Visual Studio.
     echo       2. Not enough disk space; add --tmp D:\nktmp to use another disk.
-    echo       3. Missing pywebview (desktop window mode only); run:
+    echo       3. Missing pywebview ^(desktop window mode only^); run:
     echo          .venv-build\Scripts\python.exe -m pip install pywebview
     echo       4. Long silence on first build is normal; the second is much faster.
     echo.
@@ -265,11 +265,11 @@ if exist "dist\棋圣" (
     echo    Launcher : dist\棋圣\棋圣.exe
     echo.
     echo    Distribute the whole "dist\棋圣" folder.
-    echo    Players double-click 棋圣.exe (or 启动游戏.bat) to run.
+    echo    Players double-click 棋圣.exe ^(or 启动游戏.bat^) to run.
     echo.
     goto finish
 ) else (
-    echo   [!] dist\棋圣 not found. Check the Nuitka output above.
+    echo   [WARN] dist\棋圣 not found. Check the Nuitka output above.
 )
 
 REM ----------------------------------------------------------------------
@@ -281,9 +281,9 @@ echo ------------------------------------------------------------
 powercfg /requestsoverride PROCESS python.exe >nul 2>nul
 if defined SLEEP_TIMEOUT_CHANGED (
     powercfg /change standby-timeout-ac 30 >nul 2>nul
-    echo   [i] Power plan restored (sleep timeout 30 minutes).
+    echo   [INFO] Power plan restored ^(sleep timeout 30 minutes^).
 ) else (
-    echo   [i] Sleep suppression lifted (power plan unchanged).
+    echo   [INFO] Sleep suppression lifted ^(power plan unchanged^).
 )
 echo.
 echo Done. This window will stay open so you can read the result.
