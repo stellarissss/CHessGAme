@@ -311,7 +311,18 @@ class BaseGameState:
             ka = getattr(orch, "karma_assessor", None)
             if ka is not None and hasattr(ka, "set_realm_detection"):
                 try:
-                    ka.set_realm_detection(0.0)
+                    # set_realm_detection 的签名是 (detection, realm)，realm 不可省略：
+                    # 识破概率按道分别记账，必须指明清的是哪一道。
+                    # 这里取当前道（与上方 reset_level_karma 同一数据源）。
+                    from samsara.state import SamsaraState  # 延迟避免循环 import
+                    realm = SamsaraState().get("current_realm") or "human"
+                except Exception:
+                    realm = "human"
+                try:
+                    ka.set_realm_detection(0.0, realm)
+                except TypeError:
+                    # 兼容旧版签名 set_realm_detection(realm, value)，避免因版本差异再次崩溃
+                    ka.set_realm_detection(realm, 0.0)
                 except Exception as _e:
                     samsara_warn("samsara 调用", _e)
         return None
