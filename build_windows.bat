@@ -127,28 +127,42 @@ set "VPY=.venv-build\Scripts\python.exe"
 
 REM ── 3) 安装依赖 ─────────────────────────────────────────────
 echo.
-echo [3/7] 安装/校验依赖（首次较慢，请耐心等待）...
-"%VPY%" -m pip install --upgrade pip setuptools wheel --quiet
+echo [3/7] 安装/校验依赖（首次较慢，通常 2-6 分钟）...
+echo       ├ 说明：使用 requirements-build.txt（打包精简集），
+echo       │       不含 rembg/onnxruntime 等仅离线美术脚本使用的重包。
+echo       └ 若长时间无输出属正常（pip 正在下载），但下面会显示进度条。
+echo.
+
+echo       [3.1/3.3] 升级 pip / setuptools / wheel ...
+"%VPY%" -m pip install --upgrade pip setuptools wheel ^
+    --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 ( echo   [X] pip 升级失败 & pause & exit /b 1 )
 
-REM 项目运行依赖
-"%VPY%" -m pip install -r requirements.txt --quiet
+echo.
+echo       [3.2/3.3] 安装运行时依赖 ...
+set "BUILD_REQ=requirements-build.txt"
+if not exist "%BUILD_REQ%" set "BUILD_REQ=requirements.txt"
+"%VPY%" -m pip install -r "%BUILD_REQ%" ^
+    --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 (
-    echo   [!] requirements.txt 安装出现问题，尝试使用国内镜像重试...
-    "%VPY%" -m pip install -r requirements.txt --quiet ^
+    echo   [!] 安装出现问题，改用国内镜像重试（清华源）...
+    "%VPY%" -m pip install -r "%BUILD_REQ%" ^
+        --disable-pip-version-check --progress-bar on ^
         -i https://pypi.tuna.tsinghua.edu.cn/simple
     if !errorlevel! neq 0 ( echo   [X] 依赖安装失败 & pause & exit /b 1 )
 )
 
-REM 打包工具链：Nuitka 及其必需依赖
+echo.
+echo       [3.3/3.3] 安装打包工具链（Nuitka）...
 REM 注意：ccache 是 C 语言程序，并非 PyPI 包，不能用 pip 安装。
-REM Windows 下 Nuitka 走 Zig/MSVC 工具链，本就不使用 ccache，
-REM 因此这里只装 Nuitka 官方要求的两个依赖（缺任一都会导致编译报错）。
+REM Windows 下 Nuitka 走 Zig/MSVC 工具链，本就不使用 ccache。
+REM 只装 Nuitka 官方要求的两个依赖（缺任一都会导致编译报错）。
 set "NKPKGS=nuitka ordered-set zstandard"
-"%VPY%" -m pip install %NKPKGS% --quiet
+"%VPY%" -m pip install %NKPKGS% --disable-pip-version-check --progress-bar on
 if !errorlevel! neq 0 (
     echo   [!] 使用国内镜像重试打包工具安装...
-    "%VPY%" -m pip install %NKPKGS% --quiet -i https://pypi.tuna.tsinghua.edu.cn/simple
+    "%VPY%" -m pip install %NKPKGS% --disable-pip-version-check ^
+        --progress-bar on -i https://pypi.tuna.tsinghua.edu.cn/simple
     if !errorlevel! neq 0 ( echo   [X] 打包工具安装失败 & pause & exit /b 1 )
 )
 
@@ -159,6 +173,7 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
+echo.
 echo   [OK] 依赖就绪
 
 REM ── 4) C 编译器 ─────────────────────────────────────────────

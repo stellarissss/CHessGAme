@@ -1,0 +1,25 @@
+# 棋圣 · 打包专用依赖（build_windows.bat 使用）
+#
+# 只列运行游戏真正需要的包，用于创建 .venv-build 打包环境。
+#
+# 为什么不用 requirements.txt？
+#   requirements.txt 是「开发全量依赖」，额外包含 rembg + Pillow（+ 连带
+#   onnxruntime，约 200MB+）等——它们只被 shared/assets/ 下的离线美术脚本
+#   （抠图 / 生成动画帧）使用，游戏运行与打包都不需要。
+#   在打包环境里装这些会让 3/7 步骤白白多花十几分钟。
+#   且 nuitka_build.py 已用 --nofollow-import-to 显式排除它们。
+
+# === 核心 Web 框架 ===
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+
+# === AI / HTTP 客户端 ===
+httpx>=0.27.0
+
+# === JSON Schema / Patch ===
+jsonschema>=4.21.0
+jsonpatch>=1.33.0
+
+# === 独立桌面窗口（可选：仅 --window 模式需要）===
+pywebview>=5.0
