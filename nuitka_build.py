@@ -23,6 +23,8 @@
     --enable-cache     启用 ccache 加速二次编译（默认开启）
     --no-cache         关闭 ccache
     --clean            编译前清理旧产物与缓存
+    --lto              启用 LTO 链接期优化（生产最高性能；默认开启）
+    --no-lto           关闭 LTO（加快编译速度，性能略降）
     --tmp <路径>       指定编译临时目录（C 盘空间不足时用，如 D:\\nktmp）
     --output <路径>    自定义最终产物目录（默认 dist/棋圣）
 
@@ -103,6 +105,10 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--tmp", metavar="PATH", default=None, help="编译临时目录")
     ap.add_argument("--output", metavar="PATH", default=None, help="最终产物目录")
     ap.add_argument("--console", action="store_true", help="保留控制台（调试用）")
+    ap.add_argument("--lto", dest="lto", action="store_true", default=True,
+                    help="启用 LTO 链接期优化（生产最高性能；默认开启）")
+    ap.add_argument("--no-lto", dest="lto", action="store_false",
+                    help="关闭 LTO（加快编译速度，性能略降）")
     args, _unknown = ap.parse_known_args()
     return args
 
@@ -239,7 +245,7 @@ def build() -> int:
         "--standalone",
         f"--output-dir={OUT_DIR}",
         "--assume-yes-for-downloads",
-        "--lto=no",                      # 关闭 LTO：显著加快编译，性能损失可忽略
+        "--lto=" + ("yes" if args.lto else "no"),   # 默认开启 LTO：链接期优化，性能最佳；--no-lto 可关闭以加快编译
         "--remove-output",
         "--company-name=ChessSage",
         "--product-name=棋圣",

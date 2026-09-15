@@ -1,4 +1,4 @@
-# 棋圣 · 六道轮回（ChessSage · SAMSARA）v2.2 · 六道大陆
+# 棋圣 · 六道轮回（ChessSage · SAMSARA）v3.1.0 · 六道大陆
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
@@ -384,6 +384,21 @@ python main.py
 > **沙盒模式**（`sandbox/`，纯净对弈、无 RPG 规则）：象棋 `8010`、五子棋 `8011`、围棋 `8012`、动物棋 `8013`、跳棋 `8014`、黑白棋 `8015`。自 v1.5 起统一收拢进大陆：标题页只留「进入世界」，玩家在大陆南部的「沙盒训练场」按 E 进入纯净选棋界面，返回直达 `/overworld`。沙盒棋类由同一启动器在剧情模式之后一并拉起。
 
 可选参数：`--browser`/`--no-window` 明确以浏览器模式启动（默认即此），`--window` 改用独立桌面窗口（pywebview），`--no-browser` 不自动打开浏览器，`HUB_PORT=8080` 自定义 Hub 端口。
+
+### 生产打包（Nuitka standalone）
+
+```bash
+# 安装打包依赖（与运行依赖分离，避免引入 rembg/PIL 等离线美术工具的重依赖）
+pip install -r requirements-build.txt
+
+# 生产打包：默认开启 LTO → 运行期最高性能；产物为 dist/棋圣/
+.venv-build/bin/python nuitka_build.py --clean
+```
+
+- 产物为**多文件 standalone**（onedir）：入口 `棋圣`/`棋圣.exe` 自带 Python 3.14 运行时与全部 `.so/.pyd` 依赖，目标机器免装 Python；棋类服务由主进程以独立子进程 lazy 拉起（12 个 RPG+沙盒棋类各自独立进程、模块命名空间隔离）。
+- **`--lto`**：默认开启链接期优化（生产最高性能）；如需快速出包可传 `--no-lto`（编译更快、性能略降）。
+- Windows 构建：`build_windows.bat`（默认 Zig 免装 VS，详见 [docs/nuitka打包方案.md](docs/nuitka打包方案.md)）。Linux 需 `patchelf`（`apt install patchelf`）。
+- 产物内 `config.json` 的 API Key 为**空**，请在游戏界面或该文件内填入自己的 Key。
 
 ---
 

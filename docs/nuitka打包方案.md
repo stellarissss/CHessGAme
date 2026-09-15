@@ -213,14 +213,15 @@ build_windows.bat --no-cache               :: 关闭 ccache
 | 指标 | 实测值（Linux 参照） |
 |------|---------------------|
 | 产物体积 | 约 494 MB |
-| 编译耗时 | 首次 12-18 分钟（`--lto=no`），二次利用 ccache 显著缩短 |
+| 编译耗时 | 首次 12-18 分钟（`--lto=no` 加快编译）～20-30 分钟（默认 `--lto=yes`） |
 | 冷启动 | Hub 约 10 秒内可访问 |
 | 单棋类服务 | 约 8-12 秒就绪 |
 | 内存占用 | 12 服务全开约 1.3 GB；按需懒加载可大幅降低 |
 
 已启用的优化：
 
-- `--lto=no` —— 关闭链接时优化，显著加快编译，运行时性能损失可忽略
+- `--lto=yes` —— **默认开启**链接期优化，产物体积与编译时间略增，换取运行期最佳性能
+  （生产打包推荐保持默认；如只求快速出包可传 `--no-lto` 关闭，性能略降）
 - `--enable-cache` —— 启用 ccache 加速二次编译
 - `--nofollow-import-to` —— 排除 `tkinter` / `matplotlib` / `numpy` / `pandas` / `scipy` /
   `PIL` / `rembg` / `onnxruntime` / `cv2` 等运行时用不到的大包
@@ -240,7 +241,7 @@ build_windows.bat --no-cache               :: 关闭 ccache
 | 产物启动后棋类服务起不来 | 源码未打进包 | 确认用本仓库最新 `nuitka_build.py`（逐文件映射 `.py`） |
 | 子进程无日志 | 旧版 `_pipe_logger` 吞错 | 已修复，异常会打到 stderr |
 | 想保留控制台看日志 | 默认 `--windows-console-mode=disable` | 加 `--console` |
-| 打包极慢 | 首次编译 + LTO | 保留默认 `--enable-cache`，二次编译会快很多 |
+| 打包极慢 | 首次编译 + LTO | 保留默认 `--enable-cache`，二次编译会快很多；只求快速出包可加 `--no-lto` 关闭 LTO |
 
 ---
 
