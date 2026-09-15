@@ -385,6 +385,15 @@ python main.py
 
 可选参数：`--browser`/`--no-window` 明确以浏览器模式启动（默认即此），`--window` 改用独立桌面窗口（pywebview），`--no-browser` 不自动打开浏览器，`HUB_PORT=8080` 自定义 Hub 端口。
 
+### Windows 源码版（免编译，快速分发）
+
+```batch
+:: 无需编译：Win 装 Python 3.10+ 后双击「启动游戏.bat」即可（首次自动装依赖）
+python -m pip install -r requirements-run.txt
+python main.py
+```
+分发即拷贝源码目录（或 Releases 中的 `*-win-src-*.zip`）；另一路可编译为 exe（见下）。
+
 ### 生产打包（Nuitka standalone）
 
 ```bash
