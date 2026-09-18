@@ -371,9 +371,13 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
   var col = aces(hdr * frame.exposure);
   col = gamma(col);
 
-  // 暗角
-  let q = vec2f(0.5, 0.5);
-  let vig = smoothstep(0.9, 0.28, length(in.uv - q * 2.0) * 0.72);
+  // 暗角（中心对称）
+  // uv ∈ [0,1]，到中心的距离用 (uv - 0.5) 再乘 2 归一化：
+  //   角点 length(0.5,0.5)=0.7071 → ×2 得 1.414（超出 1，保证四角充分压暗）
+  // ⚠ 原式 length(uv - q*2.0) * 0.72（q=0.5 → 减 1.0）把最亮点放在【右上角】，
+  //   四角压暗不均、中心反而变暗，属笔误。此处改为以屏幕中心为原点。
+  let aq = (in.uv - vec2f(0.5, 0.5)) * 2.0;
+  let vig = smoothstep(0.9, 0.28, length(aq));
   col *= vig;
 
   // 抖动 → 减少条带

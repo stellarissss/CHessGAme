@@ -237,21 +237,38 @@ function buildWorld(spec) {
     vertPos[o + 7] = nx / l; vertPos[o + 8] = ny / l; vertPos[o + 9] = nz / l;
   }
   // —— 索引 + 分块 ——
+  // 【分块必须"连续"】drawIndexed(count, 1, firstIndex, 0, 0) 只接受一段连续索引区间，
+  // 因此同一 chunk 的索引在 terrIdx 里必须物理连续。若按 tile 的 row-major 顺序直接写入，
+  // 一个 16×16 的 chunk 会散布在 16 个不同行上（相邻 chunk 的索引插在中间），
+  // 导致每个 chunk 声称的 [first, first+count) 区间里 81% 是别的 chunk 的三角形 →
+  // 整片地形三角形错乱退化，画面上只剩零星条纹（"大地图不显示"的根因）。
+  // 解法：以 chunk 为外层循环，把每个 chunk 的 16×16 格一次性写完，
+  // 这样 finalize 一个 chunk 后再开下一个，索引天然连续，且不增加任何显存。
   var terrIdx = new Uint32Array(W * H * 6);
-  var terrChunkMap = {}; var terrChunks = [];
+  var terrChunks = [];
   var tii = 0;
-  for (var ty2 = 0; ty2 < H; ty2++) for (var tx2 = 0; tx2 < W; tx2++) {
-    var a = gv(tx2, ty2), bb = gv(tx2 + 1, ty2), c2 = gv(tx2, ty2 + 1), d2 = gv(tx2 + 1, ty2 + 1);
-    terrIdx[tii++] = a; terrIdx[tii++] = bb; terrIdx[tii++] = c2;
-    terrIdx[tii++] = bb; terrIdx[tii++] = d2; terrIdx[tii++] = c2;
-    var cx = (tx2 / CHUNK) | 0, cy = (ty2 / CHUNK) | 0, key = cy * 1000 + cx;
-    var cell = terrChunkMap[key];
-    if (!cell) { cell = { cx: cx, cy: cy, first: tii - 6, count: 6 }; terrChunkMap[key] = cell; terrChunks.push(cell); }
-    else { cell.count += 6; }
+  var CW = Math.ceil(W / CHUNK), CH = Math.ceil(H / CHUNK);
+  for (var cy2 = 0; cy2 < CH; cy2++) for (var cx2 = 0; cx2 < CW; cx2++) {
+    var tx0 = cx2 * CHUNK, ty0 = cy2 * CHUNK;
+    var tx1 = Math.min(tx0 + CHUNK, W), ty1 = Math.min(ty0 + CHUNK, H);
+    if (tx0 >= tx1 || ty0 >= ty1) continue;
+    var tfirst = tii;                      // 本 chunk 的连续索引区间起点
+    for (var ty2 = ty0; ty2 < ty1; ty2++) for (var tx2 = tx0; tx2 < tx1; tx2++) {
+      var a = gv(tx2, ty2), bb = gv(tx2 + 1, ty2), c2 = gv(tx2, ty2 + 1), d2 = gv(tx2 + 1, ty2 + 1);
+      terrIdx[tii++] = a; terrIdx[tii++] = bb; terrIdx[tii++] = c2;
+      terrIdx[tii++] = bb; terrIdx[tii++] = d2; terrIdx[tii++] = c2;
+    }
+    terrChunks.push({ cx: cx2, cy: cy2, first: tfirst, count: tii - tfirst });
   }
   // —— 实例化装饰（树/石/雪/水/植被/灵粒） ——
   // 每对象类型 → 实例数组；每实例 20 floats:
   // [pos3][scale3][yaw,flag][colT.rgb,alpha][colF.rgb,alpha][colR.rgb,alpha]
+  // 【实例分块同样必须连续】装饰走 drawIndexed(cubeIdxCount, count, 0, 0, firstInstance)，
+  // 依赖"同一 chunk 的实例在实例缓冲里物理连续"。按 tile row-major 顺序 push 同样会把
+  // 一个 chunk 的实例打散到 16 行上 → 实例区间错位、绘制出别的 chunk 的树石
+  // （表现与地形同源：大地图上装饰错乱/缺失）。
+  // 解法与地形一致：以 chunk 为外层循环，逐 chunk 写完再进下一个；
+  // 归属区间由调用方 emitChunk 记录，pushInst 不再自行维护 chunkMap。
   function pushInst(arr, cx, cy, pos, scale, yaw, flag, ct, cf, cr, alpha) {
     var b = arr.base;
     for (var q = 0; q < pos.length; q++) b.push(pos[q]);
@@ -259,60 +276,69 @@ function buildWorld(spec) {
     b.push(yaw, flag);
     b.push(ct[0], ct[1], ct[2], alpha, cf[0], cf[1], cf[2], alpha, cr[0], cr[1], cr[2], alpha);
     arr.n++;
-    var ckey = cy * 1000 + cx;
-    var cell = arr.chunkMap[ckey];
-    if (!cell) { cell = { cx: cx, cy: cy, first: arr.n - 1, count: 1 }; arr.chunkMap[ckey] = cell; arr.chunks.push(cell); }
-    else cell.count++;
   }
   function obj(color) { return [color[0] / 255, color[1] / 255, color[2] / 255]; }
-  var deco = { base: [], n: 0, chunkMap: {}, chunks: [] };
+  var deco = { base: [], n: 0, chunks: [] };
 
-  for (var y3 = 0; y3 < H; y3++) for (var x3 = 0; x3 < W; x3++) {
-    var idx = y3 * W + x3;
-    var f = flags[idx], rid = biome[idx], cx3 = (x3 / CHUNK) | 0, cy3 = (y3 / CHUNK) | 0;
-    var gc = (x3 + 0.5) * CELL, gy = (y3 + 0.5) * CELL;
-    var groundH = tH[idxAt(x3, y3)];
-    var r = rng;
+  // 单个 chunk 的实例发射（区间连续），供外层 chunk 循环调用
+  function emitChunk(x0, y0, x1, y1) {
+    var first = deco.n;
+    for (var y3 = y0; y3 < y1; y3++) for (var x3 = x0; x3 < x1; x3++) {
+      var idx = y3 * W + x3;
+      var f = flags[idx], rid = biome[idx], cx3 = (x3 / CHUNK) | 0, cy3 = (y3 / CHUNK) | 0;
+      var gc = (x3 + 0.5) * CELL, gy = (y3 + 0.5) * CELL;
+      var groundH = tH[idxAt(x3, y3)];
+      var r = rng;
 
-    if (f & F_WATER) {
-      // 水面（薄片）+ 微光灵粒
-      pushInst(deco, cx3, cy3, [gc, gy, groundH + 0.15], [CELL, CELL, 0.4], 0, 1, obj(C_WATER.map(function (v) { return v * 0.9; })), obj(C_WATER), obj(C_WATER), 0.82);
-      if (r(x3, y3, 60) < 0.05) addMote(gc + (r(x3, y3, 61) - 0.5) * CELL * 0.6, gy + (r(x3, y3, 62) - 0.5) * CELL * 0.6, groundH + 2);
-      continue;
+      if (f & F_WATER) {
+        // 水面（薄片）+ 微光灵粒
+        pushInst(deco, cx3, cy3, [gc, gy, groundH + 0.15], [CELL, CELL, 0.4], 0, 1, obj(C_WATER.map(function (v) { return v * 0.9; })), obj(C_WATER), obj(C_WATER), 0.82);
+        if (r(x3, y3, 60) < 0.05) addMote(gc + (r(x3, y3, 61) - 0.5) * CELL * 0.6, gy + (r(x3, y3, 62) - 0.5) * CELL * 0.6, groundH + 2);
+        continue;
+      }
+      if (f & F_WALL) {
+        // 群山外障：密布巨岩，形成不可逾越的山墙
+        if (r(x3, y3, 5) > 0.82) continue;
+        var wd = CELL * (0.9 + r(x3, y3, 6) * 1.1);
+        pushInst(deco, cx3, cy3, [gc, gy, groundH], [CELL * 0.85, CELL * 0.85, wd], 0, 0, obj([0x6f, 0x6a, 0x62]), obj([0x57, 0x52, 0x49]), obj([0x3e, 0x3a, 0x34]), 1);
+        continue;
+      }
+      if (f & F_MOUNT) {
+        if (r(x3, y3, 5) > 0.55) continue;
+        var mh = CELL * (0.6 + r(x3, y3, 6) * 0.9);
+        pushInst(deco, cx3, cy3, [gc, gy, groundH], [CELL * 0.62, CELL * 0.62, mh], 0, 0, obj([0x8f, 0x8a, 0x82]), obj([0x72, 0x6d, 0x65]), obj([0x57, 0x52, 0x4a]), 1);
+        continue;
+      }
+      if (f & F_SOLID) continue;
+      var kinds = BIOME_KINDS[rid];
+      if (!kinds) continue;
+      var dens = BIOME_DENSITY[rid] || 0.05;
+      if (r(x3, y3, 1) > dens) {
+        // 稀疏灵粒/野花点缀，让大地更有生气
+        if (r(x3, y3, 63) < 0.02) addMote(gc, gy, groundH + 2);
+        continue;
+      }
+      var kind = kinds[Math.floor(r(x3, y3, 2) * kinds.length)];
+      var s = 0.6 + r(x3, y3, 3) * 0.7;
+      place(gc, gy, groundH, kind, s, cx3, cy3, r);
+      // 设计化的景观过渡：紧邻不同生物群系的边界格，以噪声概率补一棵矮灌/一颗小石，
+      // 把直线分界弱化为有层次的植物过渡带（对应旧 iso 路径的 buildBoundaries）。
+      var wr = warpBiome(x3, y3);
+      if (wr !== rid && r(x3, y3, 31) < 0.16) {
+        var edgeK = r(x3, y3, 32) < 0.5 ? 'grass' : 'rock';
+        place(gc + (r(x3, y3, 33) - 0.5) * CELL * 0.4, gy + (r(x3, y3, 34) - 0.5) * CELL * 0.4,
+              groundH, edgeK, 0.55 + r(x3, y3, 35) * 0.4, cx3, cy3, r);
+      }
     }
-    if (f & F_WALL) {
-      // 群山外障：密布巨岩，形成不可逾越的山墙
-      if (r(x3, y3, 5) > 0.82) continue;
-      var wd = CELL * (0.9 + r(x3, y3, 6) * 1.1);
-      pushInst(deco, cx3, cy3, [gc, gy, groundH], [CELL * 0.85, CELL * 0.85, wd], 0, 0, obj([0x6f, 0x6a, 0x62]), obj([0x57, 0x52, 0x49]), obj([0x3e, 0x3a, 0x34]), 1);
-      continue;
-    }
-    if (f & F_MOUNT) {
-      if (r(x3, y3, 5) > 0.55) continue;
-      var mh = CELL * (0.6 + r(x3, y3, 6) * 0.9);
-      pushInst(deco, cx3, cy3, [gc, gy, groundH], [CELL * 0.62, CELL * 0.62, mh], 0, 0, obj([0x8f, 0x8a, 0x82]), obj([0x72, 0x6d, 0x65]), obj([0x57, 0x52, 0x4a]), 1);
-      continue;
-    }
-    if (f & F_SOLID) continue;
-    var kinds = BIOME_KINDS[rid];
-    if (!kinds) continue;
-    var dens = BIOME_DENSITY[rid] || 0.05;
-    if (r(x3, y3, 1) > dens) {
-      // 稀疏灵粒/野花点缀，让大地更有生气
-      if (r(x3, y3, 63) < 0.02) addMote(gc, gy, groundH + 2);
-      continue;
-    }
-    var kind = kinds[Math.floor(r(x3, y3, 2) * kinds.length)];
-    var s = 0.6 + r(x3, y3, 3) * 0.7;
-    place(gc, gy, groundH, kind, s, cx3, cy3, r);
-    // 设计化的景观过渡：紧邻不同生物群系的边界格，以噪声概率补一棵矮灌/一颗小石，
-    // 把直线分界弱化为有层次的植物过渡带（对应旧 iso 路径的 buildBoundaries）。
-    var wr = warpBiome(x3, y3);
-    if (wr !== rid && r(x3, y3, 31) < 0.16) {
-      var edgeK = r(x3, y3, 32) < 0.5 ? 'grass' : 'rock';
-      place(gc + (r(x3, y3, 33) - 0.5) * CELL * 0.4, gy + (r(x3, y3, 34) - 0.5) * CELL * 0.4,
-            groundH, edgeK, 0.55 + r(x3, y3, 35) * 0.4, cx3, cy3, r);
-    }
+    var cnt = deco.n - first;
+    if (cnt > 0) deco.chunks.push({ cx: (x0 / CHUNK) | 0, cy: (y0 / CHUNK) | 0, first: first, count: cnt });
+  }
+  // chunk-major 外层循环：保证每个 chunk 的实例物理连续
+  for (var cyD = 0; cyD < CH; cyD++) for (var cxD = 0; cxD < CW; cxD++) {
+    var dx0 = cxD * CHUNK, dy0 = cyD * CHUNK;
+    var dx1 = Math.min(dx0 + CHUNK, W), dy1 = Math.min(dy0 + CHUNK, H);
+    if (dx0 >= dx1 || dy0 >= dy1) continue;
+    emitChunk(dx0, dy0, dx1, dy1);
   }
   function addMote(x, y, z) {
     var s = CELL * 0.05;
@@ -858,7 +884,12 @@ OverworldGame._ensureSize = function () {
   this._buildPostBindGroups();
 };
 OverworldGame._rt = function (fmt, w, h) {
-  return this.device.createTexture({ size: [w, h], format: fmt, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
+  // COPY_SRC：让 RT 可被 copyTextureToTexture 读回，供「呈现自检」做实像素校验。
+  // 仅放开拷贝来源权限，不改变渲染行为、不额外占用显存。
+  return this.device.createTexture({
+    size: [w, h], format: fmt,
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
+  });
 };
 
 /* ── 管线构建 ── */
@@ -1621,28 +1652,219 @@ OverworldGame.destroy = function () {
 };
 
 /* ── 呈现自检（供 overworld-load.js 调用）─────────────────────────
-   管线可能全部创建成功、帧也在稳定提交，但 canvas 呈现仍可能异常
-   （驱动缺陷 / 合成器兼容问题 → 用户看到的黑屏或白屏）。
-   做法：把 WebGPU 画布 drawImage 到 2D 画布采样中心区域平均亮度，
-   全黑(<2)或全白(>253)视为呈现异常，返回 false → 分发器降级 melonJS。 */
-OverworldGame.presentSelfCheck = function () {
-  try {
-    if (!this._canvas || !this._canvas.width) return Promise.resolve(true);
-    var probe = document.createElement('canvas');
-    probe.width = 64; probe.height = 64;
-    var ctx = probe.getContext('2d');
-    if (!ctx) return Promise.resolve(true);
-    ctx.drawImage(this._canvas, 0, 0, 64, 64);
-    var d = ctx.getImageData(8, 8, 48, 48).data;
-    var sum = 0, n = 0;
-    for (var i = 0; i < d.length; i += 4) { sum += (d[i] + d[i + 1] + d[i + 2]) / 3; n++; }
-    var avg = sum / n;
-    try { console.log('[WebGPU] 呈现自检: 中心平均亮度=' + avg.toFixed(1) + (avg < 2 || avg > 253 ? ' → 异常，需降级' : ' → 正常')); } catch (e) {}
-    return Promise.resolve(avg >= 2 && avg <= 253);
-  } catch (e) {
-    try { console.warn('[WebGPU] 呈现自检失败:', e); } catch (e2) {}
-    return Promise.resolve(true); // 自检本身失败时不误杀（保守：认为正常）
+/* ── 呈现自检（供 overworld-load.js 调用）─────────────────────────
+   目的：区分「GPU 真的没画出内容」与「canvas 呈现/合成器异常」。
+
+   ⚠ 不能用 ctx.drawImage(webgpuCanvas, ...) 作为判据。WebGPU 画布的
+   drawImage 依赖交换链"可读回"能力，在 headless / SwiftShader / 软件
+   光栅器下常恒定返回全黑——即便 GPU 渲染完全正常。实测：连"直接向
+   swapchain 输出纯红常量"的着色器，drawImage 读回依然是 0。用它会
+   把工作正常的设备误判为"呈现异常"，产生无意义的告警角标。
+
+   做法：直接读回 GPU 侧 render target（colorRT）的真实像素。为保证
+   判据本身可信，读回分两步：
+
+     ① 哨兵探针（决定性一步）：先向 colorRT 写"左半红 / 右半绿"再读回。
+        这一步的正确答案是已知常量：
+        · 读回 ≠ 哨兵色 → 「读回通路」本身是坏的（格式不可拷贝 / 实现
+          缺陷 / 设备丢失…），判据不可信 → 返回 true（不误杀）并打印
+          raw 读数便于定位。
+        · 读回 == 哨兵色 → 读回通路可信，进入第 ② 步。
+        缺了这一步，「读回全黑」的两种含义（画面真黑 / 拷贝失败）无法
+        区分 —— 这正是此前自检会误报的第二个来源。
+
+     ② 实读评估：拷回 colorRT 里的真实画面，统计非零像素占比与平均
+        亮度，仅在确认「全黑」时才判异常。
+
+   全程只读 + 一次两三角形的哨兵探针；探针之后会补画一帧正常画面，
+   并尊重 _renderPaused，不干扰正常渲染路径。
+   返回：true=有内容或无法判定；false=确认全黑。 */
+
+/* 哨兵探针的 WGSL：覆盖全屏的三角形，按 x 分左右两半输出红/绿。
+   与主渲染管线共享 FrameUB 绑定（binding 0），直接复用 _frameLayout。
+   ⚠ struct 必须与 wgpu/shaders.js 里的 FrameUB 逐字段一致（vec3f 后
+   须紧跟 f32 填充，共 208 字节）；否则 uniform 尺寸校验会失败：
+   "bound with size 208 ... requires a buffer binding which is at least 224"。 */
+OverworldGame._PROBE_WGSL = [
+  'struct FrameUB {',
+  '  mvp         : mat4x4f,',
+  '  camPos      : vec3f,',
+  '  _p0         : f32,',
+  '  sunDir      : vec3f,',
+  '  _p1         : f32,',
+  '  skyColor    : vec3f,',
+  '  _p2         : f32,',
+  '  groundColor : vec3f,',
+  '  _p3         : f32,',
+  '  fogColor    : vec3f,',
+  '  _p4         : f32,',
+  '  sunColor    : vec3f,',
+  '  _p5         : f32,',
+  '  res         : vec2f,',
+  '  time        : f32,',
+  '  zoom        : f32,',
+  '  fogDensity  : f32,',
+  '  exposure    : f32,',
+  '  sunIntensity: f32,',
+  '  aoRadius    : f32,',
+  '  aoIntensity : f32,',
+  '  qualityFlags: f32,',
+  '}' + ';',
+  '@group(0) @binding(0) var<uniform> F: FrameUB;',
+  '@vertex fn vs(@builtin(vertex_index) i: u32) -> @builtin(position) vec4f {',
+  '  var p = array<vec2f, 3>(vec2f(-1.0, -1.0), vec2f(3.0, -1.0), vec2f(-1.0, 3.0));',
+  '  return vec4f(p[i], 0.0, 1.0);',
+  '}',
+  '@fragment fn fs(@builtin(position) c: vec4f) -> @location(0) vec4f {',
+  '  // 左半屏红、右半屏绿：与画质档位无关的纯位置判据',
+  '  if (c.x < F.res.x * 0.5) { return vec4f(1.0, 0.0, 0.0, 1.0); }',
+  '  return vec4f(0.0, 1.0, 0.0, 1.0);',
+  '}'
+].join('\n');
+
+/* 哨兵探针：写入左红右绿并【在同一 encoder 内立刻拷回】。
+   ⚠ 两个必须如此的理由：
+   · 用【独立的 uniform buffer】，绝不碰主帧 _frameBuffer。否则 _render()
+     的 _updateFrame() 会把 res 写回 cam.vw（CSS 像素），而 RT 尺寸是
+     vw*_dpr —— 二者不等时左右分界落错位置（实测会退化成 83/17）。
+   · 写哨兵与拷贝读回必须在同一 encoder + 同一次 submit。若分两次，
+     中间让出主线程会被 rAF 帧插队覆盖掉哨兵色，读到的就不是哨兵值。 */
+OverworldGame._drawProbe = function () {
+  var d = this.device, W = this._rtsW, H = this._rtsH;
+  if (!this._probePipe) {
+    var mod = d.createShaderModule({ code: this._PROBE_WGSL, label: 'present-probe' });
+    this._probePipe = d.createRenderPipeline({
+      layout: d.createPipelineLayout({ bindGroupLayouts: [this._frameLayout] }),
+      vertex: { module: mod, entryPoint: 'vs' },
+      fragment: { module: mod, entryPoint: 'fs', targets: [{ format: 'rgba16float' }] },
+      primitive: { topology: 'triangle-list' },
+      label: 'present-probe'
+    });
   }
+  // 专用 uniform：52 floats / 208 bytes，与 FrameUB 同尺寸同布局
+  if (!this._probeUB) {
+    this._probeUB = d.createBuffer({ size: 208, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    this._probeUBData = new Float32Array(52);
+    this._probeBG = d.createBindGroup({ layout: this._frameLayout, entries: [{ binding: 0, resource: { buffer: this._probeUB } }] });
+  }
+  // res = RT 真实尺寸，供片元着色器判定左右分界
+  this._probeUBData[40] = W; this._probeUBData[41] = H;
+  d.queue.writeBuffer(this._probeUB, 0, this._probeUBData);
+
+  var ro = d.createTexture({
+    size: [W, H], format: 'rgba16float',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
+  });
+  var bpr = Math.ceil(W * 8 / 256) * 256;
+  var buf = d.createBuffer({ size: bpr * H, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  var enc = d.createCommandEncoder();
+  var rp = enc.beginRenderPass({ colorAttachments: [
+    { view: this._views.color, loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }] });
+  rp.setPipeline(this._probePipe);
+  rp.setBindGroup(0, this._probeBG);
+  rp.draw(3); rp.end();
+  enc.copyTextureToTexture({ texture: this._colorRT }, { texture: ro }, [W, H, 1]);
+  enc.copyTextureToBuffer({ texture: ro }, { buffer: buf, bytesPerRow: bpr, rowsPerImage: H }, [W, H, 1]);
+  d.queue.submit([enc.finish()]);
+
+  var self = this;
+  return buf.mapAsync(GPUMapMode.READ).then(function () {
+    var res = OverworldGame._analyzeRTReadback(new Uint16Array(buf.getMappedRange().slice(0)), W, H, bpr);
+    try { buf.unmap(); } catch (e) {}
+    // 哨兵色已污染 colorRT，补一帧正常画面避免残留到屏幕
+    try { if (!self._renderPaused) self._render(); } catch (e) {}
+    return res;
+  }).catch(function (e) {
+    try { if (!self._renderPaused) self._render(); } catch (e2) {}
+    return { err: String(e && e.message ? e.message : e) };
+  });
+};
+
+/* 把一段 rgba16float 的 bpr 对齐像素缓冲解析成统计量。 */
+OverworldGame._analyzeRTReadback = function (u, W, H, bpr) {
+  function h2f(h) {
+    var s = (h >> 15) & 1, ex = (h >> 10) & 31, m = h & 1023, v;
+    if (ex === 0) v = (m / 1024) * Math.pow(2, -14);
+    else if (ex === 31) return s ? -Infinity : Infinity;
+    else v = (1 + m / 1024) * Math.pow(2, ex - 15);
+    return s ? -v : v;
+  }
+  var n = W * H, sr = 0, sg = 0, sb = 0, nonZero = 0, white = 0;
+  for (var y = 0; y < H; y++) {
+    var row = (y * bpr) >> 1;                     // → Uint16 下标（逐行步进，跳过行尾填充）
+    for (var x = 0; x < W; x++) {
+      var i = row + x * 4;
+      var r = h2f(u[i]), g = h2f(u[i + 1]), b = h2f(u[i + 2]);
+      sr += r; sg += g; sb += b;
+      if (r > 0.001 || g > 0.001 || b > 0.001) nonZero++;
+      if (r > 0.98 && g > 0.98 && b > 0.98) white++;
+    }
+  }
+  return { W: W, H: H, r: sr / n, g: sg / n, b: sb / n,
+           nonZero: nonZero / n, white: white / n, avg: (sr + sg + sb) / (3 * n) };
+};
+
+/* 把 colorRT 的当前内容拷到 CPU（只读，不改 RT）。用于第 ② 步的实读评估。
+   与产生该内容的绘制分开 submit —— 此时 draw 早已完成，顺序天然正确。 */
+OverworldGame._readbackRT = function () {
+  var d = this.device, W = this._rtsW, H = this._rtsH;
+  var ro = d.createTexture({
+    size: [W, H], format: 'rgba16float',
+    usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC | GPUTextureUsage.COPY_DST
+  });
+  var bpr = Math.ceil(W * 8 / 256) * 256;
+  var buf = d.createBuffer({ size: bpr * H, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+  var enc = d.createCommandEncoder();
+  enc.copyTextureToTexture({ texture: this._colorRT }, { texture: ro }, [W, H, 1]);
+  enc.copyTextureToBuffer({ texture: ro }, { buffer: buf, bytesPerRow: bpr, rowsPerImage: H }, [W, H, 1]);
+  d.queue.submit([enc.finish()]);
+  return buf.mapAsync(GPUMapMode.READ).then(function () {
+    var res = OverworldGame._analyzeRTReadback(new Uint16Array(buf.getMappedRange().slice(0)), W, H, bpr);
+    try { buf.unmap(); } catch (e) {}
+    return res;
+  }).catch(function (e) {
+    return { err: String(e && e.message ? e.message : e) };
+  });
+};
+
+OverworldGame.presentSelfCheck = function () {
+  var self = this, d = this.device;
+  if (!d || !this._colorRT || !this._views || !this._rtsW || !this._rtsH) return Promise.resolve(true);
+  var W = this._rtsW, H = this._rtsH;
+  if (W < 8 || H < 8) return Promise.resolve(true);
+  if (this._destroyed || this._deviceLost) return Promise.resolve(true);
+  var log = function (m) { try { console.log('[WebGPU] ' + m); } catch (e) {} };
+  var warn = function (m) { try { console.warn('[WebGPU] ' + m); } catch (e) {} };
+
+  function evaluate(s) {
+    if (s.err) { warn('呈现自检：读回失败(' + s.err + ')，判据不可信 → 保守放行'); return true; }
+    var black = s.nonZero < 0.01 && s.avg < 0.002;
+    var white = s.white > 0.995;
+    log('呈现自检(实读): ' + W + '×' + H + ' 平均亮度=' + s.avg.toFixed(4) +
+      ' 非零占比=' + (s.nonZero * 100).toFixed(1) + '%' +
+      ' 全白占比=' + (s.white * 100).toFixed(1) + '%' +
+      (black ? ' → 全黑，判呈现异常' : white ? ' → 全白，判呈现异常' : ' → 正常'));
+    return !(black || white);
+  }
+
+  // ① 哨兵探针：先证明「读回通路」可信，否则任何读数都无意义
+  return this._drawProbe().then(function (s) {
+    if (!s || s.err) { warn('呈现自检：探针读回失败(' + (s && s.err) + ') → 保守放行'); return true; }
+    // 期望：左半红 + 右半绿 → r≈0.5、g≈0.5、b≈0、非零≈100%
+    var ok = s.r > 0.30 && s.g > 0.30 && s.b < 0.15 && s.nonZero > 0.60;
+    log('呈现自检(哨兵探针): r=' + s.r.toFixed(3) + ' g=' + s.g.toFixed(3) +
+      ' b=' + s.b.toFixed(3) + ' 非零=' + (s.nonZero * 100).toFixed(1) + '% → ' +
+      (ok ? '读回通路可信' : '读回通路异常'));
+    if (!ok) {
+      warn('呈现自检：哨兵色未按预期读回，读回通路不可信，无法据此判定呈现 → 保守放行');
+      return true;
+    }
+    // ② 读真实画面（探针已补画一帧正常内容）
+    return self._readbackRT().then(evaluate);
+  }).catch(function (e) {
+    warn('呈现自检异常，保守放行: ' + (e && e.message ? e.message : e));
+    return true;
+  });
 };
 
 window.OverworldGame = OverworldGame;
