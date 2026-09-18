@@ -1,6 +1,11 @@
-# 大地图渲染架构 —— WebGPU 主通道 + melonJS 兜底（v2.2）
+# 大地图渲染架构 —— WebGPU 主通道 + melonJS 兜底（v2.4）
 
-> 本文档描述「棋圣·六道轮回」大地图（六道大陆）渲染架构的 v2.2 全貌：WebGPU 渲染器回归为主通道、四档智能画质分级、呈现自检与自动降级，以及三大根因修复与端到端测试方法。
+> 本文档描述「棋圣·六道轮回」大地图（六道大陆）渲染架构的 v2.4 全貌：WebGPU 渲染器回归为主通道、四档智能画质分级、呈现自检与自动降级，以及历次根因修复与端到端测试方法。
+>
+> **版本修复履历**：
+> - **v2.2** — 大地图不显示根因（区块索引区间不连续）+ 呈现自检误报 + 暗角偏离中心（已推送）。
+> - **v2.3** — 地形高度场重做（消除"纸片平原"）、曝光/光照链路重标定（消除全局过曝）、SSAO 重复乘修复、合成端显示级对比度/饱和度（已推送）。
+> - **v2.4** — 画质档位分辨率失效（ISSUE #9：`renderScale` 完全不生效、四档渲染分辨率恒等于视口）+ 断言回归脚本重建（待推送）。
 
 ---
 
@@ -153,6 +158,34 @@ for (var cy = 0; cy < CH; cy++) for (var cx = 0; cx < CW; cx++) {
 
 另一个隐蔽点：探针最初复用主帧 uniform，被 `_updateFrame()` 覆写 `res` 后左右分界落错（50/50 退化为 83/17）。修复为**专用 uniform buffer**。
 
+### 3.3 画质档位分辨率失效（ISSUE #9，v2.4 修复）
+
+**症状**：四档画质的 `colorRT` 读回统计**完全一致**（平均亮度、最暗、最亮、R/G/B 均值逐项相等，两两像素 RMS ≈ 0.04）。进一步实测（脚本 `test/q4.js`）揭穿真相：
+
+| 档位 | `_dpr`（renderScale×dprCap） | 实际 RT 尺寸 `_rtsW×_rtsH` | `qualityFlags` |
+| --- | --- | --- | --- |
+| `software` | **0.6** | **1600×1000** | 0 |
+| `balanced` | **0.75** | **1600×1000** | 2 |
+| `high` | 1.0 | 1600×1000 | 7 |
+| `ultra` | 1.0 | 1600×1000 | 7 |
+
+`_dpr` 算得完全正确（0.6/0.75/1.0），但 **RT 尺寸四档全是满分辨率**。结论：`renderScale` 对真实渲染分辨率**零作用**——四档在性能与清晰度上毫无区别。
+
+**两条根因（均为代码缺陷）**：
+
+1. **RT 首次构建早于 `_dpr` 就绪（时序）**：启动序列是 `overworld-load.js` 先 `setQuality(档位)` → `wgpuBoot` → `_prepare()` → `_buildResources()` + `_initGPU()`（异步，其内部 `_ensureSize()` 位于 `adapterP.then` **微任务**中）→ 之后才轮到 `start()`（**宏任务**）里的 `_applyRenderScale()`。微任务先于宏任务执行，于是 `_initGPU` 的 `_ensureSize()` 跑在 `_dpr` 被设置**之前**，`_ensureSize` 见到 `this._dpr` 为 `undefined` → 按 `cam.vw * 1` 建满分辨率；而 `_applyRenderScale()` 之后**没有任何代码再调 `_ensureSize()`** 用新 `_dpr` 重建，RT 就此定格。
+2. **`setQuality` 的热切换分支是死代码（从未赋值的变量）**：其重建 guard 写成
+   ```js
+   if (this._ctx && typeof this._dprBase !== 'undefined') { this._applyRenderScale(); this._rtsW = 0; this._ensureSize(); }
+   ```
+   但全仓**从未给 `this._dprBase` 赋值**（grep 仅命中这一处检查），且启动期 `_ctx` 尚未创建 → 该分支**永远不进入**。运行时换档因此永不重建 RT。
+
+**修复（v2.4）**：① `_initGPU` 在首次 `_ensureSize()` 前补一句 `self._applyRenderScale()`；② `start()` 在 `_applyRenderScale()` 后强制 `this._rtsW = 0; this._ensureSize();`（清零令 `_ensureSize` 跳过"尺寸未变"早返回）；③ `setQuality` 的 guard 改为仅依赖真实存在的 `this._ctx`。三处合力，无论微任务/宏任务谁先到，RT 最终都以正确 `_dpr` 重建。
+
+**验证（v2.4 修复后，`test/tier_assert.js`）**：四档 RT 尺寸严格跟随 `round(camVW × renderScale)`；`qualityFlags` 与帧 uniform `f[49]` 同步正确；同分辨率下 `flags=7`（后处理全开）vs `flags=0`（全关）的逐像素 RMS 为可观测非零值（后处理门控真实生效）。
+
+> 注：因修复后各档**分辨率不同**（software 960×600 / balanced 1200×750 / high·ultra 1600×1000），跨分辨率无法直接逐像素比。故断言脚本改为两层：①分辨率层（每档 RT 尺寸 == 视口×renderScale）；②后处理层（同分辨率下 flags 全开 vs 全关隔离比较）。`high` 与 `ultra` 在本测试环境（devicePixelRatio=1）下唯一差别 `dprCap` 不体现，二者本就等同，属预期。
+
 ---
 
 ## 四、测试方法
@@ -210,16 +243,30 @@ chrome --headless=new --remote-debugging-port=9222 --remote-allow-origins='*' \
 > 评估环境：Xvfb :99 + 非 headless Chromium 144 + lavapipe（`google/swiftshader` 适配器）。
 > **重要前提**：该环境下 WebGPU swapchain → 页面合成失效（见 §5），故所有画面均取自 `colorRT` 逐像素读回（已由哨兵探针验证通路可信）。
 
-### 6.1 视觉质量：**不合格**（结构性问题，非本次修复引入）
+### 6.1 视觉质量：**核心结构问题已修复（v2.3/v2.4），后处理可见度待美术调校**
 
-| 问题 | 实测证据 | 根因 |
+> 下表为 **v2.2 初评**时记录的问题与根因。其中前三类（地形平坦 / 全局过曝 / 装饰漂浮）由 **v2.3** 修复；第四类（档位无差异）的根因实为 **v2.4** 的 `renderScale` 失效 bug，已修复。
+
+| 问题（v2.2 初评） | 实测证据 | 根因 | 修复版本 |
+| --- | --- | --- | --- |
+| **地形几乎完全平坦，无立体感** | 四类材质法线倾斜度：平原 0.18°~0.37°、山地 0.46°~0.92°、山墙 0.92°~1.85°，全部 < 2°，等价于法线恒为 `(0,0,1)` | `CELL = 46`（相邻顶点间距）远大于高度场幅度（仅约 **1.4** 世界单位）。坡度 `dh/(2*CELL)` 被稀释 46 倍 | **v2.3** ✅ |
+| **画面整体过曝、对比度被压平** | `colorRT` 平均亮度 **0.6435**、最小值 **0.5546**（最暗像素都 ≥ 0.55），四类材质 tonemap 后收敛到 164~229 高亮窄带 | 光照叠加超 1：`hemi(≈0.44) + sunColor·sunIntensity·ndl(≈0.79)` ≈ 1.2，再乘 `exposure=1.15`；ACES 近饱和抹平材质差异 | **v2.3** ✅ |
+| **植被/装饰呈"漂浮菱形色块"** | 树石实例渲染为纯色菱形，无接触阴影、无立体感 | 装饰为 cube 实例未接地 AO；SSAO 仅地形 GBuffer，且 `aoIntensity=0.55` 在过曝下不可见 + 原实现连乘两次（等效 0.30） | **v2.3** ✅ |
+| **画质档位对画面几乎无影响** | 四档 `colorRT` 均值完全相同，`high` vs `ultra` 像素 RMS = 0.0006 | `qualityFlags` 正确、pass 均派发，但视觉贡献被过曝淹没（v2.2 表象）；**真因是 v2.4 的 `renderScale` 完全失效——四档渲染分辨率恒等于视口** | **v2.3 消过曝 + v2.4 修分辨率** ✅ |
+
+**v2.3 修复后的实测对照（地形高度场 + 曝光/光照重标定）**：
+
+| 指标 | 修复前（v2.2） | 修复后（v2.3/v2.4） |
 | --- | --- | --- |
-| **地形几乎完全平坦，无立体感** | 四类材质法线倾斜度：平原 **0.18°~0.37°**、山地 0.46°~0.92°、山墙 0.92°~1.85°，**全部 < 2°**，等价于法线恒为 `(0,0,1)` | `CELL = 46`（相邻顶点间距）远大于高度场幅度（平原 `base + fbm*1.4 - 0.4`，实际幅度仅约 **1.4** 世界单位）。坡度 `dh/(2*CELL)` 被稀释 46 倍。地形顶点置换 `pos.z += det.w` 也只有"微位移"量级 |
-| **画面整体过曝、对比度被压平** | `colorRT` 平均亮度 **0.6435**、最小值 **0.5546**（最暗像素都 ≥ 0.55），四类材质（草地/斜草地/深色岩石/水面）tonemap 后收敛到 **164~229** 高亮窄带 | 光照系数叠加 **超过 1**：`hemi(≈0.44) + sunColor·sunIntensity·ndl(≈0.79)` ≈ **1.2**，再乘 `exposure = 1.15`。ACES 在该区间接近饱和，材质差异被抹平。数值模拟复现：理论草地 `(211,229,199)` vs 实测均值 `(190,217,186)`，吻合 |
-| **植被/装饰呈"漂浮菱形色块"** | 树石实例渲染为纯色菱形，与地面无接触阴影、无立体感 | 装饰为 cube 实例未做 AO 接地；SSAO 只作用于地形 GBuffer，且 `aoIntensity = 0.55` 在过曝下不可见 |
-| **画质档位对画面几乎无影响** | 四档 `colorRT` 均值**完全相同**（`190.05/217.34/185.66`），`high` vs `ultra` 像素 RMS = **0.0006** | `qualityFlags` 传递正确（ultra/high = 7）、各 pass 均被派发，但 SSAO/Bloom/体积光的视觉贡献被**过曝淹没**，开与不开肉眼无异 |
+| 地形法线倾斜中位 | 平原 0.18° / 山地 0.46° / 山墙 0.92° | 平原 **9.76°** / 山地 **18.57°** / 山墙 **22.21°**（自然地貌观感区间） |
+| `colorRT` 平均亮度 | 0.6435（过曝） | **0.3730**（中性） |
+| `colorRT` 最小亮度 | 0.5546（无暗部） | **0.0593**（出现真实阴影） |
+| 亮度跨度 | 0.37 | **0.695**（对比 ×1.88） |
+| 着色器错误数 | 0 | 0 |
 
-**验证方法**：将 `exposure` 1.15→0.62、`sunIntensity` 1.0→0.55 做对照实验，平均亮度降至 **0.5465**、最小值降至 **0.4632**，画面立刻出现明暗层次与太阳光晕 —— 反证过曝诊断成立。该实验**未保留**（需与美术风格取向共同决策）。
+**v2.4 修复后的画质档位验证（`test/tier_assert.js`，见 §3.3）**：四档 RT 尺寸严格跟随 `round(camVW × renderScale)`（software 960×600 / balanced 1200×750 / high·ultra 1600×1000），`qualityFlags` 与帧 uniform `f[49]` 同步，`flags=7`（后处理全开）vs `flags=0`（全关）在同分辨率下逐像素 RMS 为可观测非零——**后处理门控真实生效，四档不再"静默一致"**。
+
+**仍存的小瑕疵（待美术调校，非阻塞）**：在俯视大陆的视角下，SSAO/Bloom/体积光的**绝对可见幅度偏弱**（同分辨率全开 vs 全关 RMS ≈ 0.07）。这是因为顶视平坦地形本就少遮蔽、少高光、少光轴——属场景特性而非代码 bug，门控逻辑本身正确。若要进一步强化"高/低档肉眼可辨"，建议后续在地形法线/材质上引入更明显的高频细节与高光点，让 SSAO 与 Bloom 有素材可作用。
 
 ### 6.2 性能：**在软件光栅器下不可用，需真机复测**
 
@@ -251,11 +298,70 @@ chrome --headless=new --remote-debugging-port=9222 --remote-allow-origins='*' \
 
 ---
 
+## 七、如果把大地图引擎换为 Babylon.js？（v2.4 评估）
+
+> 用户提问：迁移到 Babylon.js 能否**显著提升性能与视觉质量**、并**规避无法解决的视觉问题**？
+> 结论先行：**换引擎解决不了"无法解决的视觉问题"（那是 Chromium 上游限制，与框架无关），性能也不会有数量级提升；唯一实质收益是用成熟内置管线替代手搓后处理，但代价是包体 +40×(或 +19× with Babylon Lite) 与大量胶水重写。不建议为"修视觉问题"而迁移。**
+
+### 7.1 "无法解决的视觉问题"换引擎修不了
+
+- **它根本不是引擎 bug，而是无头/合成器限制**：权威文档（agent-browser.dev/webgpu）原话——*"The Windows/Linux screenshot gap is an upstream headless-Chrome limitation: WebGPU canvas presentation never reaches the headless compositor even though rendering works (verifiable by pixel readback). **No flag combination is known to fix it.**"* macOS 无头能截图，Windows/Linux 必须 `--headed`（虚拟显示）。本项目的"canvas 截图全白但 colorRT 有内容"正是此症。
+- **Babylon.js 自己的 WebGPUEngine 也中招**：Babylon 官方论坛有用户报告 *"That works unless I use the WebGPUEngine() where the image is created but it is all white"*——同一症状，跨框架复现，证明是 Dawn/驱动层问题。
+- **Babylon 的读回接口同样受限**：官方 Breaking Changes 明确 `readPixels` 在 WebGPU 下**异步**、*very slow when reading data from half-float textures*、且 **width 必须能被 64 整除否则极慢**。本项目 `colorRT` 正是 `rgba16float`（半浮点），恰是 Babylon 自己也承认最慢的路径。
+- → 因此"白屏/无法截图"在 Babylon 下**依旧存在**，无法规避。
+
+### 7.2 性能与视觉质量：有收益，但非数量级
+
+- **视觉质量**：Babylon 提供 `scene.imageProcessingConfiguration`（exposure / contrast / toneMapping=ACES 等）与 `DefaultRenderingPipeline`（含 SSAO/Bloom/DoF），本质上就是本项目手搓的 ACES + SSAO + Bloom 的成熟内置版；Babylon 9.0 还新增 compute 驱动的 **Volumetric Lighting** 与 **Clustered Lighting**、Frame Graph 显存优化。换成它能少踩光照/色调映射的坑。
+- **性能**：本场景在真机（哪怕核显）本就轻松 60 FPS——实测 **CPU 单帧提交仅 0.05ms**，100% 瓶颈在 lavapipe 软件光栅（GPU 等待 609.79ms/帧）。Babylon 不会消除软件光栅的固有代价；在真机上它与原生 WebGPU 同级（Babylon 论坛甚至提到 WebGPU 后端因向后兼容约束反而略慢于 WebGL，靠 snapshot/compatibility 模式追平）。
+- **包体代价（实测，镜像源 npm）**：
+
+| 方案 | 运行时 gzip | 相对当前自研 |
+| --- | --- | --- |
+| 当前 `overworld-wgpu.js` + `shaders.js` | **44.5 KB** | 1× |
+| `@babylonjs/core` 9.27.0 | 71 MB 解包 / 数千文件 | — |
+| `babylonjs` 9.27.0 UMD | **1785 KB gzip** | **40.1×** |
+| **Babylon Lite**（`@babylonjs/lite`，WebGPU-only） | 约 34 KB（BoomBox PBR 场景） | 更优，但 API 不稳定 |
+
+- **Babylon Lite** 是唯一经济选项：WebGPU-only（本项目**已有 melonJS 兜底**，正好互补）、比完整 Babylon.js 小约 19×、帧 CPU 快 3–4×、启动快 2.5×、内存少 5×、且像素级一致。但官方自述 *"Lite is young and the API will keep evolving… not production-stable"*——**API 不稳定**。
+
+### 7.3 迁移代价
+
+- 需重写：`buildWorld`（高度场/chunk 分块/实例化装饰）、`presentSelfCheck`（哨兵探针 + RT 读回）、DOM 覆盖层同步（POI/玩家/入口用 mvp 投影）、小地图、四档画质逻辑（`qualityFlags` 位门控 → Babylon 的 `scene` 后处理开关）。
+- 丢失：当前**零第三方依赖**的工程优势（自研渲染器 44.5 KB，且已通过哨兵探针 + RT 读回做到可自证）。
+- 收益受限：本沙箱的"白屏"是 Ubuntu 22.04 + lavapipe 经 `--use-angle=vulkan` **破坏 WebGL2 / 导致 WebGPU 适配器初始化失败**所致（botbrowser.io 实测数据：lavapipe 路径 WebGL2=No）；改走 `--use-angle=gl`（llvmpipe）即可正常工作——这是**启动参数问题，与引擎无关**，换 Babylon 不会改善。
+
+### 7.4 结论
+
+| 维度 | 换 Babylon.js（完整版） | 换 Babylon Lite | 维持现状（自研 + 已修复） |
+| --- | --- | --- | --- |
+| 规避"白屏/无法截图" | ❌ 同样存在 | ❌ 同样存在 | ❌ 同样存在（已用 RT 读回绕过验证） |
+| 视觉质量 | ✅ 内置 PBR/后处理成熟 | ✅ 同 | ⚠ 手搓已达标，后处理可见度待美术强化 |
+| 真机性能 | ➖ 同级（非数量级） | ✅ 略优 | ✅ 已健康（CPU 0.05ms） |
+| 包体 | ❌ +40× | ⚠ +~19×（场景相关） | ✅ 44.5 KB 零依赖 |
+| 稳定性/维护 | ✅ 成熟 | ❌ API 不稳定 | ✅ 自研可控 |
+| 迁移成本 | ❌ 高（重写大量胶水） | ❌ 高 + API 变动风险 | ✅ 已闭环 |
+
+**建议**：**不要**为"修不可解的视觉问题"而迁移（它修不了）。若未来确需 Babylon 的成熟管线且能接受包体与重写代价，优先评估 **Babylon Lite**（WebGPU-only 与现有 melonJS 兜底天然契合），但仍需重写 buildWorld/自检/overlay/minimap/画质档位胶水，并承受 Lite 的 API 演进风险。
+
+---
+
+> 版本：v2.4 ｜ 项目：棋圣·六道轮回 ｜ 状态：v2.2/v2.3 根因修复已推送；v2.4 画质档位分辨率失效已修复（待推送）；Babylon.js 迁移评估见 §七
+
+---
+
 ## 附：本次修复的影响面清单
 
 | 文件 | 改动 | 说明 |
 | --- | --- | --- |
-| `hub/overworld-wgpu.js` | +384 / −97 | ① 地形与装饰分块改为 chunk-major（根因修复）；② `_rt()` 增加 `COPY_SRC`；③ `presentSelfCheck()` 重写为哨兵探针 + RT 实读两步法，新增 `_PROBE_WGSL` / `_drawProbe()` / `_analyzeRTReadback()` / `_readbackRT()` |
-| `hub/wgpu/shaders.js` | +10 / −4 | 合成着色器暗角恢复中心对称 |
+| `hub/overworld-wgpu.js` | +384 / −97（v2.2） | ① 地形与装饰分块改为 chunk-major（根因修复）；② `_rt()` 增加 `COPY_SRC`；③ `presentSelfCheck()` 重写为哨兵探针 + RT 实读两步法，新增 `_PROBE_WGSL` / `_drawProbe()` / `_analyzeRTReadback()` / `_readbackRT()` |
+| `hub/overworld-wgpu.js` | v2.3 重做 `tileH()`、`_updateFrame()`、Worker 校验 + `_uploadWorld` 守卫 | 消除"纸片平原"与全局过曝；`shaders.js` 修正半球光系数 / SSAO 重复乘 / 合成端对比度+饱和度 |
+| `hub/overworld-wgpu.js` | v2.4 三处 | **修复画质档位分辨率失效（ISSUE #9）**：① `_initGPU` 首次 `_ensureSize()` 前补 `_applyRenderScale()`；② `start()` 后强制 `_rtsW=0; _ensureSize()`；③ `setQuality` guard 由从未赋值的 `_dprBase` 改为 `this._ctx` |
+| `hub/wgpu/shaders.js` | +10 / −4（v2.2） | 合成着色器暗角恢复中心对称 |
+| `hub/wgpu/shaders.js` | v2.3 | 半球光系数 0.66→0.40；SSAO 连乘两次 aoIntensity→只乘一次；合成端对比度 1.30@0.42 + 饱和度 1.10 |
 | `hub/_dev_server.py` | +4 | 开发服务器下发 `no-store` 等禁缓存头，避免改源码后被浏览器/CDP 复用旧 JS |
-| `WebGPU渲染架构.md` | +110 | 更新 §2.3 自检说明、新增 §3.1 分块根因、§4.2/4.3 测试矩阵与断言、§5 已知限制、本附录 |
+| `WebGPU渲染架构.md` | 多次 | 历次根因与评估更新；新增 §3.3（档位分辨率根因）、§七（Babylon.js 迁移评估） |
+
+---
+
+> 验证记录：v2.4 修复后 `tier_assert.js` 34/34 断言通过——software 960×600 / balanced 1200×750 / high·ultra 1600×1000 四档渲染分辨率严格按档位区分；同分辨率后处理全开 vs 全关 RMS=0.0544（后处理确已生效）。Babylon.js 迁移评估见 §七：无法规避"白屏/不可截图"这一上游 Chromium 限制，真机性能与视觉质量无数量级提升，但包体 +40×（完整版）/ +~19×（Lite）。

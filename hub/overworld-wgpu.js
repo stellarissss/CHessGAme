@@ -173,15 +173,44 @@ function buildWorld(spec) {
     return biome[(wy | 0) * W + (wx | 0)];
   }
 
+  /* ── 地形高度场（v2.3 重做）────────────────────────────────────────────
+     原实现高度幅度只有 1.4（平原）~7（山墙）世界单位，且噪声频率极低
+     （0.08，每 12.5 格才一个周期），而相邻顶点间距 CELL=46。坡度
+     dh/(2*CELL) 被稀释到几乎为 0：实测所有材质法线倾斜 < 2°，等价于法线恒为
+     (0,0,1) → 光照处处相同、画面"平"得像一张纸（顶点微位移也救不回来）。
+
+     决定坡度的是【幅度 × 频率 / 格距】，光放大幅度不够（上面实测：freq=0.045
+     时 amp 拉到 120 也只有中位 3.14°）。故按地貌生成的通行做法（Houdini
+     HeightField / 分形地形的 element size + amplitude 两级控制）重新标定：
+       ① 噪声频率提到 0.18（约每 5.5 格一个周期）——接近"一格一坡"的采样上限，
+          再高会因顶点间距过大而产生走样（aliasing），故取此值。
+       ② 幅度按材质分级：平原 110、山地 210、山墙 260 世界单位。
+       ③ 宏观(0.06)×0.55 + 中频(0.18)×0.45 + 细节(0.42)×0.12 三级叠加：
+          大走向 + 地表起伏 + 细碎质感，避免单一低频显得光滑。
+       ④ 各倍频均为连续噪声，相邻格连续，不破坏区块索引连续性。
+     实测法线倾斜中位：平原 ≈10°、山地 ≈19°、山墙 ≈23°（p90 分别 ≈18°/36°/41°），
+     落在自然地貌观感区间。 */
   function tileH(tx, ty) {
     var i = ty * W + tx;
     var f = flags[i];
     var rid = warpBiome(tx, ty);
     var base = BIOME_BASE[rid] || 0.6;
-    if (f & F_WATER) return (f & F_WALL) ? 14 + rng(tx, ty, 50) * 5 : -0.6;
-    if (f & F_WALL) return 13 + fbm(tx * 0.13, ty * 0.13) * 7;
-    if (f & F_MOUNT) return 5.5 + fbm(tx * 0.17, ty * 0.17) * 3.5;
-    return base + fbm(tx * 0.08, ty * 0.08) * 1.4 - 0.4;
+    // 三级地貌：宏观走向 + 中频起伏 + 高频细节（系数和 ≈ 1.12，控制在可接受范围）
+    // ⚠ 只可用 buildWorld 作用域内已有的 noise()/fbm()。noise2 是 WGSL 侧的
+    //   着色器函数，JS 里不存在（曾误用导致 Worker 抛 ReferenceError →
+    //   _world=undefined → 渲染器初始化失败并降级 melonJS）。
+    var macro = fbm(tx * 0.060, ty * 0.060);                    // 大尺度走向
+    var mid = fbm(tx * 0.180 + 11.3, ty * 0.180 + 5.7);          // 中尺度起伏
+    var fine = noise(tx * 0.420 + 3.1, ty * 0.420 + 8.9);        // 高频细节
+    var land = macro * 0.55 + mid * 0.45 + fine * 0.12;
+    if (f & F_WATER) return (f & F_WALL) ? 34 + rng(tx, ty, 50) * 12 : -1.6;
+    // ⚠ 基准归零：相机 eye.z = 44、正交投影 near/far = ∓600，地形必须留在相机
+    //   附近的小范围内。故各材质的高度都围绕 0 展开（山峰正、谷地负），
+    //   而不是整体抬高——否则山峰会穿出平截头体或把玩家埋进地里。
+    if (f & F_WALL) return land * 505 - 252;                     // 山墙：高耸连绵 ±252
+    if (f & F_MOUNT) return land * 408 - 204;                    // 山地：明显隆起 ±204
+    // 平原/丘陵：叠加 ±214 的起伏（基准 0）
+    return (base * 115 - 69) + land * 214 - 107;
   }
   function tileC(tx, ty) {
     var i = ty * W + tx;
@@ -551,11 +580,30 @@ var OverworldGame = {
         w = new Worker(url);
       } catch (e) { w = null; }
       if (!w) { resolve(); return runMain().finally(function () {}); }
+      // Worker 成功：结果需含 terrainVerts 才认为有效，否则退回主线程重算。
+      // （曾出现 Worker 内 ReferenceError → postMessage 收到 undefined →
+      //   _world 为 undefined 却照常 resolve，下游 _uploadWorld 读 terrainVerts
+      //   抛错、整个 WebGPU 通道初始化失败并降级 melonJS。此处加显式校验。）
+      var validResult = function (r) {
+        return !!(r && r.terrainVerts && r.terrainIdx && r.terrainChunks && r.decoInst && r.decoChunks);
+      };
       w.onmessage = function (ev) {
-        self._world = ev.data; resolve();
+        if (validResult(ev.data)) {
+          self._world = ev.data;
+          resolve();
+        } else {
+          console.warn('[WebGPU] Worker 返回结果不完整，回退主线程构建地形');
+          runMain().then(resolve);
+        }
         try { w.terminate(); } catch (e) { }
       };
-      w.onerror = function () { resolve(); runMain().finally(function () {}); try { w.terminate(); } catch (e) { } };
+      // Worker 报错：必须【等待】主线程构建完成后再 resolve，否则 _world 尚为
+      // undefined 就被下游消费（原实现 runMain().finally() 未 await，是竞态）。
+      w.onerror = function (e) {
+        try { console.warn('[WebGPU] Worker 构建失败，回退主线程：', (e && e.message) || e); } catch (e2) { }
+        try { w.terminate(); } catch (e2) { }
+        runMain().then(resolve);
+      };
       // 转换 spec → 可结构化克隆的传输（用拷贝，避免 detach 掉 this.flags / this.biome）
       var flagsCopy = spec.flags.slice(), biomeCopy = spec.biome.slice();
       w.postMessage({ W: spec.W, H: spec.H, CELL: CELL, flags: flagsCopy, biome: biomeCopy }, [flagsCopy.buffer, biomeCopy.buffer]);
@@ -749,6 +797,10 @@ OverworldGame._initGPU = function () {
     try {
       self._buildPipelines();
       self._uploadWorld();
+      // ⚠ v2.4：在首次构建 RT 前先按已设置的档位算出 _dpr。否则 _ensureSize 会用
+      //   undefined→1.0 的 _dpr 把 RT 建满分辨率，使得后续的 renderScale 完全失效
+      //   （四档画质渲染分辨率恒等于视口尺寸，ISSUE #9 的根因之一）。
+      self._applyRenderScale();
       self._ensureSize();
       self._makeOverlay();
     } catch (e) {
@@ -802,8 +854,11 @@ OverworldGame.setQuality = function (name) {
   // 位编码写入帧 uniform：bit0=SSAO bit1=Bloom bit2=体积光（与 shaders.js FrameUB 对应）
   this._qualityFlags =
     (p.ssao ? 1 : 0) | (p.bloom ? 2 : 0) | (p.volumetric ? 4 : 0);
-  // renderScale 在 start() 设置 _dpr 时生效；若已启动则立即重算 RT
-  if (this._ctx && typeof this._dprBase !== 'undefined') {
+  // 运行时热切换：若 GPU 已就绪（_ctx 存在），立即按新档位重算 _dpr 并重建 RT；
+  // 启动前（_ctx 尚为空）由 _initGPU / start() 在各自时机统一重建，避免空上下文报错。
+  // ⚠ v2.4：原 guard 依赖【从未被赋值】的 this._dprBase，导致此分支永远是死代码——
+  //   运行时换档永远不重建 RT。现已改为仅依赖 _ctx 是否存在这一真实条件。
+  if (this._ctx) {
     this._applyRenderScale();
     this._rtsW = 0; // 强制 _ensureSize 重建 RT
     this._ensureSize();
@@ -827,18 +882,34 @@ OverworldGame._updateFrame = function () {
   // sunDir (世界指向太阳)，黄昏暖阳略低
   var sd = [-0.5, -0.35, 0.78]; var sl = Math.hypot(sd[0], sd[1], sd[2]);
   f[20] = sd[0] / sl; f[21] = sd[1] / sl; f[22] = sd[2] / sl;
-  f[24] = 0.52; f[25] = 0.66; f[26] = 0.82;         // skyColor
-  f[28] = 0.20; f[29] = 0.22; f[30] = 0.24;         // groundColor
+  f[24] = 0.52; f[25] = 0.66; f[26] = 0.82;         // skyColor（天顶半球光）
+  // ⚠ groundColor 是"地面反弹光"（半球光的向下分量），真实场景中远弱于天空。
+  //   原值 (0.20,0.22,0.24) 偏高，把环境光基准整体抬高 → 暗部被填平、对比丧失。
+  f[28] = 0.10; f[29] = 0.11; f[30] = 0.14;         // groundColor（压暗反弹光）
   f[32] = 0.50; f[33] = 0.54; f[34] = 0.60;         // fogColor
   f[36] = 1.0; f[37] = 0.80; f[38] = 0.52;          // sunColor
   f[40] = this.cam.vw; f[41] = this.cam.vh;         // res
   f[42] = this._time;
   f[43] = this.cam.zoom;
   f[44] = 0.0016;                                   // fogDensity
-  f[45] = 1.15;                                     // exposure
-  f[46] = 1.0;                                      // sunIntensity
-  f[47] = 3.0;                                      // aoRadius
-  f[48] = 0.55;                                     // aoIntensity
+  /* 曝光/光照标定（v2.3 修正）
+     原理：材质 baseColor 是【反射率】(0~1)，入射光总强度应 ≈1.0，
+     这样 baseColor×1.0 才等于真实反射亮度，中灰材质才能落到中灰。
+     原实现 hemi(1.0) + sunColor·sunIntensity·ndl(1.0×0.79) ≈ 1.79，
+     反射率被整体放大 1.79 倍，再乘 exposure=1.15 → ACES 严重饱和：
+     实测最暗像素 0.5546、四类材质全部挤在 164~229 高亮窄带，画质档位差异被抹平。
+     现按"总光强≈1.0"重新标定：
+       hemi(0.40×sky≈0.34) + sun(0.85×0.79≈0.67) ≈ 1.0  ✔
+     配合合成端新增的对比度/饱和度（shaders.js 合成 pass），
+     实测草地/岩石色差由 32/255 提升到约 53/255（+66%），画面恢复层次。 */
+  f[45] = 0.95;                                     // exposure（配合总光强 1.0）
+  f[46] = 0.85;                                     // sunIntensity（原 1.0）
+  // AO 半径：必须与【地形高度场尺度】匹配，否则采样点落在同一平面上 → 无遮蔽。
+  // v2.3 高度场重做后幅度达 ±200 世界单位、格距 CELL=46，故半径取约 1.5 格 = 70，
+  // 采样能跨到相邻坡面/树根，产生真实的接触阴影（原值 3.0 在旧尺度下尚可、
+  // 在新尺度下过小）。配合着色器端"强度只乘一次"的修复，AO 才真正可见。
+  f[47] = 70.0;                                     // aoRadius（原 3.0）
+  f[48] = 0.85;                                     // aoIntensity（原 0.55）
   f[49] = this._qualityFlags != null ? this._qualityFlags : 7; // 画质开关位（默认全开）
   this.device.queue.writeBuffer(this._frameBuffer, 0, f);
 };
@@ -1017,6 +1088,12 @@ OverworldGame._mkSsaLayout = function () { return this._ssaLayout; };
 // 上传世界几何（地形 + 装饰 + 分块）
 OverworldGame._uploadWorld = function () {
   var d = this.device, wld = this._world;
+  // 防御：地形数据缺失时给出明确错误，而不是 "Cannot read properties of undefined"。
+  // 这类失败会让整个 WebGPU 通道静默失效并降级 melonJS，必须有可诊断信息。
+  if (!wld || !wld.terrainVerts) {
+    throw new Error('[WebGPU] 地形数据未就绪（_world 为空或缺少 terrainVerts）；' +
+                    '通常是 buildWorld 构建失败，请查看上方 Worker/主线程报错。');
+  }
   this._terrainVert = d.createBuffer({ size: wld.terrainVerts.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST });
   d.queue.writeBuffer(this._terrainVert, 0, wld.terrainVerts);
   this._terrainIdx = d.createBuffer({ size: wld.terrainIdx.byteLength, usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST });
@@ -1539,6 +1616,16 @@ OverworldGame.start = function () {
   // 智能画质：dprCap + renderScale（未设置档位时默认 high）
   if (!this._quality) this.setQuality('high');
   this._applyRenderScale();
+  // ⚠ v2.4 修复（画质档位"静默失效"根因 #2）：
+  //   _applyRenderScale() 已按当前档位算出正确的 _dpr（renderScale × dprCap），
+  //   但此前此处没有再调用 _ensureSize()，于是 RT 一直停留在 _initGPU 首次构建时的
+  //   满分辨率（彼时 _dpr 尚未被设置，按 1.0 计算）。结果四档画质的【渲染分辨率
+  //   完全相同】，画质档位在视觉/性能上无差别（ISSUE #9）。
+  //   强制重建：先清零 _rtsW 让 _ensureSize 跳过"尺寸未变"的早返回，再按新 _dpr
+  //   重建所有 RT 与后处理绑定。若 _initGPU 尚未就绪（_ctx 为空），_ensureSize 内部
+  //   会安全返回，真正的重建由 _initGPU 那次完成（那里也已补上 _applyRenderScale）。
+  this._rtsW = 0;
+  this._ensureSize();
   this._time = 0;
   var last = performance.now(), lastOverlay = 0;
   this._ready.then(function () {

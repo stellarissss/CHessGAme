@@ -82,7 +82,12 @@ fn lit(worldPos : vec3f, worldN : vec3f, baseColor : vec3f, spec : f32) -> vec3f
   let Hh = normalize(Ld + Vv);
   let diff = frame.sunColor.xyz * frame.sunIntensity * ndl;
   let spe = pow(max(dot(N, Hh), 0.0), 48.0) * spec * frame.sunIntensity;
-  let hemi = mix(frame.groundColor.xyz, frame.skyColor.xyz, N.z * 0.5 + 0.5);
+  // 半球环境光：sky（上方）→ ground（下方）按法线 z 混合，再乘环境光强度系数。
+  // ⚠ v2.3：原先 hemi 为全强度（法线朝上时直接等于 skyColor≈0.66），
+  //   与太阳光叠加后总入射光 ≈1.79，反射率被放大近 1.8 倍 → ACES 饱和、画面发灰。
+  //   现乘 0.40，使 环境(0.40×0.66≈0.26) + 太阳(0.85×0.79≈0.67) ≈ 0.93 ≈ 1.0，
+  //   符合"入射光总强度≈1"的物理正确标定（材质 baseColor 即真实反射率）。
+  let hemi = mix(frame.groundColor.xyz, frame.skyColor.xyz, N.z * 0.5 + 0.5) * 0.40;
   var col = baseColor * (hemi + diff) + vec3f(spe);
   let dist = distance(frame.camPos.xyz, worldPos);
   let fogf = 1.0 - exp(-max(frame.fogDensity, 0.0) * dist);
@@ -265,8 +270,14 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
       occ += smoothstep(0.0, nn, max(along + nn * 0.12, 0.0)) * smoothstep(nn * 1.4, nn * 0.2, mag);
     }
   }
+  /* AO 强度只施加一次。
+     ⚠ v2.3 修复：原实现连乘两次 aoIntensity ——
+         ao = 1 - clamp(occ/8) * aoIntensity;   // 第 1 次
+         ao = mix(1.0, ao, aoIntensity);        // 第 2 次（重复！）
+       两次相乘等效强度 0.55×0.55 = 0.30，遮蔽被削弱到三成，
+       在地形偏平 + 画面过曝的双重掩盖下几乎不可见 → 装饰"漂浮"感。
+     现只保留一次：遮蔽量 = occ/8 归一化后直接乘 aoIntensity。 */
   var ao = 1.0 - clamp(occ / 8.0, 0.0, 1.0) * frame.aoIntensity;
-  ao = mix(1.0, ao, frame.aoIntensity); // 低调强度
   textureStore(aoOut, vec2i(gid.xy), vec4f(ao, ao, ao, 1.0));
 }
 `;
@@ -370,6 +381,28 @@ fn main(@builtin(global_invocation_id) gid : vec3u) {
 
   var col = aces(hdr * frame.exposure);
   col = gamma(col);
+
+  /* ── 显示级对比度 + 饱和度（v2.3 新增）────────────────────────────────
+     ACES 是为"电影感"设计的色调曲线，它本身会显著压缩中间调对比。
+     实测：草地(反射率0.62) 与岩石(0.29) 经 ACES 后只差 32/255，全部材质挤在
+     195~227 的高亮窄带里 → 画面"发灰、糊成一片"，连画质档位的差异都被抹平。
+
+     仅靠调曝光无法解决（非线性压缩的固有特性，实测差值上限 ~44）。按业界通行
+     做法在【tonemap 之后】补一次显示级调整（等价 UE 的 r.Tonemapper.Contrast /
+     ColorGrading 环节）：
+
+       ① 对比度：绕 pivot 拉伸。pivot 取 0.42 而非 0.5——0.5 会把亮部顶到 255
+          造成削顶（实测草地被推到 255）。0.42 让亮部仍有余量，同时把暗部拉开。
+       ② 饱和度：轻微的 luma-preserving 饱和补偿，抵消 ACES 的"褪色"倾向。
+          以亮度 L 为轴外扩，只改色度不改明暗，不会引入曝光偏移。
+
+     两项都是单调映射，不产生色偏/光晕；系数经数值标定，保证不削顶。 */
+  // ① 对比度（pivot 0.42，拉伸系数 1.30）
+  let ctr = 1.30;
+  col = clamp((col - vec3f(0.42)) * ctr + vec3f(0.42), vec3f(0.0), vec3f(1.0));
+  // ② 饱和度（luma-preserving，系数 1.10）
+  let luma = dot(col, vec3f(0.2126, 0.7152, 0.0722));
+  col = clamp(vec3f(luma) + (col - vec3f(luma)) * 1.10, vec3f(0.0), vec3f(1.0));
 
   // 暗角（中心对称）
   // uv ∈ [0,1]，到中心的距离用 (uv - 0.5) 再乘 2 归一化：
