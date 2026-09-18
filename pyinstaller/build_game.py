@@ -127,14 +127,13 @@ def copy_external_data() -> None:
     cfg = DIST_ROOT / "config.json"
     if not cfg.exists():
         cfg.write_text(json.dumps({"api_key": "", "base_url": "https://api.deepseek.com/v1",
-                                   "model": "deepseek-flash", "seedream_api_key": ""},
+                                   "model": "deepseek-flash"},
                                   indent=2, ensure_ascii=False), encoding="utf-8")
     else:
-        # 存在则清空所有凭证（防敏感信息外泄）
+        # 存在则清空凭证（防敏感信息外泄）
         try:
             data = json.loads(cfg.read_text(encoding="utf-8"))
             data["api_key"] = ""
-            data["seedream_api_key"] = ""
             cfg.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except Exception:
             pass

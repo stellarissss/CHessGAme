@@ -543,10 +543,9 @@ def build() -> int:
         if example.exists():
             try:
                 data = json.loads(example.read_text(encoding="utf-8"))
-                # 剔除模板里的说明字段，并强制清空所有凭证，防止误带密钥。
+                # 剔除模板里的说明字段，并强制清空凭证，防止误带密钥。
                 data.pop("_说明", None)
                 data["api_key"] = ""
-                data["seedream_api_key"] = ""
                 cfg.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
             except Exception:
                 cfg.write_text('{\n  "api_key": ""\n}\n', encoding="utf-8")

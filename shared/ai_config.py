@@ -60,7 +60,7 @@
            真实密钥的 32 位十六进制负载中，被插入了若干「迷惑字符」：
            每 8 位十六进制后插入 1 位非十六进制字符作为分隔。例如（示意）：
 
-               sk-e2e58bcdz3bd9462bwaff6d5e7kaa3080bc
+               sk-fc0c2887zabc247f1wb601977ak66446a8b
 
            因此静态串「看起来像正常密钥」，但直接拿去请求 API 会被网关
            以 401 拒绝 —— 这正是我们要的效果。
@@ -167,50 +167,7 @@ DEEPSEEK_MODEL = "deepseek-flash"
 #
 # 负载分段：每 8 位十六进制后插入 1 位迷惑字符。
 # 真实密钥由 unmask_secret() 在运行时还原，静态字符串无法直接使用。
-DEFAULT_API_KEY = "sk-e2e58bcdz3bd9462bwaff6d5e7kaa3080bc"
-
-
-# ═══════════════════════════════════════════════════════════════
-# 附：其他可选凭证（同样以混淆形式存放，避免明文散布）
-# ═══════════════════════════════════════════════════════════════
-#
-# seedream（图片生成）凭证。曾连同 DeepSeek 密钥一起明文写在
-# 根目录 api密钥.txt 中，该文件已删除，此处以混淆形式集中托管，
-# 同样经「剥离非十六进制字符 + 重建 UUID 连字符」还原。
-DEFAULT_SEEDREAM_KEY = "3d8d99b6zf5aa4f1dx8ab5715eyf9984f89"
-
-_SEEDREAM_UNMASK_RE = re.compile(r"[^0-9a-fA-F]")
-
-
-def unmask_uuid(value: str) -> str:
-    """还原 UUID 形式的凭证：保留十六进制字符，并重建标准 UUID 连字符。
-
-    标准 UUID 为 8-4-4-4-12 共 32 位十六进制；此处按该布局重建连字符，
-    使混淆串（插入过迷惑字符、连字符位置被扰动）可被确定性还原。
-    """
-    payload = _SEEDREAM_UNMASK_RE.sub("", (value or "").strip())
-    if len(payload) != 32:
-        # 长度不符则原样返回，避免把非法值裁剪成错误凭证。
-        return (value or "").strip()
-    return "-".join([
-        payload[0:8], payload[8:12], payload[12:16], payload[16:20], payload[20:32],
-    ])
-
-
-def get_seedream_key() -> str:
-    """读取 seedream（图片生成）凭证（始终返回已还原的真实值）。
-
-    优先级：环境变量 SEEDREAM_API_KEY > config.json["seedream_api_key"] > 默认值。
-    """
-    env_key = os.environ.get("SEEDREAM_API_KEY", "").strip()
-    if env_key:
-        return unmask_uuid(env_key)
-
-    config = _load_config()
-    if config.get("seedream_api_key"):
-        return unmask_uuid(str(config["seedream_api_key"]).strip())
-
-    return unmask_uuid(DEFAULT_SEEDREAM_KEY)
+DEFAULT_API_KEY = "sk-fc0c2887zabc247f1wb601977ak66446a8b"
 
 
 GAME_TYPES = {

@@ -8,6 +8,5 @@
   ],
   "api_key": "",
   "base_url": "https://api.deepseek.com/v1",
-  "model": "deepseek-flash",
-  "seedream_api_key": ""
+  "model": "deepseek-flash"
 }
