@@ -108,7 +108,24 @@
     // 返回 { supported, tier, adapterInfo } —— tier ∈ ultra/high/balanced/software
     var result = { supported: false, tier: 'balanced', adapterInfo: '' };
     if (!navigator.gpu) return Promise.resolve(result);
-    return navigator.gpu.requestAdapter().then(function (adapter) {
+    // 兜底超时：requestAdapter 的**首次调用**在软件光栅器（SwiftShader / lavapipe）与
+    // 冷启动驱动下可能极慢——实测同一浏览器内首次 34~37s、后续仅 ~1s（Dawn 首次初始化
+    // 要建立 GPU 进程/编译管线）。给足 45s 上限：既避免误杀慢速软渲染（否则会被误判成
+    // 「无 WebGPU」直接落 melonJS，用户体感就是「WebGPU 用不了」），
+    // 也保证绝不会永久卡死——超时即落 melonJS 兜底，玩家始终有可玩画面。
+    var ADAPTER_TIMEOUT_MS = 45000;
+    var to = new Promise(function (res) {
+      setTimeout(function () { res({ __timeout: true }); }, ADAPTER_TIMEOUT_MS);
+    });
+    return Promise.race([
+      navigator.gpu.requestAdapter().then(function (adapter) { return { __adapter: adapter }; }),
+      to
+    ]).then(function (r) {
+      if (!r || r.__timeout) {
+        console.warn('[dispatcher] WebGPU requestAdapter 超时（' + (ADAPTER_TIMEOUT_MS / 1000) + 's），按不可用处理');
+        return result;
+      }
+      var adapter = r.__adapter;
       if (!adapter) return result;
       result.supported = true;
       var info = {};
@@ -132,6 +149,16 @@
       } else {
         result.tier = 'high';
       }
+      /* ── 关键：释放探测用适配器，并把 detect 结果作为「首次适配器」复用 ──
+         浏览器对未释放的 GPUAdapter 持有独占引用（Chrome 默认只允许 1 个存活适配器）。
+         此前该适配器无任何引用（既不 return 也不 close），在检测与渲染器 _initGPU
+         再次 requestAdapter + requestDevice 时会耗尽适配器配额，导致
+         requestDevice() 永久挂起 → _initGPU 永不 resolve → WebGPU 通道停在
+         "检测设备能力" 后再也起不来（表现为画布全黑、帧计数为 null），
+         最终被 12s 兜底遮罩/降级吞掉，用户体感就是「WebGPU 用不了」。
+         这里改为：把探测得到的 adapter 透传给渲染器复用（overworld-wgpu.js 优先取用），
+         并在确实用不上时 close() 释放。 */
+      result.adapter = adapter;
       return result;
     }).catch(function () {
       return result;
@@ -158,6 +185,9 @@
       console.info('[dispatcher] WebGPU 适配器: ' + dev.adapterInfo + ' → 画质档位 ' + quality +
         (wantOverride !== 'auto' ? '（用户指定）' : '（自动检测）'));
       setBadge('渲染：WebGPU · ' + quality);
+      // 把设备检测阶段已取得的 adapter 交给渲染器复用（避免二次 requestAdapter 耗尽
+      // 适配器配额导致 requestDevice 挂起；用不上时由渲染器负责 close）。
+      window.__owDetectedAdapter = dev.adapter || null;
       return import('/static/overworld-wgpu.js').then(function () {
         var g = window.OverworldGame;
         if (!g || typeof g.setQuality !== 'function') throw new Error('WebGPU 渲染器异常');

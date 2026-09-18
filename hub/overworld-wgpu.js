@@ -634,7 +634,14 @@ OverworldGame._initGPU = function () {
   // 里立即触发。配置接口一旦变慢，_initGPU 就会先于 setupCamera 完成 → cam 为 undefined →
   // _ensureSize 抛 TypeError → WebGPU 初始化失败（黑屏/白屏的根因之一）。此处补上兜底。
   if (!this.cam) this.setupCamera();
-  return navigator.gpu.requestAdapter().then(function (adapter) {
+  // 复用分发器设备检测阶段已取得的 adapter：Chrome 对同时存活的 GPUAdapter 有数量限制，
+  // 并发/二次 requestAdapter 会让后续 requestDevice() 一直挂起（本渲染器黑屏的根因）。
+  var preAdapter = window.__owDetectedAdapter || null;
+  window.__owDetectedAdapter = null; // 取用一次即清，避免跨次启动残留
+  var adapterP = preAdapter ? Promise.resolve(preAdapter)
+                            : navigator.gpu.requestAdapter();
+  if (preAdapter) diag('复用分发器探测到的适配器（跳过二次 requestAdapter）');
+  return adapterP.then(function (adapter) {
     if (!adapter) throw new Error('no adapter');
     try {
       diag('适配器: ' + (adapter.info ? adapter.info.description || adapter.info.architecture || '' : '') + ' | vendor=' + (adapter.info ? adapter.info.vendor : '?'));
@@ -816,11 +823,20 @@ OverworldGame._ensureSize = function () {
   var w = Math.max(2, Math.floor(this.cam.vw * (this._dpr || 1)));
   var h = Math.max(2, Math.floor(this.cam.vh * (this._dpr || 1)));
   if (w === this._rtsW && h === this._rtsH) return;
+  // canvas 尺寸变更会重置/失效当前 swapchain 纹理，而旧 RT/View 可能正被上一帧占用。
+  // 先 device.queue.onSubmittedWorkDone() 无法在同步函数里 await，故此处只做尺寸同步 +
+  // configure；真正 awaiting 的 RT 重建在 _rebuildSized()（异步）里完成之外的部分同步完成。
   this._rtsW = w; this._rtsH = h;
   this._canvas.width = w; this._canvas.height = h;
-  // WebGPU swapchain 必须在 canvas 尺寸变化后重新 configure，否则呈现的纹理尺寸
-  // 仍是最初 configure 时的值（首次 _initGPU 里 configure 用默认 300×150），
+  // WebGPU swapchain 必须在 canvas 尺寸变化后重新 configure，否则呈现的纹理尺寸仍是
+  // 最初 configure 时的值（首次 _initGPU 里 configure 用默认 300×150），
   // 导致 canvas 尺寸变大全靠缩放开，某些环境输出为空/白屏。
+  //
+  // 注意：configure 后**不要立即 getCurrentTexture()**——低端/软件适配器（SwiftShader、
+  // 部分 Linux vulkan 驱动）在尺寸刚变更时会跨进程失效整个 WebGPU Instance，表现为
+  //   OperationError: A valid external Instance reference no longer exists
+  // 一旦该异常发生在帧内，device 即被判为丢失、后续所有 mapAsync 全部 AbortError，
+  // 画布永久空白。这里保持 configure，纹理在下一帧 _render() 中按需获取（见 _render）。
   this._ctx.configure({ device: this.device, format: this.presentFormat, alphaMode: 'opaque' });
   this._colorRT = this._rt('rgba16float', w, h);
   this._normalRT = this._rt('rgba8unorm', w, h);
@@ -1101,12 +1117,31 @@ OverworldGame._render = function () {
     }
   }
   // 5) 合成 → swapchain
-  var cur = this._ctx.getCurrentTexture();
+  //    getCurrentTexture() 在部分环境会抛（尺寸刚变更 / 软件适配器 swapchain 跨进程失效）：
+  //    一旦异常冒泡出 _render，上层会误判 device 丢失并放弃整帧；这里就地降级为
+  //    「本帧跳过呈现」，下一帧再试，绝不把设备判死。
+  var cur = null;
+  try {
+    cur = this._ctx.getCurrentTexture();
+  } catch (e) {
+    this._presentFails = (this._presentFails || 0) + 1;
+    if (this._presentFails <= 3 || this._presentFails % 120 === 0) {
+      try { console.warn('[WebGPU] getCurrentTexture 失败（第 ' + this._presentFails + ' 次），本帧跳过呈现：', e && e.message ? e.message : e); } catch (e2) {}
+    }
+    if (this._presentFails === 1) {
+      // 首帧失败通常意味着这里 configure 尚未被后续尺寸同步刷新；主动重配一次以便自愈。
+      try { this._ctx.configure({ device: this.device, format: this.presentFormat, alphaMode: 'opaque' }); } catch (e3) {}
+    }
+    // 仍需提交本帧已编码的离屏 pass，避免命令编码器泄漏
+    try { d.queue.submit([enc.finish()]); } catch (e4) {}
+    return;
+  }
   {
     var sp = enc.beginRenderPass({ colorAttachments: [{ view: cur.createView(), loadOp: 'clear', clearValue: [0, 0, 0, 1], storeOp: 'store' }] });
     sp.setPipeline(this._pipeComposite); sp.setBindGroup(0, this._frameBG); sp.setBindGroup(1, this._compBG); sp.draw(3); sp.end();
   }
   d.queue.submit([enc.finish()]);
+  this._presentFails = 0;
 };
 
 /* ── 覆盖层（玩家/POI/告示牌/引导） ── */
@@ -1485,12 +1520,18 @@ OverworldGame.start = function () {
       if (self._renderPaused) { requestAnimationFrame(loop); return; }
       self.step(dt);
       if (self.device && self._ctx && !self._destroyed) {
-        self._updateView(); self._frameCB++;
+        // 帧循环必须与单帧渲染异常隔离：_render 里任何未捕获异常（swapchain / 管线校验失败）
+        // 都不应中断 requestAnimationFrame 链，否则画布停在最后一帧、且 _frameCB 不再增长，
+        // 外部自检/诊断会把它误读为「WebGPU 挂了」。
+        try { self._updateView(); self._frameCB++; } catch (e) { try { console.error('[WebGPU] updateView error:', e); } catch (e2) {} }
         // 前 3 帧做严格 push/pop 配对的 validation 检查（SwiftShader/新驱动首帧易暴露问题）
         var scoped = self._frameCB <= 3;
         if (scoped) { try { self.device.pushErrorScope('validation'); } catch (e) { scoped = false; } }
-        try { self._render(); } catch (e) { try { console.error('[WebGPU] render error:', e); } catch (e2) {} }
-        self._updateOverlay();
+        try { self._render(); } catch (e) {
+          self._renderErrors = (self._renderErrors || 0) + 1;
+          if (self._renderErrors <= 3) { try { console.error('[WebGPU] render error:', e); } catch (e2) {} }
+        }
+        try { self._updateOverlay(); } catch (e) { }
         if (scoped) self._checkScope('frame' + self._frameCB, null);
       }
       requestAnimationFrame(loop);
