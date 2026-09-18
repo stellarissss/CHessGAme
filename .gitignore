@@ -11,6 +11,7 @@ dist/
 api密钥.txt
 *.local.json
 config.json
+!config.example.json
 
 # ── 编辑器 / 系统 ──
 .vscode/

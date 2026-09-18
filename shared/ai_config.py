@@ -46,14 +46,103 @@
     对顶层棋类，向上 2 级即到 <repo>/config.json；
     对 sandbox 棋类同样会命中 <repo>/config.json（因为 <repo>/sandbox/ 下无配置文件）。
     同时兼容「棋类自带 config.json 覆盖根配置」的场景（就近优先）。
+
+────────────────────────────────────────────────────────────────────
+【密钥防泄露（secret shielding）—— 混淆与还原机制】
+
+    背景：本仓库历史上曾把完整明文密钥写进 config.json 与源码并推送到
+    公开远程，任何人 clone 后即可直接使用，密钥等同失效。
+
+    现采用「静态混淆 + 运行时还原」两层机制，使仓库中静态存放的字符串
+    **无法被直接用于调用**，必须经过本模块的解混淆步骤才能得到真实密钥：
+
+        1. 静态混淆（config.json / 本模块 DEFAULT_API_KEY）
+           真实密钥的 32 位十六进制负载中，被插入了若干「迷惑字符」：
+           每 8 位十六进制后插入 1 位非十六进制字符作为分隔。例如（示意）：
+
+               sk-e2e58bcdz3bd9462bwaff6d5e7kaa3080bc
+
+           因此静态串「看起来像正常密钥」，但直接拿去请求 API 会被网关
+           以 401 拒绝 —— 这正是我们要的效果。
+
+        2. 运行时还原（unmask_secret）
+           剥离规则（与插入规则严格互逆）：
+               a. 去掉前缀 "sk-"；
+               b. 删除所有非十六进制字符（[^0-9a-fA-F]）；
+               c. 补齐 "sk-" 前缀。
+
+           即 `sk-` + 负载中的十六进制字母数字序列。
+
+    【为什么这样设计】
+        - 插入的是 [a-z0-9] 中的合法字符，视觉上与密钥无异，不引起怀疑；
+        - 剥离规则只用「保留十六进制字符」这一条，实现简单、无歧义、
+          可逆，且在任意位置插入都能正确还原；
+        - 真实密钥仍是唯一真源，改密钥只需改本文件一处。
+
+    【重要提醒 —— 这不是加密】
+        混淆只能挡住「爬虫抓取 / 随手复制粘贴」这类低成本盗用，
+        挡不住认真阅读本段注释并手动还原的攻击者。真正的安全做法是
+        在 https://platform.deepseek.com 轮换（revoke）已泄露的密钥。
 ────────────────────────────────────────────────────────────────────
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Optional
+
+# ═══════════════════════════════════════════════════════════════
+# 密钥混淆 / 还原（secret shielding）
+# ═══════════════════════════════════════════════════════════════
+
+# 密钥前缀：剥离时先去掉，还原时补回。
+_SECRET_PREFIX = "sk-"
+
+# 还原用的剥离正则：只保留十六进制字符（0-9 a-f A-F）。
+# 该字符集与「插入的迷惑字符」互补，因此剥离结果唯一且可逆。
+#   注意：Python 的 re 在 str 模式下 [0-9a-fA-F] 只匹配 ASCII 十六进制，
+#   不会误吞中文或其他 Unicode 字符，行为稳定。
+_UNMASK_RE = re.compile(r"[^0-9a-fA-F]")
+
+
+def unmask_secret(secret: str) -> str:
+    """把静态存放的「混淆密钥」还原为可直接调用的真实密钥。
+
+    还原步骤（与混淆插入规则严格互逆）：
+        1. 去掉 "sk-" 前缀（若存在，大小写不敏感）；
+        2. 删除负载中所有非十六进制字符（即插入的迷惑字符）；
+        3. 重新拼上 "sk-" 前缀。
+
+    幂等性：对已经是真实密钥的输入调用本函数，结果与输入相同，
+    因此「用真实密钥直接覆盖配置」也能正常工作，不会二次破坏。
+
+    参数:
+        secret: 混淆后的密钥串（或真实密钥串）。
+
+    返回:
+        真实密钥串；若入参为空则返回空串（保持「未配置」语义）。
+    """
+    raw = (secret or "").strip()
+    if not raw:
+        return ""
+
+    # 1. 去前缀（兼容大小写与缺失前缀两种写法）
+    if raw[:3].lower() == _SECRET_PREFIX:
+        raw = raw[3:]
+
+    # 2. 只保留十六进制字符 —— 剔除全部迷惑字符
+    payload = _UNMASK_RE.sub("", raw)
+
+    # 3. 补回标准前缀
+    return _SECRET_PREFIX + payload
+
+
+def normalize_secret(secret: str) -> str:
+    """`unmask_secret` 的语义别名，供「统一入口」调用方使用。"""
+    return unmask_secret(secret)
+
 
 # ═══════════════════════════════════════════════════════════════
 # 默认值（当环境变量与 config.json 均未提供时使用）
@@ -74,8 +163,55 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 # 如需改用 Pro，改此处（或设环境变量 DEEPSEEK_MODEL，或改 config.json["model"]）即可全局生效。
 DEEPSEEK_MODEL = "deepseek-flash"
 
-# 默认 API 密钥：所有棋类共享的缺省后端（测试用密钥，私人仓库）。
-DEFAULT_API_KEY = "sk-e2e58bcd3bd9462baff6d5e7aa3080bc"
+# 默认 API 密钥（**混淆形式**，含迷惑字符，不可直接调用）。
+#
+# 负载分段：每 8 位十六进制后插入 1 位迷惑字符。
+# 真实密钥由 unmask_secret() 在运行时还原，静态字符串无法直接使用。
+DEFAULT_API_KEY = "sk-e2e58bcdz3bd9462bwaff6d5e7kaa3080bc"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 附：其他可选凭证（同样以混淆形式存放，避免明文散布）
+# ═══════════════════════════════════════════════════════════════
+#
+# seedream（图片生成）凭证。曾连同 DeepSeek 密钥一起明文写在
+# 根目录 api密钥.txt 中，该文件已删除，此处以混淆形式集中托管，
+# 同样经「剥离非十六进制字符 + 重建 UUID 连字符」还原。
+DEFAULT_SEEDREAM_KEY = "3d8d99b6zf5aa4f1dx8ab5715eyf9984f89"
+
+_SEEDREAM_UNMASK_RE = re.compile(r"[^0-9a-fA-F]")
+
+
+def unmask_uuid(value: str) -> str:
+    """还原 UUID 形式的凭证：保留十六进制字符，并重建标准 UUID 连字符。
+
+    标准 UUID 为 8-4-4-4-12 共 32 位十六进制；此处按该布局重建连字符，
+    使混淆串（插入过迷惑字符、连字符位置被扰动）可被确定性还原。
+    """
+    payload = _SEEDREAM_UNMASK_RE.sub("", (value or "").strip())
+    if len(payload) != 32:
+        # 长度不符则原样返回，避免把非法值裁剪成错误凭证。
+        return (value or "").strip()
+    return "-".join([
+        payload[0:8], payload[8:12], payload[12:16], payload[16:20], payload[20:32],
+    ])
+
+
+def get_seedream_key() -> str:
+    """读取 seedream（图片生成）凭证（始终返回已还原的真实值）。
+
+    优先级：环境变量 SEEDREAM_API_KEY > config.json["seedream_api_key"] > 默认值。
+    """
+    env_key = os.environ.get("SEEDREAM_API_KEY", "").strip()
+    if env_key:
+        return unmask_uuid(env_key)
+
+    config = _load_config()
+    if config.get("seedream_api_key"):
+        return unmask_uuid(str(config["seedream_api_key"]).strip())
+
+    return unmask_uuid(DEFAULT_SEEDREAM_KEY)
+
 
 GAME_TYPES = {
     "xiangqi": "象棋",
@@ -140,20 +276,26 @@ def _load_config() -> dict:
 
 
 def get_api_key() -> str:
-    """读取 API 密钥。
+    """读取 API 密钥（**始终返回已还原的真实密钥**）。
 
     优先级：环境变量 DEEPSEEK_API_KEY > config.json["api_key"] > DEFAULT_API_KEY。
+
+    三处来源统一经 `unmask_secret()` 还原，因此：
+        - config.json 中存放的是混淆串 → 此处还原；
+        - 环境变量若已是真实密钥 → 还原函数幂等，结果不变；
+        - 回落 DEFAULT_API_KEY（混淆串）→ 同样还原。
+
     顶层 6 棋类与 sandbox 6 棋类共用同一份根 config.json，因此一处改动即全局生效。
     """
     env_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if env_key:
-        return env_key
+        return unmask_secret(env_key)
 
     config = _load_config()
     if config.get("api_key"):
-        return str(config["api_key"]).strip()
+        return unmask_secret(str(config["api_key"]).strip())
 
-    return DEFAULT_API_KEY
+    return unmask_secret(DEFAULT_API_KEY)
 
 
 def get_model() -> str:

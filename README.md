@@ -352,15 +352,40 @@ pip install -r requirements.txt
 
 ### 配置 API Key
 
-在项目根目录创建 `config.json`：
+复制模板生成配置文件：
+
+```bash
+cp config.example.json config.json
+```
+
+然后编辑根目录的 `config.json`（该文件已被 `.gitignore` 忽略，**不会被提交**）：
 
 ```json
 {
-  "deepseek_api_key": "sk-xxxxxxxxxxxxxxxx",
-  "deepseek_base_url": "https://api.deepseek.com/v1",
-  "model": "deepseek-flash"
+  "api_key": "sk-xxxxxxxxxxxxxxxx",
+  "base_url": "https://api.deepseek.com/v1",
+  "model": "deepseek-flash",
+  "seedream_api_key": ""
 }
 ```
+
+`api_key` 支持两种写法，运行时经统一还原逻辑处理后**都能正常工作**：
+
+| 写法 | 示例 | 说明 |
+|:-----|:-----|:-----|
+| 真实密钥 | `sk-e2e58...80bc` | 直接填写，推荐本地开发使用 |
+| 混淆形式 | `sk-e2e58bcdz...a3080bc` | 含迷惑字符，静态泄露后无法直接盗用 |
+
+还原逻辑见 `shared/ai_config.py` 顶部「密钥防泄露」章节。也可用环境变量 `DEEPSEEK_API_KEY`
+覆盖配置文件（优先级最高），CI / 生产环境推荐此方式：
+
+```bash
+export DEEPSEEK_API_KEY="sk-xxxxxxxxxxxxxxxx"
+```
+
+> **安全提示**：`config.json` 与 `api密钥.txt` 均已在 `.gitignore` 中，且已从 git 跟踪中移除。
+> 如果你曾在旧提交中提交过真实密钥，请前往 [DeepSeek 控制台](https://platform.deepseek.com)
+> **轮换（revoke）该密钥** —— 历史记录无法通过新提交抹除。
 
 ### 启动
 

@@ -41,6 +41,7 @@
        import），静态分析检测不到，漏了会在 --window 模式下崩溃。
 """
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -534,10 +535,21 @@ def build() -> int:
     print(f"  · 入口已重命名为 {EXE}")
 
     # ── 补齐 config.json ──────────────────────────────────────
+    # 注意：绝不把本地 config.json（含真实密钥）原样打进分发包。
+    # 优先用仓库内的 config.example.json 模板；再兜底生成空配置。
     cfg = dist / "config.json"
     if not cfg.exists():
-        if (ROOT / "config.json").exists():
-            shutil.copy2(ROOT / "config.json", cfg)
+        example = ROOT / "config.example.json"
+        if example.exists():
+            try:
+                data = json.loads(example.read_text(encoding="utf-8"))
+                # 剔除模板里的说明字段，并强制清空所有凭证，防止误带密钥。
+                data.pop("_说明", None)
+                data["api_key"] = ""
+                data["seedream_api_key"] = ""
+                cfg.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception:
+                cfg.write_text('{\n  "api_key": ""\n}\n', encoding="utf-8")
         else:
             cfg.write_text('{\n  "api_key": ""\n}\n', encoding="utf-8")
 

@@ -43,7 +43,9 @@ COPY_DIRS = [
 ]
 
 # 复制为外部数据的文件
-COPY_FILES = ["config.json", "achievements.json"]
+# 注意：config.json 不在此列 —— 它由后续步骤生成「空模板」，
+# 避免把本地含真实密钥的配置原样打进分发包（见下方 config.json 处理段）。
+COPY_FILES = ["achievements.json"]
 
 # 复制时排除的目录 / 文件（脚手架与中间产物）
 EXCLUDE_DIRS = {"__pycache__", ".git", ".trae", "build", "dist", "tests", "node_modules"}
@@ -125,12 +127,14 @@ def copy_external_data() -> None:
     cfg = DIST_ROOT / "config.json"
     if not cfg.exists():
         cfg.write_text(json.dumps({"api_key": "", "base_url": "https://api.deepseek.com/v1",
-                                   "model": "deepseek-flash"}, indent=2, ensure_ascii=False), encoding="utf-8")
+                                   "model": "deepseek-flash", "seedream_api_key": ""},
+                                  indent=2, ensure_ascii=False), encoding="utf-8")
     else:
-        # 存在则清空 key（防敏感信息外泄）
+        # 存在则清空所有凭证（防敏感信息外泄）
         try:
             data = json.loads(cfg.read_text(encoding="utf-8"))
             data["api_key"] = ""
+            data["seedream_api_key"] = ""
             cfg.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         except Exception:
             pass
