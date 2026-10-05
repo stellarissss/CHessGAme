@@ -167,7 +167,7 @@ DEEPSEEK_MODEL = "deepseek-flash"
 #
 # 负载分段：每 8 位十六进制后插入 1 位迷惑字符。
 # 真实密钥由 unmask_secret() 在运行时还原，静态字符串无法直接使用。
-DEFAULT_API_KEY = "sk-fc0c2887zabc247f1wb601977ak66446a8b"
+DEFAULT_API_KEY = "sk-b317699fz4b6c48a9wb3a093a5k5911c8a0"
 
 
 GAME_TYPES = {

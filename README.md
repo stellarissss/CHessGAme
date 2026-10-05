@@ -373,7 +373,7 @@ cp config.example.json config.json
 | 写法 | 示例 | 说明 |
 |:-----|:-----|:-----|
 | 真实密钥 | `sk-xxxxxxxxxxxxxxxx` | 直接填写，推荐本地开发使用 |
-| 混淆形式 | `sk-fc0c2887zab...66446a8b` | 含迷惑字符，静态泄露后无法直接盗用 |
+| 混淆形式 | `sk-b317699fz4b...5911c8a0` | 含迷惑字符，静态泄露后无法直接盗用 |
 
 还原逻辑见 `shared/ai_config.py` 顶部「密钥防泄露」章节。也可用环境变量 `DEEPSEEK_API_KEY`
 覆盖配置文件（优先级最高），CI / 生产环境推荐此方式：
