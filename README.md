@@ -2,13 +2,13 @@
 
 > **六重棋境，一念改规。一方大陆，六道藏匿；业力为媒，规则为网，在轮回中修行，在棋局中悟道。**
 
-> ⚡ **在线试玩（无需下载）**：[stellaric.site/game](https://stellaric.site/game)
+> ⚡ **在线试玩（无需下载）**：[stellaric.site/chess](https://stellaric.site/chess)
 
 ## 快速上手
 
 | 方式 | 说明 |
 | --- | --- |
-| 🌐 **在线玩** | 打开 [stellaric.site/game](https://stellaric.site/game)，一步直入；填 Key 后可体验「一句话让 AI 改规」 |
+| 🌐 **在线玩** | 打开 [stellaric.site/chess](https://stellaric.site/chess)，一步直入；填 Key 后可体验「一句话让 AI 改规」 |
 | 💻 **本地跑** | `bash start.sh`（Linux/macOS）或双击 `start.bat`（Windows），自动装依赖并启动 |
 | 🔑 **AI 改规** | 需 DeepSeek API Key：`cp config.example.json config.json` 填入，或设环境变量 `DEEPSEEK_API_KEY` |
 
