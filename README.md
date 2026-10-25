@@ -9,8 +9,8 @@
 | 方式 | 说明 |
 | --- | --- |
 | 🌐 **在线玩** | 打开 [stellaric.site/game](https://stellaric.site/game)，一步直入；填 Key 后可体验「一句话让 AI 改规」 |
-| 💻 **本地跑** | （Linux/macOS）或双击 （Windows），自动装依赖并启动 |
-| 🔑 **AI 改规** | 需 DeepSeek API Key： 填入，或设环境变量  |
+| 💻 **本地跑** | `bash start.sh`（Linux/macOS）或双击 `start.bat`（Windows），自动装依赖并启动 |
+| 🔑 **AI 改规** | 需 DeepSeek API Key：`cp config.example.json config.json` 填入，或设环境变量 `DEEPSEEK_API_KEY` |
 
 > 本地运行需 Python 3.10+。启动后会自动打开浏览器进入「六道众生」总坛。
 
