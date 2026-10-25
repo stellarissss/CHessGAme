@@ -1126,7 +1126,9 @@ class XiangqiBoard extends HTMLElement {
     #app { height: auto; min-height: 100%; overflow-y: auto; }
     .main { overflow: visible; }
     /* 棋盘按屏宽自适应（保持 9:10 比例），并允许整页滚动 */
-    #board-container { width: min(92vw, 420px); height: calc(min(92vw, 420px) * 10 / 9); }
+    /* 棋盘宽度扣掉两侧 padding，保证不横向溢出；禁止双击缩放 */
+    #board-container { width: min(calc(100vw - 32px), 420px); height: calc(min(calc(100vw - 32px), 420px) * 10 / 9); }
+    #app, #app * { touch-action: manipulation; }
     .main {
         flex-direction: column;
         padding: 16px 20px;
@@ -3157,11 +3159,7 @@ class XiangqiBoard extends HTMLElement {
         this.showThinking('ChatAI 正在理解您的意图...', '意图解析');
 
         try {
-            const resp = await fetch(`${this.apiBase}/api/command`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ command: command })
-            });
+            const resp = await this._commandFetch(command);
             const data = await resp.json();
 
             this.hideThinking();
@@ -3826,6 +3824,70 @@ class XiangqiBoard extends HTMLElement {
     }
 
     
+    /* ---- 速览版：补齐被移除的 RPG 胶水层方法（纯沙盒精简实现） ---- */
+    async rpgRestart() {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                this.boardState = data.board_state;
+                await this.loadConfigs();
+                this.renderBoard();
+                this.addMessage(data.message || '对局已重新开始', 'success');
+            }
+            return data;
+        } catch (e) {
+            this.addMessage(`重开失败: ${e.message}`, 'error');
+            return { success: false };
+        }
+    }
+
+    async rpgResetConfigsHandler(mode) {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/reset_configs`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) {
+                await this.loadConfigs();
+                this.renderBoard();
+                this.addMessage(data.message || '所有配置已重置为默认', 'success');
+            }
+            return data;
+        } catch (e) {
+            this.addMessage(`重置失败: ${e.message}`, 'error');
+            return { success: false };
+        }
+    }
+
+    async rpgResetBattleAndApply(opts) {
+        try {
+            const resp = await fetch(`${this.apiBase}/api/restart`, { method: 'POST' });
+            const data = await resp.json();
+            if (data.success) this.boardState = data.board_state;
+            return data;
+        } catch (e) {
+            return { success: false };
+        }
+    }
+
+    rpgShowThinking(msg, stage) { this.showThinking(msg || 'AI 正在思考...', stage || ''); }
+    rpgHideThinking() { this.hideThinking(); }
+
+    /* ---- 指令请求：120s 超时保护，避免长 LLM 调用悬空时无限等待 ---- */
+    async _commandFetch(command) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 120000);
+        try {
+            return await fetch(`${this.apiBase}/api/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command }),
+                signal: ctrl.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
     async restart() {
         // 沙盒：RPG 重玩（fallback /api/restart + 全重绘）
         return this.rpgRestart();
