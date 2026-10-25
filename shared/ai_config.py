@@ -60,7 +60,7 @@
            真实密钥的 32 位十六进制负载中，被插入了若干「迷惑字符」：
            每 8 位十六进制后插入 1 位非十六进制字符作为分隔。例如（示意）：
 
-               sk-fc0c2887zabc247f1wb601977ak66446a8b
+               <示例已移除>
 
            因此静态串「看起来像正常密钥」，但直接拿去请求 API 会被网关
            以 401 拒绝 —— 这正是我们要的效果。
@@ -181,7 +181,7 @@ DEEPSEEK_MODEL = "deepseek-flash"
 #
 # 负载分段：每 8 位十六进制后插入 1 位迷惑字符。
 # 真实密钥由 unmask_secret() 在运行时还原，静态字符串无法直接使用。
-DEFAULT_API_KEY = "sk-b317699fz4b6c48a9wb3a093a5k5911c8a0"
+DEFAULT_API_KEY = ""   # 无默认密钥：必须通过环境变量 DEEPSEEK_API_KEY 或 config.json 提供
 
 
 GAME_TYPES = {
