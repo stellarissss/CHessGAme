@@ -1122,6 +1122,11 @@ class XiangqiBoard extends HTMLElement {
 
 /* Responsive */
 @media (max-width: 900px) {
+    /* 移动端：放开滚动，避免固定视口裁掉内容 */
+    #app { height: auto; min-height: 100%; overflow-y: auto; }
+    .main { overflow: visible; }
+    /* 棋盘按屏宽自适应（保持 9:10 比例），并允许整页滚动 */
+    #board-container { width: min(92vw, 420px); height: calc(min(92vw, 420px) * 10 / 9); }
     .main {
         flex-direction: column;
         padding: 16px 20px;
